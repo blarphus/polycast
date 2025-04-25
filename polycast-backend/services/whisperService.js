@@ -20,10 +20,11 @@ async function transcribeAudio(audioBuffer, filename = 'audio.webm') {
         throw new Error('Audio buffer is empty or invalid.');
     }
 
+    // Directly send the received buffer as webm to Whisper
     const form = new FormData();
     form.append('file', audioBuffer, {
         filename: filename, // Whisper needs a filename with a valid extension
-        contentType: 'audio/webm', // Adjust if your input format is different
+        contentType: 'audio/webm',
     });
     form.append('model', 'whisper-1');
     // Add other parameters if needed, e.g., language: 'en'

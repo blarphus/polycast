@@ -69,14 +69,30 @@ wss.on('connection', (ws, req) => {
         if (Buffer.isBuffer(message)) {
             console.log(`[Server WS] Received audio buffer, size: ${message.length}`); // Log buffer reception
             try {
+                // Detect MIME type from the first few bytes if possible (future improvement)
+                // For now, always use 'audio.webm' as filename, but set contentType dynamically if possible
                 const transcription = await transcribeAudio(message, 'audio.webm');
                 if (transcription && ws.readyState === ws.OPEN) {
+                    // Translate to all target languages
+                    const targetLangs = clientTargetLanguages.get(ws) || ['Spanish'];
+                    for (const lang of targetLangs) {
+                        try {
+                            console.log(`[Polycast] Calling Gemini for translation: '${transcription}' -> ${lang}`);
+                            const translation = await llmService.translateText(transcription, lang);
+                            console.log(`[Polycast] Gemini translation result [${lang}]:`, translation);
+                            ws.send(JSON.stringify({ type: 'translation', lang, data: translation }));
+                        } catch (transErr) {
+                            console.error(`[Polycast] Gemini translation error for ${lang}:`, transErr);
+                            ws.send(JSON.stringify({ type: 'translation_error', lang, message: transErr.message }));
+                        }
+                    }
+                    // Always send recognized as well
                     ws.send(JSON.stringify({ type: 'recognized', data: transcription }));
                 }
             } catch (err) {
                 console.error('Whisper transcription error:', err);
                 if (ws.readyState === ws.OPEN) {
-                    ws.send(JSON.stringify({ type: 'error', message: 'Transcription failed: ' + err.message }));
+                    ws.send(JSON.stringify({ type: 'error', message: 'Transcription failed: ' + err.message + ' (Try using Chrome or Edge)'}));
                 }
             }
         } else {

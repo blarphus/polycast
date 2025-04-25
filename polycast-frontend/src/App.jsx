@@ -96,6 +96,18 @@ function App({ targetLanguages }) {
         } else if (parsedData.type === 'info') {
           console.log('Backend Info:', parsedData.message);
           // Optionally display info messages somewhere
+        } else if (parsedData.type === 'translation') {
+          // Handle single translation (non-batch)
+          setTranslations(prevTranslations => {
+            const newTranslations = { ...prevTranslations };
+            const lang = parsedData.lang;
+            const currentLangSegments = newTranslations[lang] || [];
+            newTranslations[lang] = [
+              ...currentLangSegments.map(seg => ({ ...seg, isNew: false })),
+              { text: parsedData.data, isNew: true }
+            ];
+            return newTranslations;
+          });
         } else if (parsedData.type === 'translations_batch') {
           console.log('Received Translation Batch:', parsedData.data);
           // Update multiple translations
@@ -127,6 +139,19 @@ function App({ targetLanguages }) {
     }
   }, [lastMessage, showLiveEnglish]); // Add showLiveEnglish to dependency array
 
+  // Listen for toggleLiveEnglish event from Controls
+  useEffect(() => {
+    function handler(e) { setShowLiveEnglish(!!e.detail); }
+    window.addEventListener('toggleLiveEnglish', handler);
+    return () => window.removeEventListener('toggleLiveEnglish', handler);
+  }, []);
+
+  // Provide a global getter for Controls to read the toggle state
+  useEffect(() => {
+    window.showLiveEnglish = () => showLiveEnglish;
+    return () => { delete window.showLiveEnglish; };
+  }, [showLiveEnglish]);
+
   // Handlers for recording controls (passed down to Controls)
   const handleStartRecording = useCallback(() => {
     console.log('APP: Start Recording');
@@ -143,10 +168,6 @@ function App({ targetLanguages }) {
     console.log('APP: Stop Recording');
     setIsRecording(false);
   }, []);
-
-  const handleToggleLiveEnglish = () => {
-      setShowLiveEnglish(prev => !prev);
-  };
 
   // Get connection status string
   const connectionStatus = {
@@ -182,19 +203,10 @@ function App({ targetLanguages }) {
           <Controls
             readyState={readyState}
             isRecording={isRecording}
-            onStartRecording={handleStartRecording}
-            onStopRecording={handleStopRecording}
+            onStartRecording={() => setIsRecording(true)}
+            onStopRecording={() => setIsRecording(false)}
           />
           {/* Add Toggle Button/Checkbox */} 
-          <div className="toggle-control">
-            <input 
-                type="checkbox" 
-                id="liveEnglishToggle"
-                checked={showLiveEnglish}
-                onChange={handleToggleLiveEnglish}
-            />
-            <label htmlFor="liveEnglishToggle">Show Live English</label>
-          </div>
         </div>
         <div className="display-container">
           <TranscriptionDisplay 
