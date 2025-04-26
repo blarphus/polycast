@@ -376,3 +376,58 @@ h1, h2, h3 {
     flex-grow: 10;
     min-height: 50vh;
 }
+
+/* Unified toolbar/header styles - COMPACT HORIZONTAL LAYOUT */
+.main-toolbar {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto 18px auto;
+  padding: 0.3em 1em;
+  background: #22223a;
+  border-radius: 16px;
+  box-shadow: 0 4px 18px 0 rgba(60, 60, 90, 0.09);
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 48px;
+  gap: 18px;
+}
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.app-title {
+  color: #f7f7fa;
+  font-size: 1.55rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  margin-left: 2px;
+  line-height: 1.1;
+}
+.toolbar-center {
+  display: flex;
+  align-items: center;
+  font-size: 1rem;
+  color: #eaeafd;
+  gap: 16px;
+  margin-left: 28px;
+}
+.toolbar-label {
+  font-weight: 700;
+  color: #b3b3e7;
+  margin-right: 2px;
+}
+.main-toolbar select {
+  background: #2a2a44;
+  color: #fff;
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 1rem;
+  margin-left: 4px;
+  height: 28px;
+}
+.main-toolbar select:focus {
+  outline: 2px solid #7c62ff;
+}

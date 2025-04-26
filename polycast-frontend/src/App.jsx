@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types'; // Add PropTypes import
 import useWebSocket, { ReadyState } from 'react-use-websocket';
 import './App.css'
@@ -39,6 +39,51 @@ function App({ targetLanguages }) {
   const [translations, setTranslations] = useState({}); // Structure: { lang: [{ text: string, isNew: boolean }] }
   const [errorMessages, setErrorMessages] = useState([]); 
   const [showLiveEnglish, setShowLiveEnglish] = useState(true); // State for toggle
+  const [isTextMode, setIsTextMode] = useState(false);
+  const [modeError, setModeError] = useState(null);
+  const modeRef = useRef(isTextMode);
+
+  // Fetch mode from backend
+  const fetchMode = useCallback(async () => {
+    try {
+      const res = await fetch('/mode');
+      const data = await res.json();
+      setIsTextMode(data.isTextMode);
+      modeRef.current = data.isTextMode;
+    } catch (err) {
+      console.error('Failed to fetch mode:', err);
+    }
+  }, []);
+
+  // Update mode on backend
+  const updateMode = useCallback(async (value) => {
+    setIsTextMode(value); // Optimistically update UI
+    setModeError(null);
+    try {
+      const res = await fetch('/mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isTextMode: value })
+      });
+      if (!res.ok) throw new Error('Failed to update mode: ' + res.status);
+      const data = await res.json();
+      setIsTextMode(data.isTextMode);
+      modeRef.current = data.isTextMode;
+    } catch (err) {
+      setModeError('Could not update mode: ' + err.message);
+      setIsTextMode(modeRef.current); // Revert UI if error
+      console.error('Failed to update mode:', err);
+    }
+  }, []);
+
+  // On mount, fetch initial mode
+  useEffect(() => { fetchMode(); }, [fetchMode]);
+
+  // Poll mode every 5s to keep in sync
+  useEffect(() => {
+    const interval = setInterval(fetchMode, 5000);
+    return () => clearInterval(interval);
+  }, [fetchMode]);
 
   const { sendMessage, lastMessage, readyState } = useWebSocket(socketUrl, {
     onOpen: () => {
@@ -169,6 +214,11 @@ function App({ targetLanguages }) {
     setIsRecording(false);
   }, []);
 
+  // Pass mode state and update logic to Controls
+  const handleSetIsTextMode = useCallback((value) => {
+    updateMode(value); // Update backend and local state
+  }, [updateMode]);
+
   // Get connection status string
   const connectionStatus = {
     [ReadyState.CONNECTING]: 'Connecting',
@@ -179,12 +229,33 @@ function App({ targetLanguages }) {
   }[readyState];
 
   return (
-    <>
-      <h1>Polycast v0.1</h1>
-      {/* Display Target Languages */}
-      <div className="status">Target Languages: {targetLanguages.join(', ')}</div> 
-      <div className="status">Connection Status: {connectionStatus}</div>
-      {/* Display errors */}
+    <div className="App">
+      {/* Unified Toolbar/Header */}
+      <header className="main-toolbar">
+        <div className="toolbar-left">
+          <img src="/logo192.png" alt="Polycast Logo" style={{ height: 44, marginRight: 14, verticalAlign: 'middle' }} />
+          <span className="app-title">Polycast v0.1</span>
+        </div>
+        <div className="toolbar-center">
+          <span className="toolbar-label">Target Languages:</span> {targetLanguages.join(', ')}
+          <span className="toolbar-label" style={{ marginLeft: 18 }}>Connection:</span> {connectionStatus}
+          <span className="toolbar-label" style={{ marginLeft: 18 }}>isTextMode:</span> <b>{String(isTextMode)}</b>
+          <span className="toolbar-label" style={{ marginLeft: 18 }}>Mode:</span>
+          <select
+            value={isTextMode ? 'text' : 'audio'}
+            onChange={e => handleSetIsTextMode(e.target.value === 'text')}
+            style={{ minWidth: 90, fontSize: 15, padding: '2px 6px', borderRadius: 6, marginLeft: 4 }}
+          >
+            <option value="text">text mode</option>
+            <option value="audio">audio mode</option>
+          </select>
+        </div>
+      </header>
+      {modeError && (
+        <div style={{ color: 'red', fontWeight: 500, marginBottom: 8 }}>
+          {modeError}
+        </div>
+      )}
       {errorMessages.length > 0 && (
         <div className="error-display">
           <h3>Errors:</h3>
@@ -193,7 +264,7 @@ function App({ targetLanguages }) {
           </ul>
         </div>
       )}
-      <div className="main-container">
+      <div style={{ marginTop: 24 }}>
         <div className="controls-container">
           {/* Pass sendMessage down to components that need to send audio */}
           <AudioRecorder
@@ -203,10 +274,11 @@ function App({ targetLanguages }) {
           <Controls
             readyState={readyState}
             isRecording={isRecording}
-            onStartRecording={() => setIsRecording(true)}
-            onStopRecording={() => setIsRecording(false)}
+            onStartRecording={handleStartRecording}
+            onStopRecording={handleStopRecording}
+            isTextMode={isTextMode}
+            setIsTextMode={handleSetIsTextMode}
           />
-          {/* Add Toggle Button/Checkbox */} 
         </div>
         <div className="display-container">
           <TranscriptionDisplay 
@@ -217,7 +289,7 @@ function App({ targetLanguages }) {
           />
         </div>
       </div>
-    </>
+    </div>
   )
 }
 

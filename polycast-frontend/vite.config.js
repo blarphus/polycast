@@ -21,5 +21,8 @@ export default defineConfig({
         // Add the specific current one just in case wildcard fails:
         // '5cb0-207-45-83-227.ngrok-free.app' 
     ],
+    proxy: {
+      '/mode': 'http://localhost:8080'
+    }
   },
 })

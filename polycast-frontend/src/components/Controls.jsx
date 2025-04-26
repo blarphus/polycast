@@ -10,6 +10,8 @@ function Controls({
     isRecording,
     onStartRecording,
     onStopRecording,
+    isTextMode,
+    setIsTextMode,
     // Removed language props
 }) {
     const isConnected = readyState === ReadyState.OPEN;
@@ -28,6 +30,18 @@ function Controls({
             >
                 Stop Recording
             </button>
+            {/* Mode Dropdown */}
+            <div style={{ marginLeft: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <label style={{ color: '#ccc', fontSize: 15, fontWeight: 500 }}>Mode:</label>
+                <select
+                    value={isTextMode ? 'text' : 'audio'}
+                    onChange={e => setIsTextMode(e.target.value === 'text')}
+                    style={{ minWidth: 90, fontSize: 15, padding: '2px 6px', borderRadius: 6 }}
+                >
+                    <option value="text">text mode</option>
+                    <option value="audio">audio mode</option>
+                </select>
+            </div>
             {/* Show Live English Toggle */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginLeft: 24 }}>
                 <label style={{ color: '#ccc', fontSize: 16, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -76,6 +90,8 @@ Controls.propTypes = {
     isRecording: PropTypes.bool.isRequired,
     onStartRecording: PropTypes.func.isRequired,
     onStopRecording: PropTypes.func.isRequired,
+    isTextMode: PropTypes.bool.isRequired,
+    setIsTextMode: PropTypes.func.isRequired,
     // Removed language prop types
 };
 

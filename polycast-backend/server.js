@@ -114,6 +114,24 @@ wss.on('connection', (ws, req) => {
     ws.send(JSON.stringify({ type: 'info', message: `Connected to Polycast backend (Targets: ${targetLangsArray.join(', ')})` }));
 });
 
+// === Polycast Mode State ===
+let isTextMode = false;
+
+// Endpoint to get current mode
+app.get('/mode', (req, res) => {
+    res.json({ isTextMode });
+});
+
+// Endpoint to set mode
+app.post('/mode', express.json(), (req, res) => {
+    if (typeof req.body.isTextMode === 'boolean') {
+        isTextMode = req.body.isTextMode;
+        res.json({ isTextMode });
+    } else {
+        res.status(400).json({ error: 'isTextMode must be boolean' });
+    }
+});
+
 // Start the HTTP server
 server.listen(config.port, () => {
     console.log(`HTTP server listening on port ${config.port}`);
