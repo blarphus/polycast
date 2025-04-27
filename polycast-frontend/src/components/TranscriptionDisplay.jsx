@@ -38,13 +38,23 @@ function useWindowSize() {
 /**
  * Displays the received transcription and multiple translation texts in a split-screen style layout.
  */
-const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, showLiveEnglish }) => {
+const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, showLiveEnglish, isTextMode, onTextSubmit, textInputs, setTextInputs }) => {
   const englishRef = useRef(null);
   const translationRefs = useRef({});
   const [fontSize, setFontSize] = useState(18);
   const containerRef = useRef(null);
   const [containerSize, setContainerSize] = useState({ width: 1200, height: 600 });
   const [langBoxStates, setLangBoxStates] = useState([]);
+
+  const handleInputChange = (lang, value) => {
+    setTextInputs(inputs => ({ ...inputs, [lang]: value }));
+  };
+
+  const handleSubmit = (lang) => {
+    if (onTextSubmit && typeof onTextSubmit === 'function') {
+      onTextSubmit(lang, textInputs[lang] || '');
+    }
+  };
 
   useEffect(() => {
     function updateSize() {
@@ -121,7 +131,34 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
     return {
       key: lang,
       label: lang,
-      content: renderSegments(translations[lang]),
+      content: isTextMode ? (
+        <div style={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column', flex: 1 }}>
+          <textarea
+            value={textInputs[lang] ?? ''}
+            onChange={e => handleInputChange(lang, e.target.value)}
+            placeholder={`Type ${lang} text here...`}
+            style={{
+              width: '100%',
+              height: '100%',
+              flex: 1,
+              fontSize: fontSize,
+              borderRadius: 6,
+              border: `1.5px solid ${scheme.accent}`,
+              padding: 8,
+              resize: 'none',
+              background: scheme.bg,
+              color: scheme.fg,
+              boxSizing: 'border-box',
+            }}
+          />
+          <button
+            style={{ alignSelf: 'flex-end', background: scheme.accent, color: '#fff', border: 'none', borderRadius: 6, padding: '6px 16px', fontWeight: 700, cursor: 'pointer', fontSize: fontSize - 2, marginTop: 8 }}
+            onClick={() => handleSubmit(lang)}
+          >
+            Submit
+          </button>
+        </div>
+      ) : renderSegments(translations[lang]),
       color: scheme,
       initX: layout.x,
       initY: layout.y,
@@ -129,6 +166,45 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
       initH: layout.h,
     };
   });
+
+  const renderEnglishBox = () => {
+    const scheme = colorSchemes[0];
+    if (isTextMode) {
+      return (
+        <div style={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column', flex: 1 }}>
+          <textarea
+            value={textInputs['English'] ?? ''}
+            onChange={e => handleInputChange('English', e.target.value)}
+            placeholder={`Type English text here...`}
+            style={{
+              width: '100%',
+              height: '100%',
+              flex: 1,
+              fontSize: fontSize,
+              borderRadius: 6,
+              border: `1.5px solid ${scheme.accent}`,
+              padding: 8,
+              resize: 'none',
+              background: scheme.bg,
+              color: scheme.fg,
+              boxSizing: 'border-box',
+            }}
+          />
+          <button
+            style={{ alignSelf: 'flex-end', background: scheme.accent, color: '#fff', border: 'none', borderRadius: 6, padding: '6px 16px', fontWeight: 700, cursor: 'pointer', fontSize: fontSize - 2, marginTop: 8 }}
+            onClick={() => handleSubmit('English')}
+          >
+            Submit
+          </button>
+        </div>
+      );
+    } else {
+      if (textInputs['English']) {
+        return <span>{textInputs['English']}</span>;
+      }
+      return renderSegments(englishSegments);
+    }
+  };
 
   return (
     <div ref={containerRef} className="split-transcription-layout" style={{ position: 'relative', width: '100%', height: `calc(100vh - 260px - ${BOTTOM_MARGIN}px)`, margin: `0 auto ${BOTTOM_MARGIN}px auto`, overflow: 'hidden', minHeight: 400, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -160,7 +236,7 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
         >
           <span style={{ letterSpacing: 0.5 }}>English</span>
           <div style={{ marginTop: 8, fontWeight: 400, fontSize: fontSize, width: '100%', textAlign: 'center' }} ref={englishRef}>
-            {renderSegments(englishSegments)}
+            {renderEnglishBox()}
             <div className="scroll-end" />
           </div>
         </DraggableResizableBox>
@@ -214,12 +290,18 @@ TranscriptionDisplay.propTypes = {
   }))),
   targetLanguages: PropTypes.arrayOf(PropTypes.string).isRequired,
   showLiveEnglish: PropTypes.bool,
+  isTextMode: PropTypes.bool,
+  onTextSubmit: PropTypes.func,
+  textInputs: PropTypes.object.isRequired,
+  setTextInputs: PropTypes.func.isRequired,
 };
 
 TranscriptionDisplay.defaultProps = {
   englishSegments: [],
   translations: {},
   showLiveEnglish: true,
+  isTextMode: false,
+  onTextSubmit: null,
 };
 
 export default TranscriptionDisplay;

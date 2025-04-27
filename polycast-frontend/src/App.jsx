@@ -39,8 +39,9 @@ function App({ targetLanguages }) {
   const [translations, setTranslations] = useState({}); // Structure: { lang: [{ text: string, isNew: boolean }] }
   const [errorMessages, setErrorMessages] = useState([]); 
   const [showLiveEnglish, setShowLiveEnglish] = useState(true); // State for toggle
-  const [isTextMode, setIsTextMode] = useState(false);
+  const [isTextMode, setIsTextMode] = useState(false); // Default to audio mode
   const [modeError, setModeError] = useState(null);
+  const [textInputs, setTextInputs] = useState({}); // Lifted state
   const modeRef = useRef(isTextMode);
 
   // Fetch mode from backend
@@ -153,6 +154,13 @@ function App({ targetLanguages }) {
             ];
             return newTranslations;
           });
+          // Update textInputs in text mode
+          if (isTextMode) {
+            setTextInputs(inputs => ({
+              ...inputs,
+              [parsedData.lang]: parsedData.data
+            }));
+          }
         } else if (parsedData.type === 'translations_batch') {
           console.log('Received Translation Batch:', parsedData.data);
           // Update multiple translations
@@ -197,7 +205,7 @@ function App({ targetLanguages }) {
     return () => { delete window.showLiveEnglish; };
   }, [showLiveEnglish]);
 
-  // Handlers for recording controls (passed down to Controls)
+  // Handlers for recording controls (passed down to components that need to send audio)
   const handleStartRecording = useCallback(() => {
     console.log('APP: Start Recording');
     // Reset states
@@ -286,6 +294,13 @@ function App({ targetLanguages }) {
             translations={translations} 
             targetLanguages={targetLanguages} 
             showLiveEnglish={showLiveEnglish} // Pass toggle state
+            isTextMode={isTextMode}
+            onTextSubmit={(lang, text) => {
+              // Send text submission for translation to backend
+              sendMessage(JSON.stringify({ type: 'text_submit', lang, text }));
+            }}
+            textInputs={textInputs}
+            setTextInputs={setTextInputs}
           />
         </div>
       </div>

@@ -65,8 +65,53 @@ wss.on('connection', (ws, req) => {
     clientTextBuffers.set(ws, { text: '', lastEndTimeMs: 0 }); // Ensure this uses correct state
 
     ws.on('message', async (message) => {
-        // Only process buffers (audio)
+        // Log the raw message and its type for debugging
+        console.log('[WS DEBUG] Raw message:', message);
+        console.log('[WS DEBUG] typeof message:', typeof message);
         if (Buffer.isBuffer(message)) {
+            // Try to parse as string first
+            try {
+                const msgString = message.toString('utf8');
+                console.log('[WS DEBUG] Buffer as string:', msgString);
+                const data = JSON.parse(msgString);
+                if (data && data.type === 'text_submit') {
+                    console.log('[WS DEBUG] Parsed text_submit from buffer:', data);
+                    if (isTextMode) {
+                        const translateThis = data.text;
+                        const sourceLang = data.lang;
+                        const targetLangs = clientTargetLanguages.get(ws) || ['Spanish'];
+                        // Always include English as a possible translation target
+                        const allLangs = Array.from(new Set(['English', ...targetLangs]));
+                        // Use textModeLLM for text mode, llmService for audio mode
+                        if (isTextMode) {
+                            // Use textModeLLM with sourceLang and targetLangs
+                            const textModeLLM = require('./services/textModeLLM');
+                            const translations = await textModeLLM.translateTextBatch(translateThis, sourceLang, allLangs);
+                            for (const lang of allLangs) {
+                                if (lang !== sourceLang) {
+                                    ws.send(JSON.stringify({ type: 'translation', lang, data: translations[lang] }));
+                                }
+                            }
+                        } else {
+                            // Use llmService for audio mode (default prompt)
+                            const llmService = require('./services/llmService');
+                            for (const lang of allLangs) {
+                                if (lang !== sourceLang) {
+                                    const translation = await llmService.translateText(translateThis, lang);
+                                    ws.send(JSON.stringify({ type: 'translation', lang, data: translation }));
+                                }
+                            }
+                        }
+                        ws.send(JSON.stringify({ type: 'recognized', lang: sourceLang, data: translateThis }));
+                    } else {
+                        ws.send(JSON.stringify({ type: 'error', message: 'Text submissions are only allowed in text mode.' }));
+                    }
+                    return; // Do not process as audio
+                }
+            } catch (err) {
+                console.log('[WS DEBUG] Buffer is not JSON, treating as audio. Error:', err.message);
+                // Not JSON, so treat as audio buffer
+            }
             console.log(`[Server WS] Received audio buffer, size: ${message.length}`); // Log buffer reception
             try {
                 // Detect MIME type from the first few bytes if possible (future improvement)
@@ -95,8 +140,47 @@ wss.on('connection', (ws, req) => {
                     ws.send(JSON.stringify({ type: 'error', message: 'Transcription failed: ' + err.message + ' (Try using Chrome or Edge)'}));
                 }
             }
+        } else if (typeof message === 'string') {
+            console.log('[WS DEBUG] Received string message:', message);
+            try {
+                const data = JSON.parse(message);
+                if (data.type === 'text_submit') {
+                    console.log('[WS DEBUG] Parsed text_submit from string:', data);
+                    if (isTextMode) {
+                        const translateThis = data.text;
+                        const sourceLang = data.lang;
+                        const targetLangs = clientTargetLanguages.get(ws) || ['Spanish'];
+                        // Always include English as a possible translation target
+                        const allLangs = Array.from(new Set(['English', ...targetLangs]));
+                        // Use textModeLLM for text mode, llmService for audio mode
+                        if (isTextMode) {
+                            // Use textModeLLM with sourceLang and targetLangs
+                            const textModeLLM = require('./services/textModeLLM');
+                            const translations = await textModeLLM.translateTextBatch(translateThis, sourceLang, allLangs);
+                            for (const lang of allLangs) {
+                                if (lang !== sourceLang) {
+                                    ws.send(JSON.stringify({ type: 'translation', lang, data: translations[lang] }));
+                                }
+                            }
+                        } else {
+                            // Use llmService for audio mode (default prompt)
+                            const llmService = require('./services/llmService');
+                            for (const lang of allLangs) {
+                                if (lang !== sourceLang) {
+                                    const translation = await llmService.translateText(translateThis, lang);
+                                    ws.send(JSON.stringify({ type: 'translation', lang, data: translation }));
+                                }
+                            }
+                        }
+                        ws.send(JSON.stringify({ type: 'recognized', lang: sourceLang, data: translateThis }));
+                    } else {
+                        ws.send(JSON.stringify({ type: 'error', message: 'Text submissions are only allowed in text mode.' }));
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to parse or handle text_submit:', err);
+            }
         } else {
-            // Ignore non-buffer messages
             console.warn('[Server] Received unexpected non-buffer message, ignoring.');
         }
     });

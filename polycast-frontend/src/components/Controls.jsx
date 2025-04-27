@@ -20,13 +20,13 @@ function Controls({
         <div className="controls">
             <button
                 onClick={onStartRecording}
-                disabled={!isConnected || isRecording}
+                disabled={!isConnected || isRecording || isTextMode}
             >
                 Start Recording
             </button>
             <button
                 onClick={onStopRecording}
-                disabled={!isConnected || !isRecording}
+                disabled={!isConnected || !isRecording || isTextMode}
             >
                 Stop Recording
             </button>

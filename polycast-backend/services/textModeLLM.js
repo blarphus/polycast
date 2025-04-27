@@ -33,7 +33,11 @@ async function translateTextBatch(sourceText, sourceLang, targetLangs) {
     initializeLLM();
     const results = {};
     for (const lang of targetLangs) {
-        if (lang === sourceLang) continue;
+        // Always translate, even if lang === 'English' or sourceLang === 'English'
+        if (lang === sourceLang) {
+            results[lang] = sourceText;
+            continue;
+        }
         const prompt = `This is text in ${sourceLang}. Translate this to ${lang} as if you were an interpreter. Try to make this a faithful translation, but if there are errors or a direct translation wouldn't make sense in ${lang}, do your best to make it make sense. Otherwise, stay as close to the original meaning as possible. Only output your translation without other preamble; again, ONLY output the translation.\n\nInput: \"${sourceText}\"`;
         try {
             const result = await model.generateContent({ contents: [{ parts: [{ text: prompt }] }] });
@@ -44,7 +48,6 @@ async function translateTextBatch(sourceText, sourceLang, targetLangs) {
             results[lang] = '[Translation failed]';
         }
     }
-    results[sourceLang] = sourceText;
     return results;
 }
 
