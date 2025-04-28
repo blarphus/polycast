@@ -32,10 +32,23 @@ function App({ targetLanguages }) {
   const fetchMode = useCallback(async () => {
     try {
       const res = await fetch('/mode');
-      const data = await res.json();
+      const debugInfo = {
+        url: res.url,
+        status: res.status,
+        statusText: res.statusText,
+        headers: Object.fromEntries(res.headers.entries()),
+      };
+      let data;
+      try {
+        data = await res.json();
+      } catch (jsonErr) {
+        setModeError(`Could not fetch mode: JSON parse error (${jsonErr.message}). Debug: ${JSON.stringify(debugInfo)}`);
+        throw jsonErr;
+      }
       setIsTextMode(data.isTextMode);
       modeRef.current = data.isTextMode;
     } catch (err) {
+      setModeError(`Could not fetch mode: ${err && err.message ? err.message : err}`);
       console.error('Failed to fetch mode:', err);
     }
   }, []);
@@ -50,12 +63,28 @@ function App({ targetLanguages }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isTextMode: value })
       });
-      if (!res.ok) throw new Error('Failed to update mode: ' + res.status);
-      const data = await res.json();
+      const debugInfo = {
+        url: res.url,
+        status: res.status,
+        statusText: res.statusText,
+        headers: Object.fromEntries(res.headers.entries()),
+        requestBody: { isTextMode: value },
+      };
+      if (!res.ok) {
+        setModeError(`Could not update mode: HTTP ${res.status} ${res.statusText}. Debug: ${JSON.stringify(debugInfo)}`);
+        throw new Error('Failed to update mode: ' + res.status);
+      }
+      let data;
+      try {
+        data = await res.json();
+      } catch (jsonErr) {
+        setModeError(`Could not update mode: JSON parse error (${jsonErr.message}). Debug: ${JSON.stringify(debugInfo)}`);
+        throw jsonErr;
+      }
       setIsTextMode(data.isTextMode);
       modeRef.current = data.isTextMode;
     } catch (err) {
-      setModeError('Could not update mode: ' + err.message);
+      setModeError(`Could not update mode: ${err && err.message ? err.message : err}`);
       setIsTextMode(modeRef.current); // Revert UI if error
       console.error('Failed to update mode:', err);
     }
