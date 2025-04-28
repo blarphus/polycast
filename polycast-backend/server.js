@@ -201,6 +201,9 @@ wss.on('connection', (ws, req) => {
 // === Polycast Mode State ===
 let isTextMode = false;
 
+// Set PORT from env, config, or fallback to 3000
+const PORT = process.env.PORT || config.port || 3000;
+
 // Endpoint to get current mode
 app.get('/mode', (req, res) => {
     res.json({ isTextMode });
@@ -217,8 +220,8 @@ app.post('/mode', express.json(), (req, res) => {
 });
 
 // Start the HTTP server
-server.listen(config.port, () => {
-    console.log(`HTTP server listening on port ${config.port}`);
+server.listen(PORT, () => {
+    console.log(`HTTP server listening on port ${PORT}`);
 });
 
 // Basic health check endpoint (optional)

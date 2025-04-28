@@ -14,7 +14,7 @@ const app = express();
 const server = http.createServer(app);
 
 // Use a different port for text mode (default 8090)
-const TEXT_MODE_PORT = process.env.TEXT_MODE_PORT || 8090;
+const TEXT_MODE_PORT = process.env.PORT || process.env.TEXT_MODE_PORT || 8090;
 
 const wss = new WebSocket.Server({ server });
 console.log(`Text Mode WebSocket server created.`);
