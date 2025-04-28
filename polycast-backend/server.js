@@ -21,6 +21,9 @@ const { transcribeAudio } = require('./services/whisperService');
 // Initialize Express app
 const app = express();
 
+// Enable JSON body parsing for POST requests
+app.use(express.json());
+
 // Create HTTP server
 const server = http.createServer(app);
 
@@ -209,13 +212,13 @@ app.get('/mode', (req, res) => {
     res.json({ isTextMode });
 });
 
-// Endpoint to set mode
-app.post('/mode', express.json(), (req, res) => {
+// Endpoint to set current mode
+app.post('/mode', (req, res) => {
     if (typeof req.body.isTextMode === 'boolean') {
         isTextMode = req.body.isTextMode;
         res.json({ isTextMode });
     } else {
-        res.status(400).json({ error: 'isTextMode must be boolean' });
+        res.status(400).json({ error: 'Missing or invalid isTextMode' });
     }
 });
 
