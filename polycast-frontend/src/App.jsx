@@ -12,24 +12,8 @@ import TranscriptionDisplay from './components/TranscriptionDisplay';
 function App({ targetLanguages }) {
   const languagesQueryParam = targetLanguages.map(encodeURIComponent).join(',');
 
-  // Determine WebSocket URL dynamically
-  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  // Use the same hostname the page is served from
-  // ngrok maps the public hostname to your local machine
-  const wsHost = window.location.hostname; 
-  // Backend runs on port 8080, but ngrok usually maps standard ports (80/443)
-  // Let's try connecting to the standard port via ngrok, assuming it maps correctly.
-  // If the backend is exposed directly on a different port by ngrok, this needs adjustment.
-  // For simplicity when ngrok maps http 8080 -> https public_host:443:
-  const wsPort = (wsProtocol === 'wss:' && window.location.port === '') ? '' : `:${config.backendPort || 8080}`; // Use backend port only if not standard https
-
-  // Construct URL - Use standard ports implicitly if using ngrok's https URL
-  let wsBaseUrl = `${wsProtocol}//${wsHost}`;
-  if (wsHost === 'localhost') {
-      // Explicitly add port for local development
-      wsBaseUrl += `:${config.backendPort || 8080}`;
-  }
-  // Add query params
+  // Construct the WebSocket URL for Render backend
+  const wsBaseUrl = `wss://polycast-server.onrender.com`;
   const socketUrl = `${wsBaseUrl}/?targetLangs=${languagesQueryParam}`;
   console.log("Constructed WebSocket URL:", socketUrl);
 
