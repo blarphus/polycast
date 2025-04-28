@@ -40,6 +40,10 @@ function App({ targetLanguages }) {
         status: res.status,
         statusText: res.statusText,
         headers: Object.fromEntries(res.headers.entries()),
+        mode: 'fetchMode',
+        frontendLocation: window.location.href,
+        userAgent: navigator.userAgent,
+        time: new Date().toISOString(),
       };
       let data;
       try {
@@ -51,7 +55,14 @@ function App({ targetLanguages }) {
       setIsTextMode(data.isTextMode);
       modeRef.current = data.isTextMode;
     } catch (err) {
-      setModeError(`Could not fetch mode: ${err && err.message ? err.message : err}`);
+      setModeError(`Could not fetch mode: ${err && err.message ? err.message : err}. Debug: ${JSON.stringify({
+        mode: 'fetchMode',
+        error: err && err.stack ? err.stack : err,
+        frontendLocation: window.location.href,
+        userAgent: navigator.userAgent,
+        time: new Date().toISOString(),
+        backendUrl: `${BACKEND_HTTP_BASE}/mode`,
+      })}`);
       console.error('Failed to fetch mode:', err);
     }
   }, []);
@@ -72,6 +83,10 @@ function App({ targetLanguages }) {
         statusText: res.statusText,
         headers: Object.fromEntries(res.headers.entries()),
         requestBody: { isTextMode: value },
+        mode: 'updateMode',
+        frontendLocation: window.location.href,
+        userAgent: navigator.userAgent,
+        time: new Date().toISOString(),
       };
       if (!res.ok) {
         setModeError(`Could not update mode: HTTP ${res.status} ${res.statusText}. Debug: ${JSON.stringify(debugInfo)}`);
@@ -87,7 +102,15 @@ function App({ targetLanguages }) {
       setIsTextMode(data.isTextMode);
       modeRef.current = data.isTextMode;
     } catch (err) {
-      setModeError(`Could not update mode: ${err && err.message ? err.message : err}`);
+      setModeError(`Could not update mode: ${err && err.message ? err.message : err}. Debug: ${JSON.stringify({
+        mode: 'updateMode',
+        error: err && err.stack ? err.stack : err,
+        frontendLocation: window.location.href,
+        userAgent: navigator.userAgent,
+        time: new Date().toISOString(),
+        backendUrl: `${BACKEND_HTTP_BASE}/mode`,
+        requestBody: { isTextMode: value }
+      })}`);
       setIsTextMode(modeRef.current); // Revert UI if error
       console.error('Failed to update mode:', err);
     }

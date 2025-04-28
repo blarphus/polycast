@@ -10,6 +10,7 @@ if (process.env.OPENAI_API_KEY) {
 }
 
 const express = require('express');
+const cors = require('cors');
 const http = require('http');
 const WebSocket = require('ws');
 const url = require('url'); // To parse connection URL
@@ -20,6 +21,12 @@ const { transcribeAudio } = require('./services/whisperService');
 
 // Initialize Express app
 const app = express();
+
+// Enable CORS for frontend on Render
+app.use(cors({
+  origin: 'https://polycast-frontend.onrender.com',
+  credentials: true
+}));
 
 // Enable JSON body parsing for POST requests
 app.use(express.json());
