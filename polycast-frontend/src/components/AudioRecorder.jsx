@@ -7,7 +7,9 @@ function AudioRecorder({ sendMessage, isRecording }) {
   const streamRef = useRef(null); // <-- this will persist for the session
   const [status, setStatus] = useState('Idle');
   const [sendNotice, setSendNotice] = useState(null);
+  const [noticeVisible, setNoticeVisible] = useState(false);
   const fadeTimeoutRef = useRef(null);
+  const fadeAnimTimeoutRef = useRef(null);
   const [segmentActive, setSegmentActive] = useState(false);
   const [restartSegment, setRestartSegment] = useState(false); // NEW
   const doNotSendRef = useRef(false); // NEW
@@ -15,8 +17,14 @@ function AudioRecorder({ sendMessage, isRecording }) {
   // Helper: show a fading message
   const showSendNotice = (msg) => {
     setSendNotice(msg);
+    setNoticeVisible(true);
     if (fadeTimeoutRef.current) clearTimeout(fadeTimeoutRef.current);
-    fadeTimeoutRef.current = setTimeout(() => setSendNotice(null), 3000);
+    if (fadeAnimTimeoutRef.current) clearTimeout(fadeAnimTimeoutRef.current);
+    // Show for 1s, then fade out over 1s
+    fadeTimeoutRef.current = setTimeout(() => {
+      setNoticeVisible(false); // triggers fade
+    }, 1000);
+    fadeAnimTimeoutRef.current = setTimeout(() => setSendNotice(null), 2000); // Remove after fade completes
   };
 
   // Handle space bar to flush segment
@@ -125,6 +133,7 @@ function AudioRecorder({ sendMessage, isRecording }) {
     setupAudio();
     return () => {
       if (fadeTimeoutRef.current) clearTimeout(fadeTimeoutRef.current);
+      if (fadeAnimTimeoutRef.current) clearTimeout(fadeAnimTimeoutRef.current);
     };
   }, [isRecording, sendMessage, segmentActive, startNewSegment, status]);
 
@@ -145,8 +154,9 @@ function AudioRecorder({ sendMessage, isRecording }) {
           fontSize: 18,
           boxShadow: '0 2px 8px rgba(0,0,0,0.13)',
           zIndex: 9999,
-          opacity: 1,
-          transition: 'opacity 0.5s',
+          opacity: noticeVisible ? 1 : 0,
+          transition: 'opacity 1s',
+          pointerEvents: 'none',
         }}>{sendNotice}</div>
       )}
     </div>

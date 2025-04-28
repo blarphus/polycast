@@ -16,6 +16,11 @@ function DraggableResizableBox({ children, initX, initY, initW, initH, style, cl
   const [resizing, setResizing] = useState(false);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [resizeStart, setResizeStart] = useState({ mouseX: 0, mouseY: 0, w: 0, h: 0 });
+  const [zIndex, setZIndex] = useState(1);
+  const zIndexRef = useRef(1);
+
+  // Track global zIndex
+  if (!window._polycastZ) window._polycastZ = 10;
 
   // Snap helper
   function snapTo(val, snap) {
@@ -28,6 +33,10 @@ function DraggableResizableBox({ children, initX, initY, initW, initH, style, cl
     setDragging(true);
     setOffset({ x: e.clientX - pos.x, y: e.clientY - pos.y });
     document.body.style.userSelect = 'none';
+    // Bring to front
+    window._polycastZ = (window._polycastZ || 10) + 1;
+    setZIndex(window._polycastZ);
+    zIndexRef.current = window._polycastZ;
   };
   const onMouseMove = e => {
     if (dragging) {
@@ -61,6 +70,10 @@ function DraggableResizableBox({ children, initX, initY, initW, initH, style, cl
     setResizeStart({ mouseX: e.clientX, mouseY: e.clientY, w: size.w, h: size.h });
     e.stopPropagation();
     document.body.style.userSelect = 'none';
+    // Bring to front
+    window._polycastZ = (window._polycastZ || 10) + 1;
+    setZIndex(window._polycastZ);
+    zIndexRef.current = window._polycastZ;
   };
 
   React.useEffect(() => {
@@ -74,38 +87,48 @@ function DraggableResizableBox({ children, initX, initY, initW, initH, style, cl
     }
   });
 
+  // Also bring to front on click
+  const onBoxClick = () => {
+    window._polycastZ = (window._polycastZ || 10) + 1;
+    setZIndex(window._polycastZ);
+    zIndexRef.current = window._polycastZ;
+  };
+
   return (
     <div
       ref={boxRef}
       className={className}
+      onMouseDown={onBoxClick}
       style={{
         position: 'absolute',
         left: pos.x,
         top: pos.y,
         width: size.w,
         height: size.h,
-        boxSizing: 'border-box',
-        zIndex: 1000,
+        zIndex: zIndex,
+        cursor: dragging ? 'grabbing' : 'grab',
+        userSelect: 'none',
         ...style,
       }}
-      onMouseDown={onMouseDown}
+      onMouseUp={onMouseUp}
+      onMouseDownCapture={onMouseDown}
     >
-      <div style={{ width: '100%', height: '100%', overflow: 'auto' }}>{children}</div>
+      {children}
+      {/* Resize handle (bottom right) */}
       <div
         className="resize-handle"
+        onMouseDown={onResizeMouseDown}
         style={{
           position: 'absolute',
           right: 0,
           bottom: 0,
           width: 16,
           height: 16,
-          background: 'rgba(0,0,0,0.15)',
-          borderBottomRightRadius: 6,
+          background: 'rgba(120,120,120,0.15)',
+          borderRadius: 4,
           cursor: 'nwse-resize',
-          zIndex: 1100,
+          zIndex: zIndex + 1,
         }}
-        onMouseDown={onResizeMouseDown}
-        title="Resize"
       />
     </div>
   );

@@ -69,14 +69,14 @@ button:focus-visible {
 }
 
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 0.5rem 1rem;
+  max-width: none;
+  margin: 0;
+  padding: 0;
   text-align: center;
   display: flex;
   flex-direction: column;
   height: 100vh;
-  width: 100%;
+  width: 100vw;
   box-sizing: border-box;
 }
 

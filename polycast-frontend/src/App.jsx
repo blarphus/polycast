@@ -238,27 +238,34 @@ function App({ targetLanguages }) {
 
   return (
     <div className="App">
-      {/* Unified Toolbar/Header */}
-      <header className="main-toolbar">
-        <div className="toolbar-left">
-          <img src="/logo192.png" alt="Polycast Logo" style={{ height: 44, marginRight: 14, verticalAlign: 'middle' }} />
-          <span className="app-title">Polycast v0.1</span>
-        </div>
-        <div className="toolbar-center">
-          <span className="toolbar-label">Target Languages:</span> {targetLanguages.join(', ')}
-          <span className="toolbar-label" style={{ marginLeft: 18 }}>Connection:</span> {connectionStatus}
-          <span className="toolbar-label" style={{ marginLeft: 18 }}>isTextMode:</span> <b>{String(isTextMode)}</b>
-          <span className="toolbar-label" style={{ marginLeft: 18 }}>Mode:</span>
-          <select
-            value={isTextMode ? 'text' : 'audio'}
-            onChange={e => handleSetIsTextMode(e.target.value === 'text')}
-            style={{ minWidth: 90, fontSize: 15, padding: '2px 6px', borderRadius: 6, marginLeft: 4 }}
-          >
-            <option value="text">text mode</option>
-            <option value="audio">audio mode</option>
-          </select>
-        </div>
-      </header>
+      {/* Big Polycast Title */}
+      <h1 className="polycast-title" style={{
+        color: '#fff',
+        fontSize: '3rem',
+        fontWeight: 900,
+        letterSpacing: '0.06em',
+        textAlign: 'center',
+        margin: '24px 0 12px 0',
+        textShadow: '0 4px 24px #0008',
+      }}>
+        Polycast
+      </h1>
+      <div className="controls-container" style={{ marginBottom: 18 }}>
+        {/* Pass sendMessage down to components that need to send audio */}
+        <AudioRecorder
+          sendMessage={sendMessage}
+          isRecording={isRecording}
+        />
+        <Controls
+          readyState={readyState}
+          isRecording={isRecording}
+          onStartRecording={handleStartRecording}
+          onStopRecording={handleStopRecording}
+          isTextMode={isTextMode}
+          setIsTextMode={handleSetIsTextMode}
+        />
+      </div>
+      {/* Remove the main-toolbar/header entirely */}
       {modeError && (
         <div style={{ color: 'red', fontWeight: 500, marginBottom: 8 }}>
           {modeError}
@@ -272,37 +279,20 @@ function App({ targetLanguages }) {
           </ul>
         </div>
       )}
-      <div style={{ marginTop: 24 }}>
-        <div className="controls-container">
-          {/* Pass sendMessage down to components that need to send audio */}
-          <AudioRecorder
-            sendMessage={sendMessage}
-            isRecording={isRecording}
-          />
-          <Controls
-            readyState={readyState}
-            isRecording={isRecording}
-            onStartRecording={handleStartRecording}
-            onStopRecording={handleStopRecording}
-            isTextMode={isTextMode}
-            setIsTextMode={handleSetIsTextMode}
-          />
-        </div>
-        <div className="display-container">
-          <TranscriptionDisplay 
-            englishSegments={englishSegments} 
-            translations={translations} 
-            targetLanguages={targetLanguages} 
-            showLiveEnglish={showLiveEnglish} // Pass toggle state
-            isTextMode={isTextMode}
-            onTextSubmit={(lang, text) => {
-              // Send text submission for translation to backend
-              sendMessage(JSON.stringify({ type: 'text_submit', lang, text }));
-            }}
-            textInputs={textInputs}
-            setTextInputs={setTextInputs}
-          />
-        </div>
+      <div className="display-container">
+        <TranscriptionDisplay 
+          englishSegments={englishSegments} 
+          translations={translations} 
+          targetLanguages={targetLanguages} 
+          showLiveEnglish={showLiveEnglish} // Pass toggle state
+          isTextMode={isTextMode}
+          onTextSubmit={(lang, text) => {
+            // Send text submission for translation to backend
+            sendMessage(JSON.stringify({ type: 'text_submit', lang, text }));
+          }}
+          textInputs={textInputs}
+          setTextInputs={setTextInputs}
+        />
       </div>
     </div>
   )
