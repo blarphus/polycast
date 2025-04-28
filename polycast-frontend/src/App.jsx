@@ -28,10 +28,13 @@ function App({ targetLanguages }) {
   const [textInputs, setTextInputs] = useState({}); // Lifted state
   const modeRef = useRef(isTextMode);
 
+  // Backend base URL for /mode endpoints
+  const BACKEND_HTTP_BASE = 'https://polycast-server.onrender.com';
+
   // Fetch mode from backend
   const fetchMode = useCallback(async () => {
     try {
-      const res = await fetch('/mode');
+      const res = await fetch(`${BACKEND_HTTP_BASE}/mode`);
       const debugInfo = {
         url: res.url,
         status: res.status,
@@ -58,7 +61,7 @@ function App({ targetLanguages }) {
     setIsTextMode(value); // Optimistically update UI
     setModeError(null);
     try {
-      const res = await fetch('/mode', {
+      const res = await fetch(`${BACKEND_HTTP_BASE}/mode`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isTextMode: value })
