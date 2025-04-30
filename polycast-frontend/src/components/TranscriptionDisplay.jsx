@@ -259,7 +259,18 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
           padding: 0,
         }}
       >
-        <span style={{ letterSpacing: 0.5, textAlign: 'center', marginTop: 16, marginBottom: 8 }}>{lang}</span>
+        <span style={{
+          letterSpacing: 0.5,
+          textAlign: 'center',
+          fontWeight: 800,
+          fontSize: 20,
+          margin: '18px 0 10px 0',
+          color: scheme.accent + 'cc', // lighter accent (add alpha)
+          textTransform: 'uppercase',
+          opacity: 0.92,
+        }}>
+          {lang}
+        </span>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 16, gap: 8, overflow: 'auto' }} ref={el => translationRefs.current[lang] = el}>
           {isTextMode ? (
             <>
