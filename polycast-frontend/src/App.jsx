@@ -365,44 +365,67 @@ function App({ targetLanguages }) {
         Polycast
       </h1>
       <div className="controls-container" style={{ marginBottom: 18 }}>
-        {/* Pass sendMessage down to components that need to send audio */}
-        <AudioRecorder
-          sendMessage={sendMessage}
-          isRecording={isRecording}
-          onAudioSent={onAudioSent}
-        />
-        <Controls
-          readyState={readyState}
-          isRecording={isRecording}
-          onStartRecording={handleStartRecording}
-          onStopRecording={handleStopRecording}
-          isTextMode={isTextMode}
-          setIsTextMode={handleSetIsTextMode}
-        />
-      </div>
-      {/* Small Recording Text (absolute, between toolbar and transcript) */}
-      {!isTextMode && isRecording && (
-        <div style={{
-          position: 'relative',
-          width: '100%',
-          height: 0,
-          zIndex: 10,
-        }}>
-          <div style={{
-            position: 'absolute',
-            top: 8, // space below toolbar
-            left: '50%',
-            transform: 'translateX(-50%)',
-            color: '#ff5733',
-            fontWeight: 'bold',
-            fontSize: '1.1rem',
-            textShadow: '0 1px 3px #fff',
-            pointerEvents: 'none',
-          }}>
-            Recording...
+        {/* Main Toolbar */}
+        <div className="main-toolbar" style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            {/* Pass sendMessage down to components that need to send audio */}
+            <AudioRecorder
+              sendMessage={sendMessage}
+              isRecording={isRecording}
+              onAudioSent={onAudioSent}
+            />
+            <Controls
+              readyState={readyState}
+              isRecording={isRecording}
+              onStartRecording={handleStartRecording}
+              onStopRecording={handleStopRecording}
+              isTextMode={isTextMode}
+              setIsTextMode={handleSetIsTextMode}
+            />
           </div>
+          {/* Audio mode note below tools row */}
+          {!isTextMode && (
+            <div style={{
+              marginTop: 4,
+              marginBottom: 2,
+              width: '100%',
+              textAlign: 'center',
+              color: '#ffb84d',
+              fontWeight: 600,
+              fontSize: '1.05rem',
+              letterSpacing: 0.1,
+              textShadow: '0 1px 2px #2228',
+              opacity: 0.96,
+              userSelect: 'none',
+            }}>
+              Hold Spacebar to record.  Release Spacebar to send.
+            </div>
+          )}
         </div>
-      )}
+        {/* Small Recording Text (absolute, between toolbar and transcript) */}
+        {!isTextMode && isRecording && (
+          <div style={{
+            position: 'relative',
+            width: '100%',
+            height: 0,
+            zIndex: 10,
+          }}>
+            <div style={{
+              position: 'absolute',
+              top: -16, // move up by ~1.5x height of text
+              left: '50%',
+              transform: 'translateX(-50%)',
+              color: '#ff5733',
+              fontWeight: 'bold',
+              fontSize: '1.1rem',
+              textShadow: '0 1px 3px #fff',
+              pointerEvents: 'none',
+            }}>
+              Recording...
+            </div>
+          </div>
+        )}
+      </div>
       {/* Remove the main-toolbar/header entirely */}
       {modeError && (
         <div style={{ color: 'red', fontWeight: 500, marginBottom: 8 }}>
