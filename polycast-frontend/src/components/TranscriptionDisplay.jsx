@@ -199,8 +199,8 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
                 placeholder={`Type English text here...`}
                 style={{
                   width: '100%',
-                  height: '100%',
-                  flex: 1,
+                  height: '100%', // Allow flex to control height
+                  flex: 1, // Take available space
                   fontSize: fontSize,
                   borderRadius: 6,
                   border: `1.5px solid ${scheme.accent}`,
@@ -208,6 +208,14 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
                   resize: 'none',
                   background: scheme.bg,
                   color: scheme.fg,
+                  boxSizing: 'border-box', // Restore box sizing
+                  minHeight: 80, // Restore min height
+                }}
+                onKeyDown={e => {
+                  if (isTextMode && e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSubmit('English');
+                  }
                 }}
               />
               <button
@@ -258,20 +266,22 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
           {isTextMode ? (
             <>
               <textarea
-                value={textInputs[lang] ?? ''}
-                onChange={e => handleInputChange(lang, e.target.value)}
+                value={textInputs[lang] ?? ''} // Ensure value is correctly bound
+                onChange={e => handleInputChange(lang, e.target.value)} // Ensure onChange updates state
                 placeholder={`Type ${lang} text here...`}
                 style={{
                   width: '100%',
                   height: '100%',
                   flex: 1,
-                  fontSize: fontSize,
+                  fontSize: fontSize, // Apply font size here too for consistency
                   borderRadius: 6,
                   border: `1.5px solid ${scheme.accent}`,
                   padding: 8,
                   resize: 'none',
                   background: scheme.bg,
                   color: scheme.fg,
+                  boxSizing: 'border-box',
+                  minHeight: 80,
                 }}
                 onKeyDown={e => {
                   if (isTextMode && e.key === 'Enter' && !e.shiftKey) {
@@ -281,7 +291,7 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
                 }}
               />
               <button
-                style={{ alignSelf: 'flex-end', background: scheme.accent, color: '#fff', border: 'none', borderRadius: 6, padding: '6px 16px', fontWeight: 700, cursor: 'pointer', fontSize: fontSize - 2 }}
+                style={{ marginTop: 10, alignSelf: 'center', background: scheme.accent, color: '#fff', border: 'none', borderRadius: 6, padding: '6px 18px', fontWeight: 700, fontSize: 16, cursor: 'pointer' }}
                 onClick={() => handleSubmit(lang)}
               >
                 Submit
