@@ -2,6 +2,36 @@
 require('dotenv').config(); // Ensure .env is loaded at the very top
 console.log('Server starting...');
 
+const fs = require('fs');
+const path = require('path');
+const MODE_FILE = path.join(__dirname, 'mode.json');
+
+// Helper to load mode from disk
+function loadModeFromDisk() {
+    try {
+        if (fs.existsSync(MODE_FILE)) {
+            const data = JSON.parse(fs.readFileSync(MODE_FILE, 'utf8'));
+            if (typeof data.isTextMode === 'boolean') {
+                console.log(`[Mode] Loaded isTextMode=${data.isTextMode} from disk`);
+                return data.isTextMode;
+            }
+        }
+    } catch (e) {
+        console.warn('[Mode] Failed to read mode.json:', e);
+    }
+    return false;
+}
+
+// Helper to save mode to disk
+function saveModeToDisk(isTextMode) {
+    try {
+        fs.writeFileSync(MODE_FILE, JSON.stringify({ isTextMode }), 'utf8');
+        console.log(`[Mode] Saved isTextMode=${isTextMode} to disk`);
+    } catch (e) {
+        console.error('[Mode] Failed to save mode.json:', e);
+    }
+}
+
 // Debug: Print OpenAI API Key (should be defined, or print warning)
 if (process.env.OPENAI_API_KEY) {
     console.log('OpenAI API Key loaded:', process.env.OPENAI_API_KEY.slice(0, 8) + '...');
@@ -209,7 +239,7 @@ wss.on('connection', (ws, req) => {
 });
 
 // === Polycast Mode State ===
-let isTextMode = false;
+let isTextMode = loadModeFromDisk();
 
 // Set PORT from env, config, or fallback to 3000
 const PORT = process.env.PORT || config.port || 3000;
@@ -223,6 +253,7 @@ app.get('/mode', (req, res) => {
 app.post('/mode', (req, res) => {
     if (typeof req.body.isTextMode === 'boolean') {
         isTextMode = req.body.isTextMode;
+        saveModeToDisk(isTextMode);
         res.json({ isTextMode });
     } else {
         res.status(400).json({ error: 'Missing or invalid isTextMode' });
