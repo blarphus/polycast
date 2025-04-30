@@ -15,24 +15,6 @@ function Controls({
 
     return (
         <div className="controls">
-            {/* Recording Indicator */} 
-            {!isTextMode && isRecording && (
-              <div style={{ 
-                position: 'absolute', // Position near controls
-                top: '-25px', // Above the main controls row
-                left: '50%', 
-                transform: 'translateX(-50%)', 
-                color: '#ff5733', // Bright color for visibility
-                fontSize: '16px', 
-                fontWeight: 'bold', 
-                padding: '2px 8px',
-                background: 'rgba(255, 255, 255, 0.1)',
-                borderRadius: '4px',
-              }}>
-                Recording...
-              </div>
-            )}
-
             {/* Mode Dropdown */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <label style={{ color: '#ccc', fontSize: 15, fontWeight: 500 }}>Mode:</label>
