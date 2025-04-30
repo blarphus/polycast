@@ -352,23 +352,6 @@ function App({ targetLanguages }) {
 
   return (
     <div className="App">
-      {/* Small Recording Text (absolute, below toolbar, above transcript) */}
-      {!isTextMode && isRecording && (
-        <div style={{
-          position: 'absolute',
-          top: 100, // adjust as needed to be just below toolbar
-          left: '50%',
-          transform: 'translateX(-50%)',
-          color: '#ff5733',
-          fontWeight: 'bold',
-          fontSize: '1.1rem',
-          textShadow: '0 1px 3px #fff',
-          zIndex: 10,
-          pointerEvents: 'none',
-        }}>
-          Recording...
-        </div>
-      )}
       {/* Big Polycast Title */}
       <h1 className="polycast-title" style={{
         color: '#fff',
@@ -397,6 +380,29 @@ function App({ targetLanguages }) {
           setIsTextMode={handleSetIsTextMode}
         />
       </div>
+      {/* Small Recording Text (absolute, between toolbar and transcript) */}
+      {!isTextMode && isRecording && (
+        <div style={{
+          position: 'relative',
+          width: '100%',
+          height: 0,
+          zIndex: 10,
+        }}>
+          <div style={{
+            position: 'absolute',
+            top: 8, // space below toolbar
+            left: '50%',
+            transform: 'translateX(-50%)',
+            color: '#ff5733',
+            fontWeight: 'bold',
+            fontSize: '1.1rem',
+            textShadow: '0 1px 3px #fff',
+            pointerEvents: 'none',
+          }}>
+            Recording...
+          </div>
+        </div>
+      )}
       {/* Remove the main-toolbar/header entirely */}
       {modeError && (
         <div style={{ color: 'red', fontWeight: 500, marginBottom: 8 }}>
