@@ -56,7 +56,7 @@ function useWindowSize() {
 const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, showLiveEnglish, isTextMode, onTextSubmit, textInputs, setTextInputs }) => {
   const englishRef = useRef(null);
   const translationRefs = useRef({});
-  const [fontSize, setFontSize] = useState(isTextMode ? 18 : 36); // Double default in audio mode
+  const [fontSize, setFontSize] = useState(18); // Start at 18, user can adjust in any mode
   const containerRef = useRef(null);
   const [containerSize, setContainerSize] = useState({ width: 1200, height: 600 });
   const [langBoxStates, setLangBoxStates] = useState([]);
@@ -101,27 +101,19 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
   // Listen for font size change events from Controls
   useEffect(() => {
     const handler = (e) => {
-      // Only allow font size change in audio mode
-      if (!isTextMode) {
-        setFontSize(f => {
-          const newSize = Math.max(10, Math.min(96, f + (e.detail || 0)));
-          const el = document.getElementById('font-size-display');
-          if (el) el.textContent = `${newSize}px`;
-          return newSize;
-        });
-      }
+      setFontSize(f => {
+        const newSize = Math.max(10, Math.min(96, f + (e.detail || 0)));
+        const el = document.getElementById('font-size-display');
+        if (el) el.textContent = `${newSize}px`;
+        return newSize;
+      });
     };
     window.addEventListener('changeFontSize', handler);
     // Set initial display
     const el = document.getElementById('font-size-display');
     if (el) el.textContent = `${fontSize}px`;
     return () => window.removeEventListener('changeFontSize', handler);
-  }, [fontSize, isTextMode]);
-
-  // Reset font size when switching modes
-  useEffect(() => {
-    setFontSize(isTextMode ? 18 : 36); // 18 for text mode, 36 for audio mode
-  }, [isTextMode]);
+  }, [fontSize]);
 
   // Center the English box, and make it taller
   // For single language, center translation box too
