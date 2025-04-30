@@ -10,7 +10,7 @@ function Main() {
   if (!selectedLanguages) {
     return <LanguageSelectorScreen onLanguageSelected={setSelectedLanguages} />;
   } else {
-    return <App targetLanguages={selectedLanguages} />;
+    return <App targetLanguages={selectedLanguages} onReset={() => setSelectedLanguages(null)} />;
   }
 }
 

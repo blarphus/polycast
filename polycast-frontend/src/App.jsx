@@ -9,7 +9,7 @@ import Controls from './components/Controls';
 import TranscriptionDisplay from './components/TranscriptionDisplay';
 
 // App now receives an array of target languages as a prop
-function App({ targetLanguages }) {
+function App({ targetLanguages, onReset }) {
   const languagesQueryParam = targetLanguages.map(encodeURIComponent).join(',');
 
   // Construct the WebSocket URL for Render backend
@@ -353,15 +353,23 @@ function App({ targetLanguages }) {
   return (
     <div className="App">
       {/* Big Polycast Title */}
-      <h1 className="polycast-title" style={{
-        color: '#fff',
-        fontSize: '3rem',
-        fontWeight: 900,
-        letterSpacing: '0.06em',
-        textAlign: 'center',
-        margin: '24px 0 12px 0',
-        textShadow: '0 4px 24px #0008',
-      }}>
+      <h1
+        className="polycast-title"
+        style={{
+          color: '#fff',
+          fontSize: '3rem',
+          fontWeight: 900,
+          letterSpacing: '0.06em',
+          textAlign: 'center',
+          margin: '24px 0 12px 0',
+          textShadow: '0 4px 24px #0008',
+          cursor: 'pointer', // Show pointer
+          transition: 'opacity 0.2s',
+        }}
+        onClick={() => typeof onReset === 'function' && onReset()}
+        onMouseOver={e => (e.currentTarget.style.opacity = 0.85)}
+        onMouseOut={e => (e.currentTarget.style.opacity = 1)}
+      >
         Polycast
       </h1>
       <div className="controls-container" style={{ marginBottom: 4 }}>
@@ -467,6 +475,7 @@ function App({ targetLanguages }) {
 // Update PropTypes
 App.propTypes = {
     targetLanguages: PropTypes.arrayOf(PropTypes.string).isRequired,
+    onReset: PropTypes.func,
 };
 
 // Define backend port in a config object or hardcode if simple
