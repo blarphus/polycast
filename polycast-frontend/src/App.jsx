@@ -386,7 +386,7 @@ function App({ targetLanguages }) {
           {/* Audio mode note below tools row */}
           {!isTextMode && (
             <div style={{
-              marginTop: 4,
+              marginTop: 0, // reduce space above note
               marginBottom: 2,
               width: '100%',
               textAlign: 'center',
@@ -402,31 +402,8 @@ function App({ targetLanguages }) {
             </div>
           )}
         </div>
-        {/* Small Recording Text (absolute, between toolbar and transcript) */}
-        {!isTextMode && isRecording && (
-          <div style={{
-            position: 'relative',
-            width: '100%',
-            height: 0,
-            zIndex: 10,
-          }}>
-            <div style={{
-              position: 'absolute',
-              top: -16, // move up by ~1.5x height of text
-              left: '50%',
-              transform: 'translateX(-50%)',
-              color: '#ff5733',
-              fontWeight: 'bold',
-              fontSize: '1.1rem',
-              textShadow: '0 1px 3px #fff',
-              pointerEvents: 'none',
-            }}>
-              Recording...
-            </div>
-          </div>
-        )}
       </div>
-      {/* Remove the main-toolbar/header entirely */}
+      {/* Remove the floating Recording indicator entirely */}
       {modeError && (
         <div style={{ color: 'red', fontWeight: 500, marginBottom: 8 }}>
           {modeError}
