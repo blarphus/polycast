@@ -239,33 +239,40 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
   };
 
   // --- Main render ---
-  // Render transcript/English box first, then language boxes
+  // Use flex layout to fill the available vertical space
   const transcriptVisible = showLiveEnglish || isTextMode;
   return (
-    <div ref={containerRef} className="split-transcription-layout" style={{
-      position: 'relative',
-      width: '100%',
-      height: '100vh', // Never exceed viewport height
-      boxSizing: 'border-box',
-      margin: '20px auto 36px',
-      overflow: 'hidden',
-      minHeight: 400,
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-    }}>
-      {/* Transcript/English box always renders and updates first */}
-      {transcriptVisible && renderEnglishBox()}
-      {/* Language boxes render after transcript, using latest translations */}
-      <div style={{
+    <div
+      ref={containerRef}
+      className="split-transcription-layout"
+      style={{
+        position: 'relative',
         width: '100%',
+        height: 'calc(100vh - 170px)', // Adjust this value as needed for header/toolbar height
+        margin: '20px auto 0',
+        overflow: 'hidden',
+        minHeight: 400,
         display: 'flex',
-        justifyContent: langCount === 1 ? 'center' : 'flex-start',
-        flex: 1, // Take up remaining space
-        minHeight: 0,
-        height: '100%',
-        alignItems: 'stretch',
-      }}>
+        flexDirection: 'column',
+        alignItems: 'center',
+      }}
+    >
+      {/* Transcript/English box always renders and updates first */}
+      {transcriptVisible && (
+        <div style={{ width: '100%', flex: '0 0 auto' }}>{renderEnglishBox()}</div>
+      )}
+      {/* Language boxes fill the remaining space */}
+      <div
+        style={{
+          width: '100%',
+          display: 'flex',
+          justifyContent: langCount === 1 ? 'center' : 'flex-start',
+          flex: 1,
+          alignItems: 'stretch',
+          minHeight: 0,
+          gap: 24,
+        }}
+      >
         {targetLanguages.map((lang, idx) => {
           const scheme = colorSchemes[(idx + 1) % colorSchemes.length];
           const layout = langBoxLayout[idx] || { x: 0, y: 0, w: 320, h: 250 };
@@ -274,12 +281,12 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
             <div
               key={lang}
               style={{
-                width: layout.w,
-                minHeight: 0,
-                height: '100%',
                 flex: 1,
-                overflowY: 'auto',
-                margin: '0 12px',
+                minWidth: 0,
+                minHeight: 0,
+                maxHeight: '100%',
+                overflow: 'hidden',
+                margin: 0,
                 background: scheme.bg,
                 color: scheme.fg,
                 borderTop: `4px solid ${scheme.accent}`,
@@ -290,7 +297,6 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
                 justifyContent: 'flex-start',
                 alignItems: 'stretch',
                 padding: 0,
-                boxSizing: 'border-box',
               }}
             >
               <span style={{
@@ -305,7 +311,7 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
               }}>
                 {lang}
               </span>
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 16, gap: 8, overflow: 'auto' }} ref={el => translationRefs.current[lang] = el}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 16, gap: 8, overflow: 'auto', minHeight: 0 }} ref={el => translationRefs.current[lang] = el}>
                 {isTextMode ? (
                   <>
                     <textarea
