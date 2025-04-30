@@ -8,6 +8,30 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
   const [segmentActive, setSegmentActive] = useState(false);
   const [restartSegment, setRestartSegment] = useState(false); 
   const doNotSendRef = useRef(false); 
+  const [micError, setMicError] = useState(null);
+
+  // Acquire microphone stream on mount
+  useEffect(() => {
+    async function getStream() {
+      try {
+        if (!streamRef.current) {
+          streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
+          setMicError(null);
+        }
+      } catch (err) {
+        setMicError('Microphone access denied or unavailable. Please allow microphone access.');
+        streamRef.current = null;
+      }
+    }
+    getStream();
+    // Cleanup on unmount
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+    };
+  }, []);
 
   // Helper to start a new segment (reuse stream)
   const startNewSegment = useCallback(() => {
@@ -51,83 +75,30 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
         // Always clear chunks
         audioChunksRef.current = [];
       }
-      // Don't start new segment here—let useEffect handle it
       setSegmentActive(false);
     };
     mediaRecorderRef.current.start();
     console.log('MediaRecorder started');
   }, [sendMessage, onAudioSent]);
 
-  // Robustly restart segment after stop if requested
+  // Start/stop MediaRecorder on isRecording change
   useEffect(() => {
-    if (restartSegment && isRecording) {
-      setRestartSegment(false);
-      startNewSegment();
-    }
-  }, [restartSegment, isRecording, startNewSegment]);
-
-  useEffect(() => {
-    async function setupAudio() {
-      if (isRecording && !segmentActive) {
-        doNotSendRef.current = false; // Allow sending
-        try {
-          if (!streamRef.current) {
-            streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
-          }
-          startNewSegment();
-        } catch (error) {
-          console.error('AUDIO_RECORDER: Error during setupAudio:', error);
-        }
-      } else if (!isRecording) {
-        // On stop, do NOT send any audio chunk. Just clean up.
-        doNotSendRef.current = true;
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-          mediaRecorderRef.current.onstop = null; // Prevent sending on stop
-          mediaRecorderRef.current.stop();
-        }
-        if (streamRef.current) {
-          streamRef.current.getTracks().forEach(track => track.stop());
-          streamRef.current = null;
-        }
-        mediaRecorderRef.current = null;
+    if (micError) return;
+    if (isRecording) {
+      if (streamRef.current) {
+        startNewSegment();
       }
-    }
-    setupAudio();
-    return () => {
-    };
-  }, [isRecording]);
-
-  const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      console.log('Stopping MediaRecorder');
-      mediaRecorderRef.current.stop(); // This triggers the 'stop' event listener
-      // The 'stop' listener will handle sending the blob and calling onAudioSent
-    }
-  }, [onAudioSent]); // Include onAudioSent if it's used inside, though it's called in 'stop' event
-
-  useEffect(() => {
-    // Stop recorder only when isRecording goes from true to false
-    if (!isRecording && mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      stopRecording();
-    }
-    // Start recorder only when isRecording goes from false to true
-    else if (isRecording && mediaRecorderRef.current && mediaRecorderRef.current.state === 'inactive') {
-      startNewSegment();
-    }
-  }, [isRecording, startNewSegment, stopRecording]);
-
-  // Cleanup: stop recorder and stream on unmount
-  useEffect(() => {
-    return () => {
+    } else {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
         mediaRecorderRef.current.stop();
       }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, []);
+    }
+    // Don't clean up stream here
+  }, [isRecording, startNewSegment, micError]);
 
+  if (micError) {
+    return <div style={{ color: 'red', marginTop: 20, textAlign: 'center', fontWeight: 'bold' }}>{micError}</div>;
+  }
   return (
     <div className="audio-recorder">
     </div>
