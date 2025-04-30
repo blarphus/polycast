@@ -246,7 +246,7 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
       position: 'relative',
       width: '100%',
       height: 'calc(-296px + 100vh)',
-      margin: '12px auto 36px',
+      margin: '20px auto 36px', // Fixed top margin for consistent spacing
       overflow: 'hidden',
       minHeight: 400,
       display: 'flex',
