@@ -289,7 +289,9 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
             </>
           ) : (
             <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-              {translations[lang] && translations[lang].length ? renderSegmentsStacked(translations[lang]) : <span style={{ opacity: 0.6 }}>Waiting...</span>}
+              <span style={{ fontWeight: 400, fontSize: fontSize }}>
+                {renderSegmentsStacked(translations[lang] || [])}
+              </span>
               <div className="scroll-end" />
             </div>
           )}

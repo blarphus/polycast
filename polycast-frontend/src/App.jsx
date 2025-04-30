@@ -69,8 +69,15 @@ function App({ targetLanguages }) {
 
   // Update mode on backend
   const updateMode = useCallback(async (value) => {
+    const previousMode = modeRef.current;
     setIsTextMode(value); // Optimistically update UI
     setModeError(null);
+
+    // Clear text inputs when switching from text to audio mode
+    if (!value && previousMode) { 
+      setTextInputs({});
+    }
+
     try {
       const res = await fetch(`${BACKEND_HTTP_BASE}/mode`, {
         method: 'POST',
