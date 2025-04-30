@@ -309,7 +309,7 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
   // --- Main render ---
   return (
     <div ref={containerRef} className="split-transcription-layout" style={{ position: 'relative', width: '100%', height: `calc(100vh - 260px - ${BOTTOM_MARGIN}px)`, margin: `0 auto ${BOTTOM_MARGIN}px auto`, overflow: 'hidden', minHeight: 400, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      {renderEnglishBox()}
+      {showLiveEnglish && renderEnglishBox()}
       <div style={{ width: '100%', display: 'flex', justifyContent: langCount === 1 ? 'center' : 'flex-start' }}>
         {langBoxes}
       </div>

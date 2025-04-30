@@ -27,18 +27,17 @@ function Controls({
                     <option value="text">text mode</option>
                     <option value="audio">audio mode</option>
                 </select>
-            </div>
-            {/* Show Live English Toggle */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginLeft: 24 }}>
-                <label style={{ color: '#ccc', fontSize: 16, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+                {/* Only show the button in audio mode */}
+                {!isTextMode && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 14, fontSize: 15, fontWeight: 500, color: '#ccc' }}>
                     <input
                         type="checkbox"
                         checked={typeof window.showLiveEnglish === 'function' ? window.showLiveEnglish() : true}
                         onChange={e => window.dispatchEvent(new CustomEvent('toggleLiveEnglish', { detail: e.target.checked }))}
-                        style={{ marginRight: 5 }}
                     />
-                    Show Live English
-                </label>
+                    Show Live Transcript
+                  </label>
+                )}
             </div>
             {/* Font size controls */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 18 }}>
