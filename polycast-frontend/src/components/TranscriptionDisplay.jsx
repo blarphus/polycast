@@ -242,7 +242,17 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
   // Render transcript/English box first, then language boxes
   const transcriptVisible = showLiveEnglish || isTextMode;
   return (
-    <div ref={containerRef} className="split-transcription-layout" style={{ position: 'relative', width: '100%', height: `calc(100vh - 260px - ${BOTTOM_MARGIN}px)`, margin: `0 auto ${BOTTOM_MARGIN}px auto`, overflow: 'hidden', minHeight: 400, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+    <div ref={containerRef} className="split-transcription-layout" style={{
+      position: 'relative',
+      width: '100%',
+      height: 'calc(-296px + 100vh)',
+      margin: '12px auto 36px',
+      overflow: 'hidden',
+      minHeight: 400,
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+    }}>
       {/* Transcript/English box always renders and updates first */}
       {transcriptVisible && renderEnglishBox()}
       {/* Language boxes render after transcript, using latest translations */}

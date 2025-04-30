@@ -371,7 +371,7 @@ function App({ targetLanguages }) {
           {!isTextMode && isRecording && (
             <div style={{
               position: 'absolute',
-              top: 80,
+              top: 100,
               left: '50%',
               transform: 'translateX(-50%)',
               color: '#ff5733',
@@ -405,8 +405,8 @@ function App({ targetLanguages }) {
           {/* Audio mode note below tools row */}
           {!isTextMode && (
             <div style={{
-              marginTop: -10, // Pull the yellow text closer to the toolbar
-              marginBottom: 2,
+              marginTop: -45,
+              marginBottom: 0,
               width: '100%',
               textAlign: 'center',
               color: '#ffb84d',
