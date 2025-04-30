@@ -166,9 +166,9 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
     return (
       <div
         style={{
-          width: englishBoxInit.w,
+          width: '100%',
           minHeight: englishBoxInit.h,
-          margin: '0 auto 24px auto', // center horizontally, add bottom margin
+          margin: '0 auto 24px auto',
           background: '#181b2f',
           color: '#fff',
           borderTop: '6px solid #7c62ff',

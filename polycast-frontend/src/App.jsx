@@ -352,6 +352,23 @@ function App({ targetLanguages }) {
 
   return (
     <div className="App">
+      {/* Small Recording Text (absolute, below toolbar, above transcript) */}
+      {!isTextMode && isRecording && (
+        <div style={{
+          position: 'absolute',
+          top: 100, // adjust as needed to be just below toolbar
+          left: '50%',
+          transform: 'translateX(-50%)',
+          color: '#ff5733',
+          fontWeight: 'bold',
+          fontSize: '1.1rem',
+          textShadow: '0 1px 3px #fff',
+          zIndex: 10,
+          pointerEvents: 'none',
+        }}>
+          Recording...
+        </div>
+      )}
       {/* Big Polycast Title */}
       <h1 className="polycast-title" style={{
         color: '#fff',
@@ -380,62 +397,7 @@ function App({ targetLanguages }) {
           setIsTextMode={handleSetIsTextMode}
         />
       </div>
-      {/* Remove the display-container wrapper and use a full-width transcript box */}
-      {/* Absolutely position the Recording... indicator so it doesn't push content */}
-      <div style={{ position: 'relative', width: '100%' }}>
-        {(!isTextMode && isRecording) && (
-          <div style={{
-            position: 'absolute',
-            top: '-36px', // Just below the toolbar
-            left: 0,
-            width: '100%',
-            color: 'red',
-            fontWeight: 'bold',
-            fontSize: '1.3rem',
-            textAlign: 'center',
-            pointerEvents: 'none',
-            zIndex: 10,
-          }}>
-            Recording...
-          </div>
-        )}
-        <div style={{
-          width: '100vw',
-          margin: 0,
-          padding: 0,
-          background: '#16182a',
-          borderRadius: '12px',
-          border: '2px solid #2b2e4a',
-          boxShadow: '0 2px 16px 0 rgba(0,0,0,0.12)',
-          minHeight: 120,
-          maxWidth: 'none',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'stretch',
-        }}>
-          <TranscriptionDisplay
-            englishSegments={englishSegments}
-            translations={translations}
-            targetLanguages={targetLanguages}
-            showLiveEnglish={showLiveEnglish}
-            isTextMode={isTextMode}
-            onTextSubmit={(lang, text) => {
-              sendMessage(JSON.stringify({ type: 'text_submit', lang, text }));
-            }}
-            textInputs={textInputs}
-            setTextInputs={setTextInputs}
-          />
-        </div>
-      </div>
-      {/* Notification Pop-up */} 
-      {showNotification && (
-        <div 
-          className="notification-popup" 
-          style={{ opacity: notificationOpacity }}
-        >
-          Audio sent for transcription
-        </div>
-      )}
+      {/* Remove the main-toolbar/header entirely */}
       {modeError && (
         <div style={{ color: 'red', fontWeight: 500, marginBottom: 8 }}>
           {modeError}
@@ -449,6 +411,30 @@ function App({ targetLanguages }) {
           </ul>
         </div>
       )}
+      {/* Notification Pop-up */} 
+      {showNotification && (
+        <div 
+          className="notification-popup" 
+          style={{ opacity: notificationOpacity }}
+        >
+          Audio sent for transcription
+        </div>
+      )}
+      <div className="display-container">
+        <TranscriptionDisplay 
+          englishSegments={englishSegments} 
+          translations={translations} 
+          targetLanguages={targetLanguages} 
+          showLiveEnglish={showLiveEnglish} // Pass toggle state
+          isTextMode={isTextMode}
+          onTextSubmit={(lang, text) => {
+            // Send text submission for translation to backend
+            sendMessage(JSON.stringify({ type: 'text_submit', lang, text }));
+          }}
+          textInputs={textInputs}
+          setTextInputs={setTextInputs}
+        />
+      </div>
     </div>
   )
 }
