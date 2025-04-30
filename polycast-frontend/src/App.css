@@ -35,6 +35,7 @@ h1, h2, h3 {
   min-width: 360px;
   margin-left: auto;
   margin-right: auto;
+  position: relative;
 }
 .controls button {
   background: linear-gradient(90deg, #5f72ff 0%, #9a5cff 100%);

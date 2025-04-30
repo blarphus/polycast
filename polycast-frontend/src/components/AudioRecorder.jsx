@@ -1,137 +1,119 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import PropTypes from 'prop-types';
 
+const SUPPORTED_MIME_TYPE = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg';
+
 function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
-  const streamRef = useRef(null); 
-  const [segmentActive, setSegmentActive] = useState(false);
-  const [restartSegment, setRestartSegment] = useState(false); 
-  const doNotSendRef = useRef(false); 
+  const streamRef = useRef(null);
+  const isActuallyRecording = useRef(false); // Track the recorder's internal state
 
-  // Helper to start a new segment (reuse stream)
-  const startNewSegment = useCallback(() => {
-    if (!streamRef.current) return;
-    const SUPPORTED_MIME_TYPE = 'audio/webm;codecs=opus';
-    let mimeType = SUPPORTED_MIME_TYPE;
-    if (!MediaRecorder.isTypeSupported(mimeType)) {
-      mimeType = 'audio/webm';
-      if (!MediaRecorder.isTypeSupported(mimeType)) {
-        console.error('AUDIO_RECORDER: Browser does not support audio/webm recording. Please use Chrome or Edge.');
-        return;
+  // Function to initialize and start the recorder
+  const startRecording = useCallback(async () => {
+    if (isActuallyRecording.current) return; // Prevent double starts
+    console.log('Attempting to start recording...');
+    try {
+      // 1. Get Stream if needed
+      if (!streamRef.current) {
+        console.log('Requesting microphone stream...');
+        streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.log('Stream acquired.');
       }
-    }
-    mediaRecorderRef.current = new MediaRecorder(streamRef.current, { mimeType });
-    audioChunksRef.current = [];
-    mediaRecorderRef.current.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        audioChunksRef.current.push(event.data);
-      }
-    };
-    mediaRecorderRef.current.onstop = () => {
-      // Only send if not stopping from Stop Recording
-      if (!doNotSendRef.current && audioChunksRef.current.length > 0) {
-        const audioBlob = new Blob(audioChunksRef.current, { type: SUPPORTED_MIME_TYPE });
-        // Debug info
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const arr = new Uint8Array(reader.result);
-          const hex = Array.from(arr.slice(0, 16)).map(b => b.toString(16).padStart(2, '0')).join(' ');
-          console.log('[Polycast Debug] Final blob type:', audioBlob.type);
-          console.log('[Polycast Debug] Final first 16 bytes:', hex);
-        };
-        reader.readAsArrayBuffer(audioBlob);
-        console.log('Sending final audio blob:', audioBlob);
-        sendMessage(audioBlob);
-        if (onAudioSent) {
-          onAudioSent();
+
+      // 2. Initialize MediaRecorder if needed
+      if (!mediaRecorderRef.current) {
+        console.log('Initializing MediaRecorder...');
+        if (!MediaRecorder.isTypeSupported(SUPPORTED_MIME_TYPE)) {
+          console.error(`AUDIO_RECORDER: Browser does not support ${SUPPORTED_MIME_TYPE} recording.`);
+          return;
         }
-        audioChunksRef.current = [];
-      } else {
-        // Always clear chunks
-        audioChunksRef.current = [];
+        mediaRecorderRef.current = new MediaRecorder(streamRef.current, { mimeType: SUPPORTED_MIME_TYPE });
+
+        mediaRecorderRef.current.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            console.log('Data available, size:', event.data.size);
+            audioChunksRef.current.push(event.data);
+          }
+        };
+
+        mediaRecorderRef.current.onstop = () => {
+          console.log('Recorder stopped. Processing chunks...');
+          isActuallyRecording.current = false; // Update internal state tracker
+          if (audioChunksRef.current.length > 0) {
+            const audioBlob = new Blob(audioChunksRef.current, { type: SUPPORTED_MIME_TYPE });
+            console.log('Sending audio blob, size:', audioBlob.size);
+            sendMessage(audioBlob);
+            if (onAudioSent) {
+              onAudioSent();
+            }
+          } else {
+            console.log('No audio chunks recorded.');
+          }
+          audioChunksRef.current = []; // Clear chunks after processing
+        };
+
+        mediaRecorderRef.current.onerror = (event) => {
+          console.error('AUDIO_RECORDER: MediaRecorder Error:', event.error);
+          isActuallyRecording.current = false;
+        };
+        console.log('MediaRecorder initialized.');
       }
-      // Don't start new segment here—let useEffect handle it
-      setSegmentActive(false);
-    };
-    mediaRecorderRef.current.start();
-    console.log('MediaRecorder started');
+
+      // 3. Start Recording if inactive
+      if (mediaRecorderRef.current.state === 'inactive') {
+        audioChunksRef.current = []; // Clear any stale chunks before starting
+        mediaRecorderRef.current.start();
+        isActuallyRecording.current = true; // Update internal state tracker
+        console.log('MediaRecorder started. State:', mediaRecorderRef.current.state);
+      } else {
+        console.warn('Start called but recorder state is:', mediaRecorderRef.current.state);
+      }
+    } catch (error) {
+      console.error('Error starting recording:', error);
+    }
   }, [sendMessage, onAudioSent]);
 
-  // Robustly restart segment after stop if requested
-  useEffect(() => {
-    if (restartSegment && isRecording) {
-      setRestartSegment(false);
-      startNewSegment();
-    }
-  }, [restartSegment, isRecording, startNewSegment]);
-
-  useEffect(() => {
-    async function setupAudio() {
-      if (isRecording && !segmentActive) {
-        doNotSendRef.current = false; // Allow sending
-        try {
-          if (!streamRef.current) {
-            streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
-          }
-          startNewSegment();
-        } catch (error) {
-          console.error('AUDIO_RECORDER: Error during setupAudio:', error);
-        }
-      } else if (!isRecording) {
-        // On stop, do NOT send any audio chunk. Just clean up.
-        doNotSendRef.current = true;
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-          mediaRecorderRef.current.onstop = null; // Prevent sending on stop
-          mediaRecorderRef.current.stop();
-        }
-        if (streamRef.current) {
-          streamRef.current.getTracks().forEach(track => track.stop());
-          streamRef.current = null;
-        }
-        mediaRecorderRef.current = null;
-      }
-    }
-    setupAudio();
-    return () => {
-    };
-  }, [isRecording]);
-
+  // Function to stop the recorder
   const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      console.log('Stopping MediaRecorder');
-      mediaRecorderRef.current.stop(); // This triggers the 'stop' event listener
-      // The 'stop' listener will handle sending the blob and calling onAudioSent
+    if (!isActuallyRecording.current || !mediaRecorderRef.current || mediaRecorderRef.current.state !== 'recording') {
+      console.log('Stop called but not actually recording or recorder invalid.');
+      return; // Only stop if actually recording
     }
-  }, [onAudioSent]); // Include onAudioSent if it's used inside, though it's called in 'stop' event
+    console.log('Attempting to stop recording...');
+    mediaRecorderRef.current.stop(); // The onstop handler will manage sending data
+  }, []);
 
+  // Effect hook to react to isRecording prop changes
   useEffect(() => {
-    // Stop recorder only when isRecording goes from true to false
-    if (!isRecording && mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+    if (isRecording) {
+      // Prop wants to record, start if not already
+      startRecording();
+    } else {
+      // Prop wants to stop, stop if currently recording
       stopRecording();
     }
-    // Start recorder only when isRecording goes from false to true
-    else if (isRecording && mediaRecorderRef.current && mediaRecorderRef.current.state === 'inactive') {
-      startNewSegment();
-    }
-  }, [isRecording, startNewSegment, stopRecording]);
+  }, [isRecording, startRecording, stopRecording]);
 
-  // Cleanup: stop recorder and stream on unmount
+  // Cleanup effect on component unmount
   useEffect(() => {
     return () => {
+      console.log('AudioRecorder unmounting: Cleaning up...');
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        console.log('Stopping recorder on unmount.');
         mediaRecorderRef.current.stop();
       }
       if (streamRef.current) {
+        console.log('Releasing microphone stream on unmount.');
         streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
       }
+      mediaRecorderRef.current = null; // Clear ref
     };
-  }, []);
+  }, []); // Empty dependency array means run only on unmount
 
-  return (
-    <div className="audio-recorder">
-    </div>
-  );
+  // This component doesn't render anything visual itself
+  return null;
 }
 
 AudioRecorder.propTypes = {
