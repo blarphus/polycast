@@ -3,40 +3,44 @@ import PropTypes from 'prop-types';
 import { ReadyState } from 'react-use-websocket';
 
 /**
- * Component for Start/Stop buttons ONLY.
+ * Component for mode controls, language selection, font size, and recording indicator.
  */
-function Controls({
+function Controls({ 
     readyState,
-    isRecording,
-    onStartRecording,
-    onStopRecording,
+    isRecording, 
     isTextMode,
-    setIsTextMode,
-    // Removed language props
+    setIsTextMode, 
 }) {
     const isConnected = readyState === ReadyState.OPEN;
 
     return (
         <div className="controls">
-            <button
-                onClick={onStartRecording}
-                disabled={!isConnected || isRecording || isTextMode}
-            >
-                Start Recording
-            </button>
-            <button
-                onClick={onStopRecording}
-                disabled={!isConnected || !isRecording || isTextMode}
-            >
-                Stop Recording
-            </button>
+            {/* Recording Indicator */} 
+            {!isTextMode && isRecording && (
+              <div style={{ 
+                position: 'absolute', // Position near controls
+                top: '-25px', // Above the main controls row
+                left: '50%', 
+                transform: 'translateX(-50%)', 
+                color: '#ff5733', // Bright color for visibility
+                fontSize: '16px', 
+                fontWeight: 'bold', 
+                padding: '2px 8px',
+                background: 'rgba(255, 255, 255, 0.1)',
+                borderRadius: '4px',
+              }}>
+                Recording...
+              </div>
+            )}
+
             {/* Mode Dropdown */}
-            <div style={{ marginLeft: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <label style={{ color: '#ccc', fontSize: 15, fontWeight: 500 }}>Mode:</label>
-                <select
+                <select 
                     value={isTextMode ? 'text' : 'audio'}
                     onChange={e => setIsTextMode(e.target.value === 'text')}
                     style={{ minWidth: 90, fontSize: 15, padding: '2px 6px', borderRadius: 6 }}
+                    disabled={isRecording} // Disable mode switch while recording
                 >
                     <option value="text">text mode</option>
                     <option value="audio">audio mode</option>
@@ -80,7 +84,6 @@ function Controls({
                     <span style={{ position: 'relative', top: -2 }}>+</span>
                 </button>
             </div>
-            {/* Removed language input */}
         </div>
     );
 }
@@ -88,11 +91,8 @@ function Controls({
 Controls.propTypes = {
     readyState: PropTypes.number.isRequired,
     isRecording: PropTypes.bool.isRequired,
-    onStartRecording: PropTypes.func.isRequired,
-    onStopRecording: PropTypes.func.isRequired,
     isTextMode: PropTypes.bool.isRequired,
     setIsTextMode: PropTypes.func.isRequired,
-    // Removed language prop types
 };
 
 export default Controls;

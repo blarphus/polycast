@@ -26,7 +26,15 @@ function App({ targetLanguages }) {
   const [isTextMode, setIsTextMode] = useState(false); // Default to audio mode
   const [modeError, setModeError] = useState(null);
   const [textInputs, setTextInputs] = useState({}); // Lifted state
+  const [showNotification, setShowNotification] = useState(false);
+  const [notificationOpacity, setNotificationOpacity] = useState(1);
+  const notificationTimeoutRef = useRef(null);
   const modeRef = useRef(isTextMode);
+  const isRecordingRef = useRef(isRecording); // Ref to track recording state in handlers
+
+  // Update refs when state changes
+  useEffect(() => { modeRef.current = isTextMode; }, [isTextMode]);
+  useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
 
   // Backend base URL for /mode endpoints
   const BACKEND_HTTP_BASE = 'https://polycast-server.onrender.com';
@@ -131,6 +139,38 @@ function App({ targetLanguages }) {
     const interval = setInterval(fetchMode, 5000);
     return () => clearInterval(interval);
   }, [fetchMode]);
+
+  // Spacebar listener for recording
+  useEffect(() => {
+    let spacebarPressed = false; // Prevent repeated starts on key hold
+
+    const handleKeyDown = (event) => {
+      if (event.code === 'Space' && !modeRef.current && !isRecordingRef.current && !spacebarPressed) {
+        event.preventDefault(); // Prevent scrolling
+        spacebarPressed = true;
+        console.log("Spacebar DOWN - Starting recording");
+        setIsRecording(true);
+      }
+    };
+
+    const handleKeyUp = (event) => {
+      if (event.code === 'Space' && !modeRef.current && isRecordingRef.current) {
+        event.preventDefault();
+        spacebarPressed = false;
+        console.log("Spacebar UP - Stopping recording");
+        setIsRecording(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    // Cleanup listeners on component unmount
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []); // Empty dependency array ensures this runs only once on mount
 
   const { sendMessage, lastMessage, readyState } = useWebSocket(socketUrl, {
     onOpen: () => {
@@ -268,6 +308,25 @@ function App({ targetLanguages }) {
     setIsRecording(false);
   }, []);
 
+  const onAudioSent = useCallback(() => {
+    console.log("Audio chunk sent");
+    setShowNotification(true);
+    setNotificationOpacity(1); // Ensure it's fully visible initially
+
+    // Clear any existing timeout
+    if (notificationTimeoutRef.current) {
+      clearTimeout(notificationTimeoutRef.current);
+    }
+
+    // Set new timeout for fade and hide
+    notificationTimeoutRef.current = setTimeout(() => {
+      setNotificationOpacity(0); // Start fading out
+      notificationTimeoutRef.current = setTimeout(() => {
+        setShowNotification(false); // Hide after fade
+      }, 1000); // Fade duration
+    }, 1000); // Initial display duration
+  }, []);
+
   // Pass mode state and update logic to Controls
   const handleSetIsTextMode = useCallback((value) => {
     updateMode(value); // Update backend and local state
@@ -281,6 +340,15 @@ function App({ targetLanguages }) {
     [ReadyState.CLOSED]: 'Closed',
     [ReadyState.UNINSTANTIATED]: 'Uninstantiated',
   }[readyState];
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (notificationTimeoutRef.current) {
+        clearTimeout(notificationTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div className="App">
@@ -301,6 +369,7 @@ function App({ targetLanguages }) {
         <AudioRecorder
           sendMessage={sendMessage}
           isRecording={isRecording}
+          onAudioSent={onAudioSent}
         />
         <Controls
           readyState={readyState}
@@ -323,6 +392,15 @@ function App({ targetLanguages }) {
           <ul>
             {errorMessages.map((err, index) => <li key={index}>{err}</li>)}
           </ul>
+        </div>
+      )}
+      {/* Notification Pop-up */} 
+      {showNotification && (
+        <div 
+          className="notification-popup" 
+          style={{ opacity: notificationOpacity }}
+        >
+          Audio sent for transcription
         </div>
       )}
       <div className="display-container">

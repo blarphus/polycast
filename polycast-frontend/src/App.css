@@ -445,3 +445,19 @@ h1, h2, h3 {
   justify-content: center;
   width: 100vw;
 }
+
+.notification-popup {
+  position: fixed; /* Or absolute relative to a container */
+  top: 80px; /* Adjust as needed */
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #1a73e8; /* Example blue background */
+  color: white;
+  padding: 10px 20px;
+  border-radius: 8px;
+  z-index: 1000; /* Ensure it's above other elements */
+  font-size: 16px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  opacity: 1; /* Start fully visible */
+  transition: opacity 1s ease-out; /* Fade-out transition over 1 second */
+}

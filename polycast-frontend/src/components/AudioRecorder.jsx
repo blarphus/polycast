@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import PropTypes from 'prop-types';
 
-function AudioRecorder({ sendMessage, isRecording }) {
+function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const streamRef = useRef(null); // <-- this will persist for the session
@@ -77,6 +77,9 @@ function AudioRecorder({ sendMessage, isRecording }) {
         reader.readAsArrayBuffer(audioBlob);
         console.log('Sending final audio blob:', audioBlob);
         sendMessage(audioBlob);
+        if (onAudioSent) {
+          onAudioSent();
+        }
         showSendNotice('Audio sent for transcription');
         audioChunksRef.current = [];
       } else {
@@ -89,7 +92,7 @@ function AudioRecorder({ sendMessage, isRecording }) {
     mediaRecorderRef.current.start();
     setStatus('Recording');
     console.log('MediaRecorder started');
-  }, [sendMessage]);
+  }, [sendMessage, onAudioSent]);
 
   // Robustly restart segment after stop if requested
   useEffect(() => {
@@ -166,6 +169,7 @@ function AudioRecorder({ sendMessage, isRecording }) {
 AudioRecorder.propTypes = {
   sendMessage: PropTypes.func.isRequired,
   isRecording: PropTypes.bool.isRequired,
+  onAudioSent: PropTypes.func,
 };
 
 export default AudioRecorder;
