@@ -245,7 +245,8 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
     <div ref={containerRef} className="split-transcription-layout" style={{
       position: 'relative',
       width: '100%',
-      height: 'calc(100vh - 36px - 20px)', // Fill to near bottom, minus margin
+      height: '100vh', // Never exceed viewport height
+      boxSizing: 'border-box',
       margin: '20px auto 36px',
       overflow: 'hidden',
       minHeight: 400,
@@ -289,6 +290,7 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
                 justifyContent: 'flex-start',
                 alignItems: 'stretch',
                 padding: 0,
+                boxSizing: 'border-box',
               }}
             >
               <span style={{
