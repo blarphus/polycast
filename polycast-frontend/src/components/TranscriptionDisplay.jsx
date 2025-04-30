@@ -56,7 +56,11 @@ function useWindowSize() {
 const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, showLiveEnglish, isTextMode, onTextSubmit, textInputs, setTextInputs }) => {
   const englishRef = useRef(null);
   const translationRefs = useRef({});
-  const [fontSize, setFontSize] = useState(18); // Start at 18, user can adjust in any mode
+  const [fontSize, setFontSize] = useState(isTextMode ? 18 : 30); // Font size: default to 30 in audio mode
+  useEffect(() => {
+    // Update font size default when mode changes
+    setFontSize(isTextMode ? 18 : 30);
+  }, [isTextMode]);
   const containerRef = useRef(null);
   const [containerSize, setContainerSize] = useState({ width: 1200, height: 600 });
   const [langBoxStates, setLangBoxStates] = useState([]);
@@ -236,12 +240,13 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
 
   // --- Main render ---
   // Render transcript/English box first, then language boxes
+  const transcriptVisible = showLiveEnglish || isTextMode;
   return (
     <div ref={containerRef} className="split-transcription-layout" style={{ position: 'relative', width: '100%', height: `calc(100vh - 260px - ${BOTTOM_MARGIN}px)`, margin: `0 auto ${BOTTOM_MARGIN}px auto`, overflow: 'hidden', minHeight: 400, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       {/* Transcript/English box always renders and updates first */}
-      {(showLiveEnglish || isTextMode) && renderEnglishBox()}
+      {transcriptVisible && renderEnglishBox()}
       {/* Language boxes render after transcript, using latest translations */}
-      <div style={{ width: '100%', display: 'flex', justifyContent: langCount === 1 ? 'center' : 'flex-start' }}>
+      <div style={{ width: '100%', display: 'flex', justifyContent: langCount === 1 ? 'center' : 'flex-start', flexGrow: transcriptVisible ? 0 : 1, height: transcriptVisible ? undefined : '100%' }}>
         {targetLanguages.map((lang, idx) => {
           const scheme = colorSchemes[(idx + 1) % colorSchemes.length];
           const layout = langBoxLayout[idx] || { x: 0, y: 0, w: 320, h: 250 };
@@ -251,8 +256,10 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
               key={lang}
               style={{
                 width: layout.w,
-                minHeight: layout.h,
-                maxHeight: 270, // fixed max height
+                minHeight: transcriptVisible ? layout.h : 0,
+                maxHeight: transcriptVisible ? 270 : 'none',
+                height: transcriptVisible ? undefined : '100%',
+                flexGrow: transcriptVisible ? 0 : 1,
                 overflowY: 'auto',
                 margin: '0 12px',
                 background: scheme.bg,
