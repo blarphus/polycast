@@ -245,8 +245,8 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
     <div ref={containerRef} className="split-transcription-layout" style={{
       position: 'relative',
       width: '100%',
-      height: 'calc(-296px + 100vh)',
-      margin: '20px auto 36px', // Fixed top margin for consistent spacing
+      height: 'calc(100vh - 36px - 20px)', // Fill to near bottom, minus margin
+      margin: '20px auto 36px',
       overflow: 'hidden',
       minHeight: 400,
       display: 'flex',
@@ -256,7 +256,15 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
       {/* Transcript/English box always renders and updates first */}
       {transcriptVisible && renderEnglishBox()}
       {/* Language boxes render after transcript, using latest translations */}
-      <div style={{ width: '100%', display: 'flex', justifyContent: langCount === 1 ? 'center' : 'flex-start', flexGrow: transcriptVisible ? 0 : 1, height: transcriptVisible ? undefined : '100%' }}>
+      <div style={{
+        width: '100%',
+        display: 'flex',
+        justifyContent: langCount === 1 ? 'center' : 'flex-start',
+        flex: 1, // Take up remaining space
+        minHeight: 0,
+        height: '100%',
+        alignItems: 'stretch',
+      }}>
         {targetLanguages.map((lang, idx) => {
           const scheme = colorSchemes[(idx + 1) % colorSchemes.length];
           const layout = langBoxLayout[idx] || { x: 0, y: 0, w: 320, h: 250 };
@@ -266,10 +274,9 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
               key={lang}
               style={{
                 width: layout.w,
-                minHeight: transcriptVisible ? layout.h : 0,
-                maxHeight: transcriptVisible ? 270 : 'none',
-                height: transcriptVisible ? undefined : '100%',
-                flexGrow: transcriptVisible ? 0 : 1,
+                minHeight: 0,
+                height: '100%',
+                flex: 1,
                 overflowY: 'auto',
                 margin: '0 12px',
                 background: scheme.bg,
