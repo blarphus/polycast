@@ -371,7 +371,7 @@ function App({ targetLanguages }) {
           {!isTextMode && isRecording && (
             <div style={{
               position: 'absolute',
-              top: 65,
+              top: 80,
               left: '50%',
               transform: 'translateX(-50%)',
               color: '#ff5733',
