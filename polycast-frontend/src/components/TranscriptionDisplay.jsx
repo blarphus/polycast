@@ -125,8 +125,8 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
   const ENGLISH_BOX_HEIGHT = 180;
   // Responsive layout for 1-4 languages (fit inside container)
   const GAP = 24;
-  const SIDE_MARGIN = 12;
-  const BOTTOM_MARGIN = 36;
+  const SIDE_MARGIN = 24;
+  const BOTTOM_MARGIN = 24;
   const boxTop = 20; // vertical offset below English box
   const langCount = targetLanguages.length;
   let langBoxLayout = [];
@@ -174,7 +174,6 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
           minHeight: englishBoxInit.h,
           maxHeight: 270, // fixed max height to match translation boxes
           overflowY: 'auto', // scroll when overflowing
-          margin: '0 auto 24px auto',
           background: '#181b2f',
           color: '#fff',
           borderTop: '6px solid #7c62ff',
@@ -248,8 +247,9 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
       style={{
         position: 'relative',
         width: '100%',
-        height: 'calc(100vh - 180px)', // Add a small buffer to avoid overflow
-        margin: '20px auto 0',
+        height: 'calc(100vh - 48px)', // Adjust for top+bottom padding
+        padding: 24, // 24px padding on all sides
+        boxSizing: 'border-box',
         overflow: 'hidden',
         minHeight: 400,
         display: 'flex',
