@@ -4,42 +4,10 @@ import PropTypes from 'prop-types';
 function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
-  const streamRef = useRef(null); // <-- this will persist for the session
-  const [status, setStatus] = useState('Idle');
-  const [sendNotice, setSendNotice] = useState(null);
-  const [noticeVisible, setNoticeVisible] = useState(false);
-  const fadeTimeoutRef = useRef(null);
-  const fadeAnimTimeoutRef = useRef(null);
+  const streamRef = useRef(null); 
   const [segmentActive, setSegmentActive] = useState(false);
-  const [restartSegment, setRestartSegment] = useState(false); // NEW
-  const doNotSendRef = useRef(false); // NEW
-
-  // Helper: show a fading message
-  const showSendNotice = (msg) => {
-    setSendNotice(msg);
-    setNoticeVisible(true);
-    if (fadeTimeoutRef.current) clearTimeout(fadeTimeoutRef.current);
-    if (fadeAnimTimeoutRef.current) clearTimeout(fadeAnimTimeoutRef.current);
-    // Show for 1s, then fade out over 1s
-    fadeTimeoutRef.current = setTimeout(() => {
-      setNoticeVisible(false); // triggers fade
-    }, 1000);
-    fadeAnimTimeoutRef.current = setTimeout(() => setSendNotice(null), 2000); // Remove after fade completes
-  };
-
-  // Handle space bar to flush segment
-  useEffect(() => {
-    if (!isRecording) return;
-    const handleSpace = (e) => {
-      if (e.code === 'Space' && mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-        mediaRecorderRef.current.stop();
-        setSegmentActive(true);
-        setRestartSegment(true); // Signal to restart after stop
-      }
-    };
-    window.addEventListener('keydown', handleSpace);
-    return () => window.removeEventListener('keydown', handleSpace);
-  }, [isRecording]);
+  const [restartSegment, setRestartSegment] = useState(false); 
+  const doNotSendRef = useRef(false); 
 
   // Helper to start a new segment (reuse stream)
   const startNewSegment = useCallback(() => {
@@ -49,8 +17,7 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
     if (!MediaRecorder.isTypeSupported(mimeType)) {
       mimeType = 'audio/webm';
       if (!MediaRecorder.isTypeSupported(mimeType)) {
-        setStatus('Error: Browser does not support audio/webm recording. Please use Chrome or Edge.');
-        alert('Your browser does not support audio/webm recording. Please use Chrome or Edge.');
+        console.error('AUDIO_RECORDER: Browser does not support audio/webm recording. Please use Chrome or Edge.');
         return;
       }
     }
@@ -62,7 +29,6 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
       }
     };
     mediaRecorderRef.current.onstop = () => {
-      setStatus('Idle');
       // Only send if not stopping from Stop Recording
       if (!doNotSendRef.current && audioChunksRef.current.length > 0) {
         const audioBlob = new Blob(audioChunksRef.current, { type: SUPPORTED_MIME_TYPE });
@@ -80,7 +46,6 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
         if (onAudioSent) {
           onAudioSent();
         }
-        showSendNotice('Audio sent for transcription');
         audioChunksRef.current = [];
       } else {
         // Always clear chunks
@@ -90,7 +55,6 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
       setSegmentActive(false);
     };
     mediaRecorderRef.current.start();
-    setStatus('Recording');
     console.log('MediaRecorder started');
   }, [sendMessage, onAudioSent]);
 
@@ -107,13 +71,11 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
       if (isRecording && !segmentActive) {
         doNotSendRef.current = false; // Allow sending
         try {
-          setStatus('Requesting Mic');
           if (!streamRef.current) {
             streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
           }
           startNewSegment();
         } catch (error) {
-          setStatus('Error: ' + error.message);
           console.error('AUDIO_RECORDER: Error during setupAudio:', error);
         }
       } else if (!isRecording) {
@@ -128,40 +90,46 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
           streamRef.current = null;
         }
         mediaRecorderRef.current = null;
-        if (status !== 'Idle' && !status.startsWith('Error')) {
-          setStatus('Idle');
-        }
       }
     }
     setupAudio();
     return () => {
-      if (fadeTimeoutRef.current) clearTimeout(fadeTimeoutRef.current);
-      if (fadeAnimTimeoutRef.current) clearTimeout(fadeAnimTimeoutRef.current);
     };
-  }, [isRecording, sendMessage, segmentActive, startNewSegment, status]);
+  }, [isRecording]);
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      console.log('Stopping MediaRecorder');
+      mediaRecorderRef.current.stop(); // This triggers the 'stop' event listener
+      // The 'stop' listener will handle sending the blob and calling onAudioSent
+    }
+  }, [onAudioSent]); // Include onAudioSent if it's used inside, though it's called in 'stop' event
+
+  useEffect(() => {
+    // Stop recorder only when isRecording goes from true to false
+    if (!isRecording && mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      stopRecording();
+    }
+    // Start recorder only when isRecording goes from false to true
+    else if (isRecording && mediaRecorderRef.current && mediaRecorderRef.current.state === 'inactive') {
+      startNewSegment();
+    }
+  }, [isRecording, startNewSegment, stopRecording]);
+
+  // Cleanup: stop recorder and stream on unmount
+  useEffect(() => {
+    return () => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.stop();
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
 
   return (
     <div className="audio-recorder">
-      <div>Status: {status}</div>
-      {sendNotice && (
-        <div style={{
-          position: 'fixed',
-          top: 90,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          background: 'rgba(60, 180, 255, 0.9)',
-          color: '#fff',
-          padding: '10px 24px',
-          borderRadius: 8,
-          fontWeight: 500,
-          fontSize: 18,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.13)',
-          zIndex: 9999,
-          opacity: noticeVisible ? 1 : 0,
-          transition: 'opacity 1s',
-          pointerEvents: 'none',
-        }}>{sendNotice}</div>
-      )}
     </div>
   );
 }
