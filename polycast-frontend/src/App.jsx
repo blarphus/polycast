@@ -405,7 +405,7 @@ function App({ targetLanguages }) {
           {/* Audio mode note below tools row */}
           {!isTextMode && (
             <div style={{
-              marginTop: 0,
+              marginTop: -10, // Pull the yellow text closer to the toolbar
               marginBottom: 2,
               width: '100%',
               textAlign: 'center',
