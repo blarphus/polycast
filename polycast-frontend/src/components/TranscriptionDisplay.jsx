@@ -248,7 +248,7 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
       style={{
         position: 'relative',
         width: '100%',
-        height: 'calc(100vh - 170px)', // Adjust this value as needed for header/toolbar height
+        height: 'calc(100vh - 180px)', // Add a small buffer to avoid overflow
         margin: '20px auto 0',
         overflow: 'hidden',
         minHeight: 400,
