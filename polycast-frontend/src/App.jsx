@@ -352,24 +352,6 @@ function App({ targetLanguages }) {
 
   return (
     <div className="App">
-      {/* Global Recording Banner */}
-      {!isTextMode && isRecording && (
-        <div className="recording-banner" style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100%',
-          backgroundColor: 'red',
-          color: 'white',
-          fontSize: '2rem',
-          fontWeight: 'bold',
-          textAlign: 'center',
-          padding: '12px 0',
-          zIndex: 1000,
-        }}>
-          Recording...
-        </div>
-      )}
       {/* Big Polycast Title */}
       <h1 className="polycast-title" style={{
         color: '#fff',
@@ -398,6 +380,18 @@ function App({ targetLanguages }) {
           setIsTextMode={handleSetIsTextMode}
         />
       </div>
+      {/* Display Recording... above transcript and below toolbar */}
+      {(!isTextMode && isRecording) && (
+        <div style={{
+          color: 'red',
+          fontWeight: 'bold',
+          fontSize: '1.3rem',
+          textAlign: 'center',
+          margin: '12px 0 4px 0',
+        }}>
+          Recording...
+        </div>
+      )}
       {/* Remove the main-toolbar/header entirely */}
       {modeError && (
         <div style={{ color: 'red', fontWeight: 500, marginBottom: 8 }}>
@@ -422,19 +416,34 @@ function App({ targetLanguages }) {
         </div>
       )}
       <div className="display-container">
-        <TranscriptionDisplay 
-          englishSegments={englishSegments} 
-          translations={translations} 
-          targetLanguages={targetLanguages} 
-          showLiveEnglish={showLiveEnglish} // Pass toggle state
-          isTextMode={isTextMode}
-          onTextSubmit={(lang, text) => {
-            // Send text submission for translation to backend
-            sendMessage(JSON.stringify({ type: 'text_submit', lang, text }));
-          }}
-          textInputs={textInputs}
-          setTextInputs={setTextInputs}
-        />
+        <div style={{
+          width: '100%',
+          margin: '0 auto 24px auto',
+          padding: 0,
+          background: '#16182a',
+          borderRadius: '12px',
+          border: '2px solid #2b2e4a',
+          boxShadow: '0 2px 16px 0 rgba(0,0,0,0.12)',
+          minHeight: 120,
+          maxWidth: 'none', // Remove maxWidth constraint
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'stretch',
+        }}>
+          <TranscriptionDisplay 
+            englishSegments={englishSegments} 
+            translations={translations} 
+            targetLanguages={targetLanguages} 
+            showLiveEnglish={showLiveEnglish} // Pass toggle state
+            isTextMode={isTextMode}
+            onTextSubmit={(lang, text) => {
+              // Send text submission for translation to backend
+              sendMessage(JSON.stringify({ type: 'text_submit', lang, text }));
+            }}
+            textInputs={textInputs}
+            setTextInputs={setTextInputs}
+          />
+        </div>
       </div>
     </div>
   )
