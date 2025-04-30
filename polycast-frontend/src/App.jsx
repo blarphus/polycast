@@ -364,9 +364,9 @@ function App({ targetLanguages }) {
       }}>
         Polycast
       </h1>
-      <div className="controls-container" style={{ marginBottom: 18 }}>
+      <div className="controls-container" style={{ marginBottom: 4 }}>
         {/* Main Toolbar */}
-        <div className="main-toolbar" style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
+        <div className="main-toolbar" style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'stretch', marginBottom: 0 }}>
           {/* Absolutely positioned Recording indicator in circled space */}
           {!isTextMode && isRecording && (
             <div style={{
