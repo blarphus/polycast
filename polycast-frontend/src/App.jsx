@@ -367,6 +367,25 @@ function App({ targetLanguages }) {
       <div className="controls-container" style={{ marginBottom: 18 }}>
         {/* Main Toolbar */}
         <div className="main-toolbar" style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
+          {/* Absolutely positioned Recording indicator in circled space */}
+          {!isTextMode && isRecording && (
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              color: '#ff5733',
+              fontWeight: 'bold',
+              fontSize: '1.1rem',
+              textShadow: '0 1px 3px #fff',
+              pointerEvents: 'none',
+              letterSpacing: 0.2,
+              opacity: 0.98,
+              zIndex: 2,
+            }}>
+              Recording...
+            </div>
+          )}
           <div style={{ display: 'flex', alignItems: 'center' }}>
             {/* Pass sendMessage down to components that need to send audio */}
             <AudioRecorder
@@ -399,24 +418,6 @@ function App({ targetLanguages }) {
               userSelect: 'none',
             }}>
               Hold Spacebar to record.  Release Spacebar to send.
-            </div>
-          )}
-          {/* Recording indicator in circled space */}
-          {!isTextMode && isRecording && (
-            <div style={{
-              marginTop: 8,
-              marginBottom: 0,
-              width: '100%',
-              textAlign: 'center',
-              color: '#ff5733',
-              fontWeight: 'bold',
-              fontSize: '1.1rem',
-              textShadow: '0 1px 3px #fff',
-              pointerEvents: 'none',
-              letterSpacing: 0.2,
-              opacity: 0.98,
-            }}>
-              Recording...
             </div>
           )}
         </div>
