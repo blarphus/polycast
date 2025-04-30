@@ -234,99 +234,104 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
     );
   };
 
-  // --- Language boxes ---
-  const langBoxes = targetLanguages.map((lang, idx) => {
-    const scheme = colorSchemes[(idx + 1) % colorSchemes.length];
-    const layout = langBoxLayout[idx] || { x: 120 + idx * 280, y: 180, w: 270, h: 140 };
-    return (
-      <div
-        key={lang}
-        style={{
-          width: layout.w,
-          minHeight: layout.h,
-          maxHeight: 270, // fixed max height to match English box
-          overflowY: 'auto', // scroll when overflowing
-          margin: '0 12px',
-          background: scheme.bg,
-          color: scheme.fg,
-          borderTop: `4px solid ${scheme.accent}`,
-          borderRadius: 10,
-          boxShadow: '0 2px 12px 0 rgba(124, 98, 255, 0.08)',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'flex-start',
-          alignItems: 'stretch',
-          padding: 0,
-        }}
-      >
-        <span style={{
-          letterSpacing: 0.5,
-          textAlign: 'center',
-          fontWeight: 800,
-          fontSize: 20,
-          margin: '18px 0 10px 0',
-          color: scheme.accent + 'cc', // lighter accent (add alpha)
-          textTransform: 'uppercase',
-          opacity: 0.92,
-        }}>
-          {lang}
-        </span>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 16, gap: 8, overflow: 'auto' }} ref={el => translationRefs.current[lang] = el}>
-          {isTextMode ? (
-            <>
-              <textarea
-                value={textInputs[lang] ?? ''} // Ensure value is correctly bound
-                onChange={e => handleInputChange(lang, e.target.value)} // Ensure onChange updates state
-                placeholder={`Type ${lang} text here...`}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  flex: 1,
-                  fontSize: fontSize, // Apply font size here too for consistency
-                  borderRadius: 6,
-                  border: `1.5px solid ${scheme.accent}`,
-                  padding: 8,
-                  resize: 'none',
-                  background: scheme.bg,
-                  color: scheme.fg,
-                  boxSizing: 'border-box',
-                  minHeight: 80,
-                }}
-                onKeyDown={e => {
-                  if (isTextMode && e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSubmit(lang);
-                  }
-                }}
-              />
-              <button
-                style={{ marginTop: 10, alignSelf: 'center', background: scheme.accent, color: '#fff', border: 'none', borderRadius: 6, padding: '6px 18px', fontWeight: 700, fontSize: 16, cursor: 'pointer' }}
-                onClick={() => handleSubmit(lang)}
-              >
-                Submit
-              </button>
-            </>
-          ) : (
-            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-              <span style={{ fontWeight: 400, fontSize: fontSize }}>
-                {renderSegmentsStacked(translations[lang] || [])}
-              </span>
-              <div className="scroll-end" />
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  });
-
   // --- Main render ---
+  // Render transcript/English box first, then language boxes
   return (
     <div ref={containerRef} className="split-transcription-layout" style={{ position: 'relative', width: '100%', height: `calc(100vh - 260px - ${BOTTOM_MARGIN}px)`, margin: `0 auto ${BOTTOM_MARGIN}px auto`, overflow: 'hidden', minHeight: 400, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      {/* Transcript/English box always renders first */}
+      {/* Transcript/English box always renders and updates first */}
       {(showLiveEnglish || isTextMode) && renderEnglishBox()}
-      {/* Language boxes render after transcript */}
+      {/* Language boxes render after transcript, using latest translations */}
       <div style={{ width: '100%', display: 'flex', justifyContent: langCount === 1 ? 'center' : 'flex-start' }}>
-        {langBoxes}
+        {targetLanguages.map((lang, idx) => {
+          const scheme = colorSchemes[(idx + 1) % colorSchemes.length];
+          const layout = langBoxLayout[idx] || { x: 0, y: 0, w: 320, h: 250 };
+          const segments = translations[lang] || [];
+          return (
+            <div
+              key={lang}
+              style={{
+                width: layout.w,
+                minHeight: layout.h,
+                maxHeight: 270, // fixed max height
+                overflowY: 'auto',
+                margin: '0 12px',
+                background: scheme.bg,
+                color: scheme.fg,
+                borderTop: `4px solid ${scheme.accent}`,
+                borderRadius: 12,
+                boxShadow: '0 2px 12px 0 rgba(124, 98, 255, 0.07)',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'flex-start',
+                alignItems: 'stretch',
+                padding: 0,
+              }}
+            >
+              <span style={{
+                letterSpacing: 0.5,
+                textAlign: 'center',
+                fontWeight: 800,
+                fontSize: 20,
+                margin: '18px 0 10px 0',
+                color: scheme.accent + 'cc', // lighter accent (add alpha)
+                textTransform: 'uppercase',
+                opacity: 0.92,
+              }}>
+                {lang}
+              </span>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 16, gap: 8, overflow: 'auto' }} ref={el => translationRefs.current[lang] = el}>
+                {isTextMode ? (
+                  <>
+                    <textarea
+                      value={textInputs[lang] ?? ''}
+                      onChange={e => handleInputChange(lang, e.target.value)}
+                      placeholder={`Type ${lang} translation here...`}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        flex: 1,
+                        fontSize: fontSize,
+                        borderRadius: 6,
+                        padding: 8,
+                        border: '1px solid #444',
+                        background: '#23233a',
+                        color: '#fff',
+                        resize: 'vertical',
+                        minHeight: 60,
+                        marginBottom: 8,
+                      }}
+                      rows={3}
+                    />
+                    <button
+                      onClick={() => handleSubmit(lang)}
+                      style={{
+                        background: scheme.accent,
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 6,
+                        padding: '6px 16px',
+                        fontWeight: 700,
+                        fontSize: 16,
+                        marginTop: 2,
+                        alignSelf: 'flex-end',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Submit
+                    </button>
+                  </>
+                ) : (
+                  <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+                    <span style={{ fontWeight: 400, fontSize: fontSize }}>
+                      {renderSegmentsStacked(segments)}
+                    </span>
+                    <div className="scroll-end" />
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
