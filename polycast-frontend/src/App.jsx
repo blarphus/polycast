@@ -352,6 +352,24 @@ function App({ targetLanguages }) {
 
   return (
     <div className="App">
+      {/* Global Recording Banner */}
+      {!isTextMode && isRecording && (
+        <div className="recording-banner" style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          backgroundColor: 'red',
+          color: 'white',
+          fontSize: '2rem',
+          fontWeight: 'bold',
+          textAlign: 'center',
+          padding: '12px 0',
+          zIndex: 1000,
+        }}>
+          Recording...
+        </div>
+      )}
       {/* Big Polycast Title */}
       <h1 className="polycast-title" style={{
         color: '#fff',
