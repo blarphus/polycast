@@ -56,7 +56,7 @@ function useWindowSize() {
 const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, showLiveEnglish, isTextMode, onTextSubmit, textInputs, setTextInputs }) => {
   const englishRef = useRef(null);
   const translationRefs = useRef({});
-  const [fontSize, setFontSize] = useState(18);
+  const [fontSize, setFontSize] = useState(isTextMode ? 18 : 36); // Double default in audio mode
   const containerRef = useRef(null);
   const [containerSize, setContainerSize] = useState({ width: 1200, height: 600 });
   const [langBoxStates, setLangBoxStates] = useState([]);
@@ -100,19 +100,28 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
 
   // Listen for font size change events from Controls
   useEffect(() => {
-    const handler = (e) => setFontSize(f => {
-      const newSize = Math.max(10, Math.min(48, f + (e.detail || 0)));
-      // Also update the display in the controls
-      const el = document.getElementById('font-size-display');
-      if (el) el.textContent = `${newSize}px`;
-      return newSize;
-    });
+    const handler = (e) => {
+      // Only allow font size change in audio mode
+      if (!isTextMode) {
+        setFontSize(f => {
+          const newSize = Math.max(10, Math.min(96, f + (e.detail || 0)));
+          const el = document.getElementById('font-size-display');
+          if (el) el.textContent = `${newSize}px`;
+          return newSize;
+        });
+      }
+    };
     window.addEventListener('changeFontSize', handler);
     // Set initial display
     const el = document.getElementById('font-size-display');
     if (el) el.textContent = `${fontSize}px`;
     return () => window.removeEventListener('changeFontSize', handler);
-  }, [fontSize]);
+  }, [fontSize, isTextMode]);
+
+  // Reset font size when switching modes
+  useEffect(() => {
+    setFontSize(isTextMode ? 18 : 36); // 18 for text mode, 36 for audio mode
+  }, [isTextMode]);
 
   // Center the English box, and make it taller
   // For single language, center translation box too
@@ -199,19 +208,10 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
                   resize: 'none',
                   background: scheme.bg,
                   color: scheme.fg,
-                  boxSizing: 'border-box',
-                  minHeight: 80,
-                  minWidth: 0,
-                }}
-                onKeyDown={e => {
-                  if (isTextMode && e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSubmit('English');
-                  }
                 }}
               />
               <button
-                style={{ alignSelf: 'flex-end', background: scheme.accent, color: '#fff', border: 'none', borderRadius: 6, padding: '6px 16px', fontWeight: 700, cursor: 'pointer', fontSize: fontSize - 2 }}
+                style={{ marginTop: 10, alignSelf: 'center', background: scheme.accent, color: '#fff', border: 'none', borderRadius: 6, padding: '6px 18px', fontWeight: 700, fontSize: 16, cursor: 'pointer' }}
                 onClick={() => handleSubmit('English')}
               >
                 Submit
@@ -219,11 +219,9 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
             </>
           ) : (
             <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-              {textInputs['English'] ? (
-                <span style={{ fontWeight: 400, fontSize: fontSize }}>{textInputs['English']}</span>
-              ) : (
-                renderSegmentsStacked(englishSegments)
-              )}
+              <span style={{ fontWeight: 400, fontSize: fontSize }}>
+                {renderSegmentsStacked(englishSegments)}
+              </span>
               <div className="scroll-end" />
             </div>
           )}
@@ -274,9 +272,6 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
                   resize: 'none',
                   background: scheme.bg,
                   color: scheme.fg,
-                  boxSizing: 'border-box',
-                  minHeight: 80,
-                  minWidth: 0,
                 }}
                 onKeyDown={e => {
                   if (isTextMode && e.key === 'Enter' && !e.shiftKey) {
