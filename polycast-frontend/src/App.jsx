@@ -386,7 +386,7 @@ function App({ targetLanguages }) {
           {/* Audio mode note below tools row */}
           {!isTextMode && (
             <div style={{
-              marginTop: 0, // reduce space above note
+              marginTop: 0,
               marginBottom: 2,
               width: '100%',
               textAlign: 'center',
@@ -399,6 +399,24 @@ function App({ targetLanguages }) {
               userSelect: 'none',
             }}>
               Hold Spacebar to record.  Release Spacebar to send.
+            </div>
+          )}
+          {/* Recording indicator in circled space */}
+          {!isTextMode && isRecording && (
+            <div style={{
+              marginTop: 8,
+              marginBottom: 0,
+              width: '100%',
+              textAlign: 'center',
+              color: '#ff5733',
+              fontWeight: 'bold',
+              fontSize: '1.1rem',
+              textShadow: '0 1px 3px #fff',
+              pointerEvents: 'none',
+              letterSpacing: 0.2,
+              opacity: 0.98,
+            }}>
+              Recording...
             </div>
           )}
         </div>

@@ -168,6 +168,8 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
         style={{
           width: '100%',
           minHeight: englishBoxInit.h,
+          maxHeight: 270, // fixed max height to match translation boxes
+          overflowY: 'auto', // scroll when overflowing
           margin: '0 auto 24px auto',
           background: '#181b2f',
           color: '#fff',
@@ -240,6 +242,8 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
         style={{
           width: layout.w,
           minHeight: layout.h,
+          maxHeight: 270, // fixed max height to match English box
+          overflowY: 'auto', // scroll when overflowing
           margin: '0 12px',
           background: scheme.bg,
           color: scheme.fg,
