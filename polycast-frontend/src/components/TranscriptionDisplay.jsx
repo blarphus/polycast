@@ -183,7 +183,9 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
           padding: 0,
         }}
       >
-        <span style={{ letterSpacing: 0.5, textAlign: 'center', marginTop: 16, marginBottom: 8 }}>Transcript</span>
+        <span style={{ letterSpacing: 0.5, textAlign: 'center', fontWeight: 800, fontSize: 20, margin: '18px 0 10px 0', color: '#b3b3e7', textTransform: 'uppercase', opacity: 0.92 }}>
+          {isTextMode ? 'English' : 'Transcript'}
+        </span>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 16, gap: 8, overflow: 'auto' }} ref={englishRef}>
           {isTextMode ? (
             <>
@@ -309,7 +311,7 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
   // --- Main render ---
   return (
     <div ref={containerRef} className="split-transcription-layout" style={{ position: 'relative', width: '100%', height: `calc(100vh - 260px - ${BOTTOM_MARGIN}px)`, margin: `0 auto ${BOTTOM_MARGIN}px auto`, overflow: 'hidden', minHeight: 400, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      {showLiveEnglish && renderEnglishBox()}
+      {(showLiveEnglish || isTextMode) && renderEnglishBox()}
       <div style={{ width: '100%', display: 'flex', justifyContent: langCount === 1 ? 'center' : 'flex-start' }}>
         {langBoxes}
       </div>
