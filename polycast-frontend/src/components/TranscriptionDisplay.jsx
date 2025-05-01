@@ -246,7 +246,7 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
       style={{
         position: 'relative',
         width: '100%',
-        height: 'calc(100vh - 284px)',   // 308 – 24 = 284
+        height: 'calc(100vh - 244px)',   // 284 - 40 = 244
         margin: '20px auto 0',
         display: 'flex',
         flexDirection: 'column',
