@@ -247,7 +247,7 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
       style={{
         position: 'relative',
         width: '100%',
-        height: 'calc(100vh - 260px)',
+        height: 'calc(100vh - 284px)',   // 260 header + 24 gap
         margin: '20px auto 0',
         display: 'flex',
         flexDirection: 'column',
@@ -271,6 +271,7 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
           minHeight: 0,
           gap: 24,
           boxSizing: 'border-box',
+          marginTop: 24,
         }}
       >
         {targetLanguages.map((lang, idx) => {
