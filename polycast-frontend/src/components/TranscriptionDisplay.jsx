@@ -171,8 +171,7 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
       <div
         style={{
           width: '100%',
-          minHeight: englishBoxInit.h,
-          maxHeight: 270, // fixed max height to match translation boxes
+          height: 180,
           overflowY: 'auto', // scroll when overflowing
           background: '#181b2f',
           color: '#fff',
