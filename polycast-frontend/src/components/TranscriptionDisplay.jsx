@@ -247,14 +247,13 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
       style={{
         position: 'relative',
         width: '100%',
-        height: 'calc(100vh - 48px)', // Adjust for top+bottom padding
-        padding: 24, // 24px padding on all sides
-        boxSizing: 'border-box',
-        overflow: 'hidden',
-        minHeight: 400,
+        height: 'calc(100vh - 260px)',
+        margin: '20px auto 0',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
+        overflow: 'hidden',
+        gap: 0,
       }}
     >
       {/* Transcript/English box always renders and updates first */}
@@ -271,8 +270,7 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
           alignItems: 'stretch',
           minHeight: 0,
           gap: 24,
-          padding: '0 24px',
-          boxSizing: 'border-box', // Prevent horizontal overflow from padding
+          boxSizing: 'border-box',
         }}
       >
         {targetLanguages.map((lang, idx) => {
