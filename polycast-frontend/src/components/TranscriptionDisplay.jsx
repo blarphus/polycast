@@ -247,12 +247,14 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
       style={{
         position: 'relative',
         width: '100%',
-        height: 'calc(100vh - 284px)',   // 260 header + 24 gap
+        height: 'calc(100vh - 308px)',   // 284 + 24 bottom gap
         margin: '20px auto 0',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
+        padding: '0 24px 24px',          // 24 px left, right, bottom
         overflow: 'hidden',
+        boxSizing: 'border-box',         // padding stays inside 100 %
         gap: 0,
       }}
     >
