@@ -171,7 +171,7 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
       <div
         style={{
           width: '100%',
-          height: 180,
+          height: 220, // was 180, now 220px for perfect bottom gap
           overflowY: 'auto', // scroll when overflowing
           background: '#181b2f',
           color: '#fff',
