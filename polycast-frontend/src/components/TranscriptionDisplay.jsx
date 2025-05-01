@@ -271,7 +271,8 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
           alignItems: 'stretch',
           minHeight: 0,
           gap: 24,
-          padding: '0 24px', // Horizontal padding for edge spacing
+          padding: '0 24px',
+          boxSizing: 'border-box', // Prevent horizontal overflow from padding
         }}
       >
         {targetLanguages.map((lang, idx) => {
