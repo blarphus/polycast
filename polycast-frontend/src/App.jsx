@@ -311,12 +311,6 @@ function App({ targetLanguages, onReset }) {
   // Handlers for recording controls (passed down to components that need to send audio)
   const handleStartRecording = useCallback(() => {
     console.log('APP: Start Recording');
-    // Reset states
-    setEnglishSegments([]); // Reset to empty array
-    const initialTranslations = {};
-    targetLanguages.forEach(lang => { initialTranslations[lang] = []; }); // Reset with empty arrays
-    setTranslations(initialTranslations);
-    setErrorMessages([]); 
     setIsRecording(true);
   }, [targetLanguages]);
 
