@@ -41,9 +41,11 @@ function App({ targetLanguages, onReset }) {
     function handlePageKey(e) {
       if (e.repeat) return; // Prevent holding key from triggering repeatedly
       if (e.key === "PageUp") {
+        e.preventDefault();
         handleStartRecording && handleStartRecording();
       }
       if (e.key === "PageDown") {
+        e.preventDefault();
         handleStopRecording && handleStopRecording();
       }
     }
