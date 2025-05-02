@@ -36,6 +36,21 @@ function App({ targetLanguages, onReset }) {
   useEffect(() => { modeRef.current = isTextMode; }, [isTextMode]);
   useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
 
+  // Add Page Up/Page Down recording hotkeys
+  useEffect(() => {
+    function handlePageKey(e) {
+      if (e.repeat) return; // Prevent holding key from triggering repeatedly
+      if (e.key === "PageUp") {
+        handleStartRecording && handleStartRecording();
+      }
+      if (e.key === "PageDown") {
+        handleStopRecording && handleStopRecording();
+      }
+    }
+    window.addEventListener("keydown", handlePageKey);
+    return () => window.removeEventListener("keydown", handlePageKey);
+  }, []);
+
   // Backend base URL for /mode endpoints
   const BACKEND_HTTP_BASE = 'https://polycast-server.onrender.com';
 
