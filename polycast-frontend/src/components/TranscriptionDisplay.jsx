@@ -246,20 +246,20 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
       style={{
         position: 'relative',
         width: '100%',
-        height: 'calc(100vh - 244px)',   // 284 - 40 = 244
-        margin: '20px auto 0',
+        height: 'calc(100vh - 90px)',   // Take nearly full viewport, minus toolbar/header (adjust as needed)
+        margin: '0 auto',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        padding: '0 24px 24px',          // 24 px left, right, bottom
+        padding: '0 24px 24px',
         overflow: 'hidden',
-        boxSizing: 'border-box',         // padding stays inside 100 %
+        boxSizing: 'border-box',
         gap: 0,
       }}
     >
       {/* Transcript/English box always renders and updates first */}
       {transcriptVisible && (
-        <div style={{ width: '100%', flex: '0 0 auto' }}>{renderEnglishBox()}</div>
+        <div style={{ width: '100%', flex: '0 0 38%' }}>{renderEnglishBox()}</div> // 38% of height
       )}
       {/* Language boxes fill the remaining space */}
       <div
@@ -267,7 +267,7 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
           width: '100%',
           display: 'flex',
           justifyContent: langCount === 1 ? 'center' : 'flex-start',
-          flex: 1,
+          flex: '1 1 62%', // 62% of height
           alignItems: 'stretch',
           minHeight: 0,
           gap: 24,
@@ -307,7 +307,7 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
                 fontWeight: 800,
                 fontSize: 20,
                 margin: '18px 0 10px 0',
-                color: scheme.accent + 'cc', // lighter accent (add alpha)
+                color: scheme.accent + 'cc',
                 textTransform: 'uppercase',
                 opacity: 0.92,
               }}>
