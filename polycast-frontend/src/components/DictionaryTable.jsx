@@ -5,8 +5,12 @@ import PropTypes from 'prop-types';
  * Component for displaying selected words in a dictionary-style table
  * with Spanish translations and definitions
  */
-const DictionaryTable = ({ selectedWords, englishSegments }) => {
-  const [wordDetails, setWordDetails] = useState({});
+const DictionaryTable = ({ 
+  selectedWords, 
+  englishSegments, 
+  wordDefinitions, 
+  setWordDefinitions 
+}) => {
   const [loading, setLoading] = useState({});
 
   // Extract context sentence for a word from the transcript
@@ -32,7 +36,7 @@ const DictionaryTable = ({ selectedWords, englishSegments }) => {
   useEffect(() => {
     // Process any new words without definitions
     const wordsToFetch = selectedWords.filter(word => 
-      !wordDetails[word.toLowerCase()] && !loading[word.toLowerCase()]
+      !wordDefinitions[word.toLowerCase()] && !loading[word.toLowerCase()]
     );
 
     if (wordsToFetch.length === 0) return;
@@ -54,7 +58,7 @@ const DictionaryTable = ({ selectedWords, englishSegments }) => {
         .then(res => res.json())
         .then(data => {
           console.log(`Received definition for "${word}":`, data);
-          setWordDetails(prev => ({
+          setWordDefinitions(prev => ({
             ...prev,
             [word.toLowerCase()]: data
           }));
@@ -70,7 +74,7 @@ const DictionaryTable = ({ selectedWords, englishSegments }) => {
             [word.toLowerCase()]: false
           }));
           // Add error state to wordDetails
-          setWordDetails(prev => ({
+          setWordDefinitions(prev => ({
             ...prev,
             [word.toLowerCase()]: { 
               error: true,
@@ -82,7 +86,7 @@ const DictionaryTable = ({ selectedWords, englishSegments }) => {
           }));
         });
     });
-  }, [selectedWords, wordDetails, loading]);
+  }, [selectedWords, wordDefinitions, setWordDefinitions, loading]);
 
   // Show loading state if no words selected
   if (selectedWords.length === 0) {
@@ -160,7 +164,7 @@ const DictionaryTable = ({ selectedWords, englishSegments }) => {
           </thead>
           <tbody>
             {uniqueWords.map((word, index) => {
-              const detail = wordDetails[word.toLowerCase()];
+              const detail = wordDefinitions[word.toLowerCase()];
               const isLoading = loading[word.toLowerCase()];
               
               return (
@@ -212,7 +216,9 @@ DictionaryTable.propTypes = {
   englishSegments: PropTypes.arrayOf(PropTypes.shape({
     text: PropTypes.string.isRequired,
     isNew: PropTypes.bool
-  }))
+  })),
+  wordDefinitions: PropTypes.object.isRequired,
+  setWordDefinitions: PropTypes.func.isRequired
 };
 
 export default DictionaryTable;

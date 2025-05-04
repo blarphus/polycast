@@ -26,6 +26,7 @@ function App({ targetLanguages, onReset }) {
   const [showLiveEnglish, setShowLiveEnglish] = useState(true); // State for toggle
   const [appMode, setAppMode] = useState('audio'); // Options: 'audio', 'text', 'dictionary'
   const [selectedWords, setSelectedWords] = useState([]); // Selected words for dictionary
+  const [wordDefinitions, setWordDefinitions] = useState({}); // Cache for word definitions
   const [modeError, setModeError] = useState(null);
   const [textInputs, setTextInputs] = useState({}); // Lifted state
   const [showNotification, setShowNotification] = useState(false);
@@ -97,6 +98,13 @@ function App({ targetLanguages, onReset }) {
   // Update mode on backend
   const updateMode = useCallback(async (value) => {
     const previousMode = modeRef.current;
+    
+    // For dictionary mode, we just update the local state without backend call
+    if (value === 'dictionary') {
+      setAppMode('dictionary');
+      return;
+    }
+    
     setAppMode(value === 'text' ? 'text' : 'audio'); // Optimistically update UI
     setModeError(null);
 
@@ -349,6 +357,17 @@ function App({ targetLanguages, onReset }) {
     setAppMode(value ? 'text' : 'audio');
   }, []);
 
+  // Handle app mode changes from dropdown menu
+  const handleAppModeChange = useCallback((newMode) => {
+    if (newMode === 'dictionary') {
+      // Just update local state for dictionary mode
+      setAppMode('dictionary');
+    } else {
+      // Call updateMode for audio/text modes to sync with backend
+      updateMode(newMode);
+    }
+  }, [updateMode]);
+
   // Get connection status string
   const connectionStatus = {
     [ReadyState.CONNECTING]: 'Connecting',
@@ -426,9 +445,9 @@ function App({ targetLanguages, onReset }) {
               onStartRecording={handleStartRecording}
               onStopRecording={handleStopRecording}
               isTextMode={appMode === 'text'}
-              setIsTextMode={handleSetIsTextMode}
+              setIsTextMode={setIsTextMode}
               appMode={appMode}
-              setAppMode={setAppMode}
+              setAppMode={handleAppModeChange}
             />
           </div>
           {/* Audio mode note below tools row */}
@@ -479,6 +498,8 @@ function App({ targetLanguages, onReset }) {
           <DictionaryTable 
             selectedWords={selectedWords}
             englishSegments={englishSegments}
+            wordDefinitions={wordDefinitions}
+            setWordDefinitions={setWordDefinitions}
           />
         ) : (
           <TranscriptionDisplay 
