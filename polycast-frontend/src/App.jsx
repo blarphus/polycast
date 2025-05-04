@@ -80,7 +80,8 @@ function App({ targetLanguages, onReset }) {
         setModeError(`Could not fetch mode: JSON parse error (${jsonErr.message}). Debug: ${JSON.stringify(debugInfo)}`);
         throw jsonErr;
       }
-      setAppMode(data.isTextMode ? 'text' : 'audio');
+      // Only update appMode if not currently in dictionary mode
+      setAppMode(current => (current === 'dictionary' ? 'dictionary' : (data.isTextMode ? 'text' : 'audio')));
       modeRef.current = data.isTextMode;
     } catch (err) {
       setModeError(`Could not fetch mode: ${err && err.message ? err.message : err}. Debug: ${JSON.stringify({
