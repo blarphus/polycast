@@ -73,72 +73,29 @@ function useWindowSize() {
   return size;
 }
 
-// --- ClickableTranscript component ---
-export function ClickableTranscript({ transcript, selectedWords, setSelectedWords }) {
-  const sentences = transcript.match(/[^.!?\n]+[.!?\n]?/g) || [];
-  return (
-    <div>
-      {sentences.map((sentence, sIdx) => {
-        const words = sentence.match(/\b\w+\b/g) || [];
-        return (
-          <span key={sIdx} style={{ marginRight: 6 }}>
-            {words.map((word, wIdx) => {
-              const key = word + ':' + sIdx;
-              const isSelected = selectedWords.includes(key);
-              return (
-                <span
-                  key={wIdx}
-                  onClick={() => setSelectedWords(prev => prev.includes(key) ? prev : [...prev, key])}
-                  style={{
-                    cursor: 'pointer',
-                    color: isSelected ? 'blue' : 'inherit',
-                    background: isSelected ? '#e0eaff' : 'none',
-                    borderRadius: 3,
-                    padding: '0 2px',
-                    marginRight: 2,
-                  }}
-                  title={sentence}
-                >
-                  {word}
-                </span>
-              );
-            })}
-            <span>{sentence.replace(/\b\w+\b/g, '')}</span>
-          </span>
-        );
-      })}
-    </div>
-  );
-}
-
-// --- DictionaryTable component ---
-export function DictionaryTable({ entries }) {
-  return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 16, background: '#181828', color: '#fff' }}>
-      <thead>
-        <tr>
-          <th style={{ border: '1px solid #444', padding: 8 }}>Word</th>
-          <th style={{ border: '1px solid #444', padding: 8 }}>Definition (Spanish)</th>
-          <th style={{ border: '1px solid #444', padding: 8 }}>Sentence</th>
-        </tr>
-      </thead>
-      <tbody>
-        {entries.map((entry, idx) => (
-          <tr key={idx}>
-            <td style={{ border: '1px solid #444', padding: 8 }}>{entry.word}</td>
-            <td style={{ border: '1px solid #444', padding: 8 }}>{entry.definition}</td>
-            <td style={{ border: '1px solid #444', padding: 8 }}>{entry.sentence}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
+// --- Add utility for splitting sentences into words, preserving punctuation ---
+function splitSentence(sentence) {
+  // This splits on spaces but keeps punctuation attached to words
+  // Handles apostrophes, hyphens, and basic punctuation
+  return sentence.match(/\b[\w'-]+\b|[.,!?;:()\[\]{}"“”‘’…—–]/g) || [];
 }
 
 /**
  * Displays the received transcription and multiple translation texts in a split-screen style layout.
  */
-const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, showLiveEnglish, isTextMode, onTextSubmit, textInputs, setTextInputs, dictionaryEntries }) => {
+const TranscriptionDisplay = ({
+  englishSegments,
+  targetLanguages,
+  translations,
+  showLiveEnglish,
+  isTextMode,
+  onTextSubmit,
+  textInputs,
+  setTextInputs,
+  mode,
+  onWordSelect,
+  selectedWords
+}) => {
   const englishRef = useRef(null);
   const translationRefs = useRef({});
   const [fontSize, setFontSize] = useState(isTextMode ? 18 : 30); // Font size: default to 30 in audio mode
@@ -150,7 +107,6 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
   const [containerSize, setContainerSize] = useState({ width: 1200, height: 600 });
   const [langBoxStates, setLangBoxStates] = useState([]);
   const lastPersistedTranslations = useRef({});
-  const [selectedWords, setSelectedWords] = useState([]);
 
   const handleInputChange = (lang, value) => {
     setTextInputs(inputs => ({ ...inputs, [lang]: value }));
@@ -262,6 +218,44 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
     h: ENGLISH_BOX_HEIGHT,
   };
 
+  // --- Render English transcript in text mode with clickable words ---
+  const renderTextModeTranscript = () => {
+    if (!englishSegments || englishSegments.length === 0) return <p>Waiting...</p>;
+    return (
+      <div>
+        {englishSegments.map((seg, sIdx) => {
+          const words = splitSentence(seg.text);
+          return (
+            <div key={sIdx} style={{ marginBottom: 4 }}>
+              {words.map((word, wIdx) => {
+                // Check if this word is selected (by word and sentence index)
+                const isSelected = selectedWords.some(sel => sel.word === word && sel.sentenceIndex === sIdx);
+                return (
+                  <span
+                    key={wIdx}
+                    onClick={() => mode === 'text' && onWordSelect && onWordSelect(word, seg.text, sIdx)}
+                    style={{
+                      cursor: mode === 'text' ? 'pointer' : 'default',
+                      color: isSelected ? '#1976d2' : undefined,
+                      background: isSelected ? 'rgba(25, 118, 210, 0.10)' : undefined,
+                      borderRadius: isSelected ? 4 : undefined,
+                      padding: '0 2px',
+                      marginRight: 2,
+                      userSelect: 'text',
+                      transition: 'background 0.1s, color 0.1s',
+                    }}
+                  >
+                    {word}
+                  </span>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   const renderEnglishBox = () => {
     const scheme = colorSchemes[0];
     return (
@@ -287,47 +281,10 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
           {isTextMode ? 'English' : 'Transcript'}
         </span>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 16, gap: 8, overflow: 'auto' }} ref={englishRef}>
-          {isTextMode ? (
-            <>
-              <textarea
-                value={textInputs['English'] ?? ''}
-                onChange={e => handleInputChange('English', e.target.value)}
-                placeholder={`Type English text here...`}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  flex: 1,
-                  fontSize: fontSize,
-                  borderRadius: 6,
-                  border: `1.5px solid ${scheme.accent}`,
-                  padding: 8,
-                  resize: 'none',
-                  background: scheme.bg,
-                  color: scheme.fg,
-                  boxSizing: 'border-box',
-                  minHeight: 80,
-                }}
-                onKeyDown={e => {
-                  if (isTextMode && e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSubmit('English');
-                  }
-                }}
-              />
-              <button
-                style={{ marginTop: 10, alignSelf: 'center', background: scheme.accent, color: '#fff', border: 'none', borderRadius: 6, padding: '6px 18px', fontWeight: 700, fontSize: 16, cursor: 'pointer' }}
-                onClick={() => handleSubmit('English')}
-              >
-                Submit
-              </button>
-            </>
-          ) : (
-            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-              <span style={{ fontWeight: 400, fontSize: fontSize }}>
-                <ClickableTranscript transcript={englishSegments.map(s => s.text).join(' ')} selectedWords={selectedWords} setSelectedWords={setSelectedWords} />
-              </span>
-              <div className="scroll-end" />
-            </div>
+          {mode === 'text' ? renderTextModeTranscript() : (
+            <span style={{ fontWeight: 400, fontSize: fontSize }}>
+              {renderSegmentsStacked(englishSegments)}
+            </span>
           )}
         </div>
       </div>
@@ -447,7 +404,7 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
                   </>
                 ) : (
                   <span style={{ fontWeight: 400, fontSize: fontSize }}>
-                    <ClickableTranscript transcript={segments.map(s => s.text).join(' ')} selectedWords={selectedWords} setSelectedWords={setSelectedWords} />
+                    {renderHistoryStacked(segments)}
                   </span>
                 )}
               </div>
@@ -455,11 +412,6 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
           );
         })}
       </div>
-      {dictionaryEntries && dictionaryEntries.length > 0 && (
-        <div style={{ width: '100%', flex: '0 0 33.5%', minHeight: 0, display: 'flex', flexDirection: 'column', marginTop: 24 }}>
-          <DictionaryTable entries={dictionaryEntries} />
-        </div>
-      )}
     </div>
   );
 };
@@ -468,22 +420,17 @@ TranscriptionDisplay.propTypes = {
   englishSegments: PropTypes.arrayOf(PropTypes.shape({
     text: PropTypes.string.isRequired,
     isNew: PropTypes.bool.isRequired,
-  })),
-  translations: PropTypes.objectOf(PropTypes.arrayOf(PropTypes.shape({
-    text: PropTypes.string.isRequired,
-    isNew: PropTypes.bool.isRequired,
-  }))),
+  })).isRequired,
   targetLanguages: PropTypes.arrayOf(PropTypes.string).isRequired,
-  showLiveEnglish: PropTypes.bool,
-  isTextMode: PropTypes.bool,
+  translations: PropTypes.object.isRequired,
+  showLiveEnglish: PropTypes.bool.isRequired,
+  isTextMode: PropTypes.bool.isRequired,
   onTextSubmit: PropTypes.func,
   textInputs: PropTypes.object.isRequired,
   setTextInputs: PropTypes.func.isRequired,
-  dictionaryEntries: PropTypes.arrayOf(PropTypes.shape({
-    word: PropTypes.string.isRequired,
-    definition: PropTypes.string.isRequired,
-    sentence: PropTypes.string.isRequired,
-  })),
+  mode: PropTypes.string,
+  onWordSelect: PropTypes.func,
+  selectedWords: PropTypes.array,
 };
 
 TranscriptionDisplay.defaultProps = {
@@ -492,7 +439,6 @@ TranscriptionDisplay.defaultProps = {
   showLiveEnglish: true,
   isTextMode: false,
   onTextSubmit: null,
-  dictionaryEntries: [],
 };
 
 export default TranscriptionDisplay;

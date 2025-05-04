@@ -48,7 +48,6 @@ const config = require('./config/config');
 const speechService = require('./services/speechService');
 const llmService = require('./services/llmService');
 const { transcribeAudio } = require('./services/whisperService');
-const dictionaryService = require('./services/dictionaryService');
 
 // Initialize Express app
 const app = express();
@@ -260,20 +259,6 @@ app.post('/mode', (req, res) => {
     } else {
         res.status(400).json({ error: 'Missing or invalid isTextMode' });
     }
-});
-
-// === Express API for dictionary definitions ===
-app.post('/api/define-words', async (req, res) => {
-  try {
-    const pairs = req.body;
-    if (!Array.isArray(pairs)) {
-      return res.status(400).json({ error: 'Request body must be an array of {word, sentence} objects.' });
-    }
-    const results = await dictionaryService.batchDefineWords(pairs);
-    res.json(results);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
 });
 
 // Start the HTTP server

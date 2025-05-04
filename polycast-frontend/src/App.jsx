@@ -6,7 +6,8 @@ import './App.css'
 // Import planned components (will be created next)
 import AudioRecorder from './components/AudioRecorder';
 import Controls from './components/Controls';
-import TranscriptionDisplay, { ClickableTranscript, DictionaryTable } from './components/TranscriptionDisplay';
+import TranscriptionDisplay from './components/TranscriptionDisplay';
+import DictionaryTable from './components/DictionaryTable'; // Import DictionaryTable
 
 // App now receives an array of target languages as a prop
 function App({ targetLanguages, onReset }) {
@@ -32,14 +33,14 @@ function App({ targetLanguages, onReset }) {
   const modeRef = useRef(isTextMode);
   const isRecordingRef = useRef(isRecording); // Ref to track recording state in handlers
 
+  // --- Add state for dictionary mode and word selection ---
+  const [mode, setMode] = useState('audio'); // 'audio', 'text', 'dictionary'
+  const [selectedWords, setSelectedWords] = useState([]); // [{ word, sentence, sentenceIndex }]
+  const [dictionaryDefinitions, setDictionaryDefinitions] = useState({}); // { key: { definition, sentence } }
+
   // Update refs when state changes
   useEffect(() => { modeRef.current = isTextMode; }, [isTextMode]);
   useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
-
-  // Add state for dictionary mode and selected words
-  const [mode, setMode] = useState('audio'); // 'audio', 'text', 'dictionary'
-  const [selectedWords, setSelectedWords] = useState([]);
-  const [dictionaryEntries, setDictionaryEntries] = useState([]);
 
   // Add Page Up/Page Down recording hotkeys
   useEffect(() => {
@@ -152,42 +153,6 @@ function App({ targetLanguages, onReset }) {
       console.error('Failed to update mode:', err);
     }
   }, []);
-
-  // Handler to extract dictionary words and sentences, and fetch definitions
-  const handleDictionaryMode = useCallback(async () => {
-    // Flatten all transcript segments into a single string
-    const transcript = englishSegments.map(seg => seg.text).join(' ');
-    // Extract all unique words and their sentences
-    const sentences = transcript.match(/[^.!?\n]+[.!?\n]?/g) || [];
-    const wordSentencePairs = [];
-    sentences.forEach((sentence, sIdx) => {
-      const words = sentence.match(/\b\w+\b/g) || [];
-      words.forEach(word => {
-        wordSentencePairs.push({ word, sentence: sentence.trim() });
-      });
-    });
-    // Remove duplicates (by word+sentence)
-    const uniquePairs = Array.from(new Set(wordSentencePairs.map(ws => ws.word + '|' + ws.sentence)))
-      .map(key => {
-        const [word, sentence] = key.split('|');
-        return { word, sentence };
-      });
-    // Fetch definitions from backend
-    const resp = await fetch('/api/define-words', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(uniquePairs)
-    });
-    const defs = await resp.json();
-    setDictionaryEntries(defs);
-  }, [englishSegments]);
-
-  // Run handler when mode changes to dictionary
-  useEffect(() => {
-    if (mode === 'dictionary') {
-      handleDictionaryMode();
-    }
-  }, [mode, handleDictionaryMode]);
 
   // On mount, fetch initial mode
   useEffect(() => { fetchMode(); }, [fetchMode]);
@@ -349,6 +314,20 @@ function App({ targetLanguages, onReset }) {
     return () => { delete window.showLiveEnglish; };
   }, [showLiveEnglish]);
 
+  // --- Add handler for word selection ---
+  const handleWordSelect = useCallback((word, sentence, sentenceIndex) => {
+    setSelectedWords(prev => {
+      // Avoid duplicates: check for same word in same sentence index
+      if (prev.some(w => w.word === word && w.sentenceIndex === sentenceIndex)) return prev;
+      return [...prev, { word, sentence, sentenceIndex }];
+    });
+  }, []);
+
+  // --- Add handler for mode change ---
+  const handleModeChange = (newMode) => {
+    setMode(newMode);
+  };
+
   // Handlers for recording controls (passed down to components that need to send audio)
   const handleStartRecording = useCallback(() => {
     console.log('APP: Start Recording');
@@ -461,7 +440,7 @@ function App({ targetLanguages, onReset }) {
               isTextMode={isTextMode}
               setIsTextMode={handleSetIsTextMode}
               mode={mode}
-              setMode={setMode}
+              onModeChange={handleModeChange}
             />
           </div>
           {/* Audio mode note below tools row */}
@@ -508,31 +487,29 @@ function App({ targetLanguages, onReset }) {
         </div>
       )}
       <div className="display-container">
-        {mode === 'dictionary' ? (
-          <DictionaryTable entries={dictionaryEntries} />
-        ) : (
-          <TranscriptionDisplay 
-            englishSegments={englishSegments} 
-            targetLanguages={targetLanguages} 
-            translations={translations} 
-            showLiveEnglish={showLiveEnglish} 
-            isTextMode={isTextMode}
-            onTextSubmit={(lang, text) => {
-              // Send text submission for translation to backend
-              sendMessage(JSON.stringify({ type: 'text_submit', lang, text }));
-            }}
-            textInputs={textInputs}
-            setTextInputs={setTextInputs}
-            renderClickableTranscript={(
-              <ClickableTranscript
-                transcript={englishSegments.map(seg => seg.text).join(' ')}
-                selectedWords={selectedWords}
-                setSelectedWords={setSelectedWords}
-              />
-            )}
-          />
-        )}
+        <TranscriptionDisplay 
+          englishSegments={englishSegments} 
+          translations={translations} 
+          targetLanguages={targetLanguages} 
+          showLiveEnglish={showLiveEnglish} // Pass toggle state
+          isTextMode={isTextMode}
+          onTextSubmit={(lang, text) => {
+            // Send text submission for translation to backend
+            sendMessage(JSON.stringify({ type: 'text_submit', lang, text }));
+          }}
+          textInputs={textInputs}
+          setTextInputs={setTextInputs}
+          mode={mode}
+          onWordSelect={handleWordSelect}
+          selectedWords={selectedWords}
+        />
       </div>
+      {mode === 'dictionary' && (
+        <DictionaryTable
+          selectedWords={selectedWords}
+          dictionaryDefinitions={dictionaryDefinitions}
+        />
+      )}
     </div>
   )
 }
