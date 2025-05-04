@@ -60,31 +60,38 @@ const renderSegmentsWithClickableWords = (segments, lastPersisted, selectedWords
   if (!segments || segments.length === 0) {
     return <p>Waiting...</p>;
   }
-  // Split each segment into words, preserve spaces
+  // Each segment on its own line
   return segments.map((segment, segIdx) => {
-    // Split on word boundaries, keep punctuation
-    const words = segment.text.match(/\b\w+\b|[^\w\s]+/g) || [];
+    // Match words (including apostrophes, accents, Unicode letters) and punctuation separately
+    // Only words will be clickable
+    // This regex matches words with apostrophes and accents, and separates punctuation
+    const tokens = segment.text.match(/([\p{L}\p{M}\d']+|[^\p{L}\p{M}\d'\s]+)/gu) || [];
     return (
-      <span key={segIdx} className={segment.isNew ? 'new-text' : ''}>
-        {words.map((word, i) => (
-          <span
-            key={i}
-            onClick={e => {
-              e.stopPropagation();
-              handleWordClick(word);
-            }}
-            style={{
-              cursor: 'pointer',
-              color: selectedWords.includes(word) ? '#1976d2' : undefined,
-              background: selectedWords.includes(word) ? 'rgba(25,118,210,0.07)' : undefined,
-              borderRadius: selectedWords.includes(word) ? 3 : undefined,
-              transition: 'color 0.2s',
-            }}
-          >
-            {i > 0 ? ' ' : ''}{word}
-          </span>
-        ))}
-      </span>
+      <div key={segIdx} className={segment.isNew ? 'new-text' : ''} style={{ display: 'block', marginBottom: 2 }}>
+        {tokens.map((token, i) => {
+          // Only words (letters, numbers, apostrophes, accents) are clickable
+          const isWord = /^[\p{L}\p{M}\d']+$/u.test(token);
+          return (
+            <span
+              key={i}
+              onClick={isWord ? (e => { e.stopPropagation(); handleWordClick(token); }) : undefined}
+              style={{
+                cursor: isWord ? 'pointer' : 'default',
+                color: isWord && selectedWords.includes(token) ? '#1976d2' : undefined,
+                background: isWord && selectedWords.includes(token) ? 'rgba(25,118,210,0.07)' : undefined,
+                borderRadius: isWord && selectedWords.includes(token) ? 3 : undefined,
+                transition: 'color 0.2s',
+                marginRight: 0,
+                marginLeft: 0,
+                userSelect: 'text',
+              }}
+            >
+              {/* Only add space if previous token was a word and this is also a word */}
+              {i > 0 && /[\p{L}\p{M}\d']$/u.test(tokens[i-1]) && isWord ? ' ' : ''}{token}
+            </span>
+          );
+        })}
+      </div>
     );
   });
 };
