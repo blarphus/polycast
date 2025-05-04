@@ -74,10 +74,8 @@ function useWindowSize() {
 }
 
 // --- ClickableTranscript component ---
-function ClickableTranscript({ transcript, selectedWords, setSelectedWords }) {
-  // Split transcript into sentences and words
+export function ClickableTranscript({ transcript, selectedWords, setSelectedWords }) {
   const sentences = transcript.match(/[^.!?\n]+[.!?\n]?/g) || [];
-  let wordIdx = 0;
   return (
     <div>
       {sentences.map((sentence, sIdx) => {
@@ -85,11 +83,12 @@ function ClickableTranscript({ transcript, selectedWords, setSelectedWords }) {
         return (
           <span key={sIdx} style={{ marginRight: 6 }}>
             {words.map((word, wIdx) => {
-              const isSelected = selectedWords.includes(word + ':' + sIdx);
+              const key = word + ':' + sIdx;
+              const isSelected = selectedWords.includes(key);
               return (
                 <span
                   key={wIdx}
-                  onClick={() => setSelectedWords(prev => prev.includes(word + ':' + sIdx) ? prev : [...prev, word + ':' + sIdx])}
+                  onClick={() => setSelectedWords(prev => prev.includes(key) ? prev : [...prev, key])}
                   style={{
                     cursor: 'pointer',
                     color: isSelected ? 'blue' : 'inherit',
@@ -113,7 +112,7 @@ function ClickableTranscript({ transcript, selectedWords, setSelectedWords }) {
 }
 
 // --- DictionaryTable component ---
-function DictionaryTable({ entries }) {
+export function DictionaryTable({ entries }) {
   return (
     <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 16, background: '#181828', color: '#fff' }}>
       <thead>
@@ -497,4 +496,3 @@ TranscriptionDisplay.defaultProps = {
 };
 
 export default TranscriptionDisplay;
-export { ClickableTranscript, DictionaryTable };

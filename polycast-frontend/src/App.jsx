@@ -6,9 +6,7 @@ import './App.css'
 // Import planned components (will be created next)
 import AudioRecorder from './components/AudioRecorder';
 import Controls from './components/Controls';
-import TranscriptionDisplay from './components/TranscriptionDisplay';
-import ClickableTranscript from './components/ClickableTranscript';
-import DictionaryTable from './components/DictionaryTable';
+import TranscriptionDisplay, { ClickableTranscript, DictionaryTable } from './components/TranscriptionDisplay';
 
 // App now receives an array of target languages as a prop
 function App({ targetLanguages, onReset }) {
