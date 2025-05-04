@@ -171,8 +171,7 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
       <div
         style={{
           width: '100%',
-          height: 220, // was 180, now 220px for perfect bottom gap
-          overflowY: 'auto', // scroll when overflowing
+          overflowY: 'auto',
           background: '#181b2f',
           color: '#fff',
           borderTop: '6px solid #7c62ff',
@@ -183,6 +182,8 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
           justifyContent: 'flex-start',
           alignItems: 'stretch',
           padding: 0,
+          minHeight: 0,
+          flex: 1,
         }}
       >
         <span style={{ letterSpacing: 0.5, textAlign: 'center', fontWeight: 800, fontSize: 20, margin: '18px 0 10px 0', color: '#b3b3e7', textTransform: 'uppercase', opacity: 0.92 }}>
@@ -197,8 +198,8 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
                 placeholder={`Type English text here...`}
                 style={{
                   width: '100%',
-                  height: '100%', // Allow flex to control height
-                  flex: 1, // Take available space
+                  height: '100%',
+                  flex: 1,
                   fontSize: fontSize,
                   borderRadius: 6,
                   border: `1.5px solid ${scheme.accent}`,
@@ -206,8 +207,8 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
                   resize: 'none',
                   background: scheme.bg,
                   color: scheme.fg,
-                  boxSizing: 'border-box', // Restore box sizing
-                  minHeight: 80, // Restore min height
+                  boxSizing: 'border-box',
+                  minHeight: 80,
                 }}
                 onKeyDown={e => {
                   if (isTextMode && e.key === 'Enter' && !e.shiftKey) {
@@ -246,20 +247,20 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
       style={{
         position: 'relative',
         width: '100%',
-        height: 'calc(100vh - 244px)',   // 284 - 40 = 244
+        height: 'calc(100vh - 244px)',
         margin: '20px auto 0',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        padding: '0 24px 24px',          // 24 px left, right, bottom
+        padding: '0 24px 24px',
         overflow: 'hidden',
-        boxSizing: 'border-box',         // padding stays inside 100 %
+        boxSizing: 'border-box',
         gap: 0,
       }}
     >
       {/* Transcript/English box always renders and updates first */}
       {transcriptVisible && (
-        <div style={{ width: '100%', flex: '0 0 auto' }}>{renderEnglishBox()}</div>
+        <div style={{ width: '100%', flex: '0 0 33.5%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>{renderEnglishBox()}</div>
       )}
       {/* Language boxes fill the remaining space */}
       <div
@@ -267,7 +268,7 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
           width: '100%',
           display: 'flex',
           justifyContent: langCount === 1 ? 'center' : 'flex-start',
-          flex: 1,
+          flex: '1 1 66.5%',
           alignItems: 'stretch',
           minHeight: 0,
           gap: 24,
@@ -307,7 +308,7 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
                 fontWeight: 800,
                 fontSize: 20,
                 margin: '18px 0 10px 0',
-                color: scheme.accent + 'cc', // lighter accent (add alpha)
+                color: scheme.accent + 'cc',
                 textTransform: 'uppercase',
                 opacity: 0.92,
               }}>
@@ -320,36 +321,17 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
                       value={textInputs[lang] ?? ''}
                       onChange={e => handleInputChange(lang, e.target.value)}
                       placeholder={`Type ${lang} translation here...`}
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        flex: 1,
-                        fontSize: fontSize,
-                        borderRadius: 6,
-                        padding: 8,
-                        border: '1px solid #444',
-                        background: '#23233a',
-                        color: '#fff',
-                        resize: 'vertical',
-                        minHeight: 60,
-                        marginBottom: 8,
+                      style={{ width: '100%', height: '100%', flex: 1, fontSize: fontSize, borderRadius: 6, border: `1.5px solid ${scheme.accent}`, padding: 8, resize: 'none', background: scheme.bg, color: scheme.fg, boxSizing: 'border-box', minHeight: 80 }}
+                      onKeyDown={e => {
+                        if (isTextMode && e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSubmit(lang);
+                        }
                       }}
-                      rows={3}
                     />
                     <button
+                      style={{ marginTop: 10, alignSelf: 'center', background: scheme.accent, color: '#fff', border: 'none', borderRadius: 6, padding: '6px 18px', fontWeight: 700, fontSize: 16, cursor: 'pointer' }}
                       onClick={() => handleSubmit(lang)}
-                      style={{
-                        background: scheme.accent,
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: 6,
-                        padding: '6px 16px',
-                        fontWeight: 700,
-                        fontSize: 16,
-                        marginTop: 2,
-                        alignSelf: 'flex-end',
-                        cursor: 'pointer',
-                      }}
                     >
                       Submit
                     </button>
