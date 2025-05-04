@@ -8,8 +8,10 @@ import { ReadyState } from 'react-use-websocket';
 function Controls({ 
     readyState,
     isRecording, 
-    mode,
-    setMode, 
+    isTextMode,
+    setIsTextMode,
+    isDictionaryMode,
+    setIsDictionaryMode, 
 }) {
     const isConnected = readyState === ReadyState.OPEN;
 
@@ -19,17 +21,16 @@ function Controls({
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <label style={{ color: '#ccc', fontSize: 15, fontWeight: 500 }}>Mode:</label>
                 <select 
-                    value={mode}
-                    onChange={e => setMode(e.target.value)}
-                    style={{ fontSize: 17, padding: '2px 12px', borderRadius: 5 }}
+                    value={isTextMode ? 'text' : 'audio'}
+                    onChange={e => setIsTextMode(e.target.value === 'text')}
+                    style={{ minWidth: 90, fontSize: 15, padding: '2px 6px', borderRadius: 6 }}
                     disabled={isRecording} // Disable mode switch while recording
                 >
-                    <option value="audio">audio mode</option>
                     <option value="text">text mode</option>
-                    <option value="dictionary">dictionary mode</option>
+                    <option value="audio">audio mode</option>
                 </select>
                 {/* Only show the button in audio mode */}
-                {mode !== 'text' && (
+                {!isTextMode && (
                   <label style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 14, fontSize: 15, fontWeight: 500, color: '#ccc' }}>
                     <input
                         type="checkbox"
@@ -39,6 +40,17 @@ function Controls({
                     Show Live Transcript
                   </label>
                 )}
+            </div>
+            {/* Dictionary Mode Checkbox */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 14 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 15, fontWeight: 500, color: '#ccc' }}>
+                    <input
+                        type="checkbox"
+                        checked={isDictionaryMode}
+                        onChange={e => setIsDictionaryMode(e.target.checked)}
+                    />
+                    Dictionary Mode
+                </label>
             </div>
             {/* Font size controls */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 18 }}>
@@ -92,8 +104,10 @@ function Controls({
 Controls.propTypes = {
     readyState: PropTypes.number.isRequired,
     isRecording: PropTypes.bool.isRequired,
-    mode: PropTypes.string.isRequired,
-    setMode: PropTypes.func.isRequired,
+    isTextMode: PropTypes.bool.isRequired,
+    setIsTextMode: PropTypes.func.isRequired,
+    isDictionaryMode: PropTypes.bool.isRequired,
+    setIsDictionaryMode: PropTypes.func.isRequired,
 };
 
 export default Controls;

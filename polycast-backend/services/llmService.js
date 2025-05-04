@@ -121,7 +121,74 @@ async function translateTextBatch(text, targetLanguages) {
     }
 }
 
+/**
+ * Gets a Spanish dictionary-style definition for the given English word.
+ * @param {string} word The English word to define.
+ * @returns {Promise<Object>} The definition object with Spanish definition and example.
+ * @throws {Error} If initialization fails or API call fails.
+ */
+async function getWordDefinition(word) {
+    initializeLLM(); // Ensure LLM is initialized
+
+    if (!word || word.trim().length === 0) {
+        console.log('[LLM Service] Skipping definition for empty word.');
+        return { definition: '', example: '' };
+    }
+
+    const prompt = `As a language dictionary, provide a Spanish translation and definition for the English word "${word}".
+
+Your response should be in JSON format with exactly these fields:
+{
+  "translation": "Spanish translation of the word",
+  "definition": "Clear, concise definition of the word in Spanish (2-3 sentences max)",
+  "example": "A simple example sentence in Spanish that uses this word",
+  "partOfSpeech": "The part of speech (noun, verb, adjective, etc.)"
+}
+
+Only return the JSON object, nothing else.`;
+
+    console.log(`[LLM Service] Getting Spanish definition for: "${word}"`);
+    console.log(`--- LLM Definition Prompt ---`);
+    console.log(prompt);
+    console.log(`--- End LLM Definition Prompt ---`);
+
+    try {
+        const result = await model.generateContent(prompt);
+        const response = result.response;
+        const text = response.text().trim();
+        console.log(`[LLM Service] Received definition response: "${text.substring(0, 100)}..."`);
+        
+        // Extract JSON from response
+        try {
+            // Find JSON in the response (it might be wrapped in code blocks)
+            let jsonMatch = text.match(/```(?:json)?(.*?)```/s);
+            let jsonStr = jsonMatch ? jsonMatch[1].trim() : text;
+            
+            // If still not JSON object, try to find anything that looks like JSON
+            if (!jsonStr.startsWith('{')) {
+                jsonMatch = text.match(/{.*}/s);
+                jsonStr = jsonMatch ? jsonMatch[0] : text;
+            }
+            
+            return JSON.parse(jsonStr);
+        } catch (jsonError) {
+            console.error('[LLM Service] Error parsing definition JSON:', jsonError);
+            // Return a formatted error as the definition
+            return {
+                translation: word,
+                definition: "Error obteniendo definición",
+                example: "N/A",
+                partOfSpeech: "unknown"
+            };
+        }
+    } catch (error) {
+        console.error('[LLM Service] Error during definition API call:', error);
+        throw new Error(`LLM API Error: ${error.message}`);
+    }
+}
+
 module.exports = {
     translateText,
     translateTextBatch,
+    getWordDefinition
 };

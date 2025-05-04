@@ -116,7 +116,18 @@ function useWindowSize() {
 /**
  * Displays the received transcription and multiple translation texts in a split-screen style layout.
  */
-const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, showLiveEnglish, isTextMode, onTextSubmit, textInputs, setTextInputs }) => {
+const TranscriptionDisplay = ({ 
+  englishSegments, 
+  targetLanguages, 
+  translations, 
+  showLiveEnglish, 
+  isTextMode, 
+  onTextSubmit, 
+  textInputs, 
+  setTextInputs,
+  selectedWords,
+  setSelectedWords 
+}) => {
   const englishRef = useRef(null);
   const translationRefs = useRef({});
   const [fontSize, setFontSize] = useState(isTextMode ? 18 : 30); // Font size: default to 30 in audio mode
@@ -128,7 +139,6 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
   const [containerSize, setContainerSize] = useState({ width: 1200, height: 600 });
   const [langBoxStates, setLangBoxStates] = useState([]);
   const lastPersistedTranslations = useRef({});
-  const [selectedWords, setSelectedWords] = useState([]);
 
   // Helper: add/remove word from list
   const handleWordClick = word => {
@@ -479,18 +489,17 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
 TranscriptionDisplay.propTypes = {
   englishSegments: PropTypes.arrayOf(PropTypes.shape({
     text: PropTypes.string.isRequired,
-    isNew: PropTypes.bool.isRequired,
+    isNew: PropTypes.bool
   })),
-  translations: PropTypes.objectOf(PropTypes.arrayOf(PropTypes.shape({
-    text: PropTypes.string.isRequired,
-    isNew: PropTypes.bool.isRequired,
-  }))),
   targetLanguages: PropTypes.arrayOf(PropTypes.string).isRequired,
+  translations: PropTypes.object.isRequired,
   showLiveEnglish: PropTypes.bool,
-  isTextMode: PropTypes.bool,
+  isTextMode: PropTypes.bool.isRequired,
   onTextSubmit: PropTypes.func,
   textInputs: PropTypes.object.isRequired,
   setTextInputs: PropTypes.func.isRequired,
+  selectedWords: PropTypes.array.isRequired,
+  setSelectedWords: PropTypes.func.isRequired
 };
 
 TranscriptionDisplay.defaultProps = {

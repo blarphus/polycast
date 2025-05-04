@@ -245,6 +245,31 @@ let isTextMode = loadModeFromDisk();
 // Set PORT from env, config, or fallback to 3000
 const PORT = process.env.PORT || config.port || 3000;
 
+// API routes
+app.get('/api/translate/:language/:text', async (req, res) => {
+    try {
+        const { language, text } = req.params;
+        const translatedText = await llmService.translateText(decodeURIComponent(text), language);
+        res.json({ translation: translatedText });
+    } catch (error) {
+        console.error("Translation API error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Dictionary API route
+app.get('/api/dictionary/:word', async (req, res) => {
+    try {
+        const { word } = req.params;
+        console.log(`[Dictionary API] Getting definition for: ${word}`);
+        const definition = await llmService.getWordDefinition(word);
+        res.json(definition);
+    } catch (error) {
+        console.error("Dictionary API error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Endpoint to get current mode
 app.get('/mode', (req, res) => {
     res.json({ isTextMode });
