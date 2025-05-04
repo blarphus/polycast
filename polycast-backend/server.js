@@ -158,16 +158,17 @@ wss.on('connection', (ws, req) => {
                 // For now, always use 'audio.webm' as filename, but set contentType dynamically if possible
                 const transcription = await transcribeAudio(message, 'audio.webm');
                 if (transcription && ws.readyState === ws.OPEN) {
-                    // Translate to all target languages
+                    // Translate to all target languages (batch)
                     const targetLangs = clientTargetLanguages.get(ws) || ['Spanish'];
-                    for (const lang of targetLangs) {
-                        try {
-                            console.log(`[Polycast] Calling Gemini for translation: '${transcription}' -> ${lang}`);
-                            const translation = await llmService.translateText(transcription, lang);
-                            console.log(`[Polycast] Gemini translation result [${lang}]:`, translation);
-                            ws.send(JSON.stringify({ type: 'translation', lang, data: translation }));
-                        } catch (transErr) {
-                            console.error(`[Polycast] Gemini translation error for ${lang}:`, transErr);
+                    try {
+                        console.log(`[Polycast] Calling Gemini for batch translation: '${transcription}' -> ${targetLangs.join(', ')}`);
+                        const translations = await llmService.translateTextBatch(transcription, targetLangs);
+                        for (const lang of targetLangs) {
+                            ws.send(JSON.stringify({ type: 'translation', lang, data: translations[lang] }));
+                        }
+                    } catch (transErr) {
+                        console.error(`[Polycast] Gemini batch translation error:`, transErr);
+                        for (const lang of targetLangs) {
                             ws.send(JSON.stringify({ type: 'translation_error', lang, message: transErr.message }));
                         }
                     }
