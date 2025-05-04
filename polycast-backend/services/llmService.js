@@ -121,7 +121,27 @@ async function translateTextBatch(text, targetLanguages) {
     }
 }
 
+/**
+ * Gets a Spanish dictionary-style definition for a given English word using Gemini.
+ * @param {string} word
+ * @returns {Promise<string>} The Spanish definition.
+ */
+async function getSpanishDefinition(word) {
+    initializeLLM();
+    const prompt = `Proporciona una breve definición en español, estilo diccionario, para la palabra inglesa: "${word}". No traduzcas la palabra, solo define su significado en español para un estudiante de español. Ejemplo:\n- Palabra: 'apple' → Definición: 'Fruto comestible del manzano, de forma redonda y sabor dulce o ácido.'\n\nPalabra: '${word}'\nDefinición:`;
+    try {
+        const result = await model.generateContent(prompt);
+        const response = result.response;
+        const definition = response.text().trim();
+        return definition;
+    } catch (error) {
+        console.error('[LLM Service] Error during Spanish definition API call:', error);
+        throw new Error('Failed to get Spanish definition');
+    }
+}
+
 module.exports = {
     translateText,
     translateTextBatch,
+    getSpanishDefinition,
 };

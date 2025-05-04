@@ -8,8 +8,8 @@ import { ReadyState } from 'react-use-websocket';
 function Controls({ 
     readyState,
     isRecording, 
-    isTextMode,
-    setIsTextMode, 
+    mode,
+    setMode,
 }) {
     const isConnected = readyState === ReadyState.OPEN;
 
@@ -19,17 +19,17 @@ function Controls({
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <label style={{ color: '#ccc', fontSize: 15, fontWeight: 500 }}>Mode:</label>
                 <select 
-                    value={isTextMode ? 'text' : 'audio'}
-                    onChange={e => setIsTextMode(e.target.value === 'text')}
+                    value={mode}
+                    onChange={e => setMode(e.target.value)}
                     style={{ minWidth: 90, fontSize: 15, padding: '2px 6px', borderRadius: 6 }}
-                    disabled={isRecording} // Disable mode switch while recording
+                    disabled={isRecording}
                 >
                     <option value="text">text mode</option>
                     <option value="audio">audio mode</option>
                     <option value="dictionary">dictionary mode</option>
                 </select>
                 {/* Only show the button in audio mode */}
-                {!isTextMode && (
+                {mode === 'audio' && (
                   <label style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 14, fontSize: 15, fontWeight: 500, color: '#ccc' }}>
                     <input
                         type="checkbox"
@@ -92,8 +92,8 @@ function Controls({
 Controls.propTypes = {
     readyState: PropTypes.number.isRequired,
     isRecording: PropTypes.bool.isRequired,
-    isTextMode: PropTypes.bool.isRequired,
-    setIsTextMode: PropTypes.func.isRequired,
+    mode: PropTypes.string.isRequired,
+    setMode: PropTypes.func.isRequired,
 };
 
 export default Controls;
