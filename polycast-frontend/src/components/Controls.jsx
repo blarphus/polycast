@@ -26,6 +26,7 @@ function Controls({
                 >
                     <option value="text">text mode</option>
                     <option value="audio">audio mode</option>
+                    <option value="dictionary">dictionary mode</option>
                 </select>
                 {/* Only show the button in audio mode */}
                 {!isTextMode && (

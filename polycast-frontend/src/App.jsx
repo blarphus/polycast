@@ -24,6 +24,7 @@ function App({ targetLanguages, onReset }) {
   const [errorMessages, setErrorMessages] = useState([]); 
   const [showLiveEnglish, setShowLiveEnglish] = useState(true); // State for toggle
   const [isTextMode, setIsTextMode] = useState(false); // Default to audio mode
+  const [isDictionaryMode, setIsDictionaryMode] = useState(false); // New state for dictionary mode
   const [modeError, setModeError] = useState(null);
   const [textInputs, setTextInputs] = useState({}); // Lifted state
   const [showNotification, setShowNotification] = useState(false);
@@ -78,6 +79,7 @@ function App({ targetLanguages, onReset }) {
         throw jsonErr;
       }
       setIsTextMode(data.isTextMode);
+      setIsDictionaryMode(data.isDictionaryMode);
       modeRef.current = data.isTextMode;
     } catch (err) {
       setModeError(`Could not fetch mode: ${err && err.message ? err.message : err}. Debug: ${JSON.stringify({
@@ -96,6 +98,7 @@ function App({ targetLanguages, onReset }) {
   const updateMode = useCallback(async (value) => {
     const previousMode = modeRef.current;
     setIsTextMode(value); // Optimistically update UI
+    setIsDictionaryMode(!value); // Update dictionary mode
     setModeError(null);
 
     // Clear text inputs when switching from text to audio mode
@@ -107,14 +110,14 @@ function App({ targetLanguages, onReset }) {
       const res = await fetch(`${BACKEND_HTTP_BASE}/mode`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isTextMode: value })
+        body: JSON.stringify({ isTextMode: value, isDictionaryMode: !value })
       });
       const debugInfo = {
         url: res.url,
         status: res.status,
         statusText: res.statusText,
         headers: Object.fromEntries(res.headers.entries()),
-        requestBody: { isTextMode: value },
+        requestBody: { isTextMode: value, isDictionaryMode: !value },
         mode: 'updateMode',
         frontendLocation: window.location.href,
         userAgent: navigator.userAgent,
@@ -132,6 +135,7 @@ function App({ targetLanguages, onReset }) {
         throw jsonErr;
       }
       setIsTextMode(data.isTextMode);
+      setIsDictionaryMode(data.isDictionaryMode);
       modeRef.current = data.isTextMode;
     } catch (err) {
       setModeError(`Could not update mode: ${err && err.message ? err.message : err}. Debug: ${JSON.stringify({
@@ -141,7 +145,7 @@ function App({ targetLanguages, onReset }) {
         userAgent: navigator.userAgent,
         time: new Date().toISOString(),
         backendUrl: `${BACKEND_HTTP_BASE}/mode`,
-        requestBody: { isTextMode: value }
+        requestBody: { isTextMode: value, isDictionaryMode: !value }
       })}`);
       setIsTextMode(modeRef.current); // Revert UI if error
       console.error('Failed to update mode:', err);
@@ -343,6 +347,12 @@ function App({ targetLanguages, onReset }) {
     updateMode(value); // Update backend and local state
   }, [updateMode]);
 
+  const handleModeChange = useCallback((e) => {
+    if (e.target.value === 'text') setIsTextMode(true), setIsDictionaryMode(false);
+    else if (e.target.value === 'audio') setIsTextMode(false), setIsDictionaryMode(false);
+    else if (e.target.value === 'dictionary') setIsDictionaryMode(true), setIsTextMode(false);
+  }, []);
+
   // Get connection status string
   const connectionStatus = {
     [ReadyState.CONNECTING]: 'Connecting',
@@ -360,6 +370,45 @@ function App({ targetLanguages, onReset }) {
       }
     };
   }, []);
+
+  // Derive all unique words (case-insensitive) and their example sentences
+  const wordToSentences = {};
+  englishSegments.forEach(seg => {
+    // Tokenize as before
+    const tokens = seg.text.match(/([\p{L}\p{M}\d']+|[.,!?;:]+|\s+)/gu) || [];
+    tokens.forEach(token => {
+      if (/^[\p{L}\p{M}\d']+$/u.test(token)) {
+        const key = token.toLowerCase();
+        if (!wordToSentences[key]) wordToSentences[key] = [];
+        if (!wordToSentences[key].includes(seg.text)) wordToSentences[key].push(seg.text);
+      }
+    });
+  });
+  const uniqueWords = Object.keys(wordToSentences);
+
+  // Render Table in Dictionary Mode
+  const renderDictionaryTable = () => (
+    <div style={{ width: '100%', marginTop: 32, overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', background: '#23233a', color: '#fff' }}>
+        <thead>
+          <tr>
+            <th style={{ padding: 8, borderBottom: '2px solid #444', fontWeight: 700 }}>Word</th>
+            <th style={{ padding: 8, borderBottom: '2px solid #444', fontWeight: 700 }}>Spanish Definition</th>
+            <th style={{ padding: 8, borderBottom: '2px solid #444', fontWeight: 700 }}>Sentence Used In</th>
+          </tr>
+        </thead>
+        <tbody>
+          {uniqueWords.map(word => (
+            <tr key={word}>
+              <td style={{ padding: 8, borderBottom: '1px solid #333', fontWeight: 600 }}>{word}</td>
+              <td style={{ padding: 8, borderBottom: '1px solid #333' }}>{/* TODO: Fetch and display definition */}</td>
+              <td style={{ padding: 8, borderBottom: '1px solid #333' }}>{wordToSentences[word][0]}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 
   return (
     <div className="App">
@@ -419,6 +468,9 @@ function App({ targetLanguages, onReset }) {
               onStopRecording={handleStopRecording}
               isTextMode={isTextMode}
               setIsTextMode={handleSetIsTextMode}
+              isDictionaryMode={isDictionaryMode}
+              setIsDictionaryMode={setIsDictionaryMode}
+              handleModeChange={handleModeChange}
             />
           </div>
           {/* Audio mode note below tools row */}
@@ -465,7 +517,7 @@ function App({ targetLanguages, onReset }) {
         </div>
       )}
       <div className="display-container">
-        <TranscriptionDisplay 
+        {isDictionaryMode ? renderDictionaryTable() : <TranscriptionDisplay 
           englishSegments={englishSegments} 
           translations={translations} 
           targetLanguages={targetLanguages} 
@@ -477,7 +529,7 @@ function App({ targetLanguages, onReset }) {
           }}
           textInputs={textInputs}
           setTextInputs={setTextInputs}
-        />
+        />}
       </div>
     </div>
   )
