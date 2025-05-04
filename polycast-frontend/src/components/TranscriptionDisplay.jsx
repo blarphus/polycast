@@ -116,7 +116,7 @@ function useWindowSize() {
 /**
  * Displays the received transcription and multiple translation texts in a split-screen style layout.
  */
-const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, showLiveEnglish, isTextMode, onTextSubmit, textInputs, setTextInputs }) => {
+function TranscriptionDisplay({ englishSegments, targetLanguages, translations, showLiveEnglish, isTextMode, onTextSubmit, textInputs, setTextInputs, selectedWords, setSelectedWords }) {
   const englishRef = useRef(null);
   const translationRefs = useRef({});
   const [fontSize, setFontSize] = useState(isTextMode ? 18 : 30); // Font size: default to 30 in audio mode
@@ -128,30 +128,13 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
   const [containerSize, setContainerSize] = useState({ width: 1200, height: 600 });
   const [langBoxStates, setLangBoxStates] = useState([]);
   const lastPersistedTranslations = useRef({});
-  const [selectedWords, setSelectedWords] = useState([]);
-
-  // Persist selectedWords to sessionStorage and load them on mount
-  useEffect(() => {
-    const saved = sessionStorage.getItem('polycast_selected_words');
-    if (saved) {
-      try {
-        setSelectedWords(JSON.parse(saved));
-      } catch {}
-    }
-  }, []);
-  useEffect(() => {
-    sessionStorage.setItem('polycast_selected_words', JSON.stringify(selectedWords));
-  }, [selectedWords]);
-
-  // Helper: add/remove word from list
   const handleWordClick = word => {
     setSelectedWords(prev => {
-      const lower = word.toLowerCase();
-      if (prev.some(w => w.toLowerCase() === lower)) {
-        return prev.filter(w => w.toLowerCase() !== lower);
-      } else {
-        return [...prev, word];
-      }
+      const idx = prev.findIndex(w => w.toLowerCase() === word.toLowerCase());
+      if (idx === -1) return [...prev, word];
+      const newArr = [...prev];
+      newArr.splice(idx, 1);
+      return newArr;
     });
   };
 
@@ -504,6 +487,8 @@ TranscriptionDisplay.propTypes = {
   onTextSubmit: PropTypes.func,
   textInputs: PropTypes.object.isRequired,
   setTextInputs: PropTypes.func.isRequired,
+  selectedWords: PropTypes.array.isRequired,
+  setSelectedWords: PropTypes.func.isRequired,
 };
 
 TranscriptionDisplay.defaultProps = {
