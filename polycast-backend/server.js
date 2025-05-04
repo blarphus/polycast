@@ -7,26 +7,29 @@ const path = require('path');
 const MODE_FILE = path.join(__dirname, 'mode.json');
 
 // Helper to load mode from disk
-function loadModeFromDisk() {
+function loadModeStringFromDisk() {
     try {
         if (fs.existsSync(MODE_FILE)) {
             const data = JSON.parse(fs.readFileSync(MODE_FILE, 'utf8'));
+            if (typeof data.mode === 'string') {
+                return data.mode;
+            }
+            // Legacy support
             if (typeof data.isTextMode === 'boolean') {
-                console.log(`[Mode] Loaded isTextMode=${data.isTextMode} from disk`);
-                return data.isTextMode;
+                return data.isTextMode ? 'text' : 'audio';
             }
         }
     } catch (e) {
         console.warn('[Mode] Failed to read mode.json:', e);
     }
-    return false;
+    return 'audio';
 }
 
 // Helper to save mode to disk
-function saveModeToDisk(isTextMode) {
+function saveModeStringToDisk(modeStr) {
     try {
-        fs.writeFileSync(MODE_FILE, JSON.stringify({ isTextMode }), 'utf8');
-        console.log(`[Mode] Saved isTextMode=${isTextMode} to disk`);
+        fs.writeFileSync(MODE_FILE, JSON.stringify({ mode: modeStr }), 'utf8');
+        console.log(`[Mode] Saved mode=${modeStr} to disk`);
     } catch (e) {
         console.error('[Mode] Failed to save mode.json:', e);
     }
@@ -116,14 +119,14 @@ wss.on('connection', (ws, req) => {
                 const data = JSON.parse(msgString);
                 if (data && data.type === 'text_submit') {
                     console.log('[WS DEBUG] Parsed text_submit from buffer:', data);
-                    if (isTextMode) {
+                    if (mode === 'text') {
                         const translateThis = data.text;
                         const sourceLang = data.lang;
                         const targetLangs = clientTargetLanguages.get(ws) || ['Spanish'];
                         // Always include English as a possible translation target
                         const allLangs = Array.from(new Set(['English', ...targetLangs]));
                         // Use textModeLLM for text mode, llmService for audio mode
-                        if (isTextMode) {
+                        if (mode === 'text') {
                             // Use textModeLLM with sourceLang and targetLangs
                             const textModeLLM = require('./services/textModeLLM');
                             const translations = await textModeLLM.translateTextBatch(translateThis, sourceLang, allLangs);
@@ -187,14 +190,14 @@ wss.on('connection', (ws, req) => {
                 const data = JSON.parse(message);
                 if (data.type === 'text_submit') {
                     console.log('[WS DEBUG] Parsed text_submit from string:', data);
-                    if (isTextMode) {
+                    if (mode === 'text') {
                         const translateThis = data.text;
                         const sourceLang = data.lang;
                         const targetLangs = clientTargetLanguages.get(ws) || ['Spanish'];
                         // Always include English as a possible translation target
                         const allLangs = Array.from(new Set(['English', ...targetLangs]));
                         // Use textModeLLM for text mode, llmService for audio mode
-                        if (isTextMode) {
+                        if (mode === 'text') {
                             // Use textModeLLM with sourceLang and targetLangs
                             const textModeLLM = require('./services/textModeLLM');
                             const translations = await textModeLLM.translateTextBatch(translateThis, sourceLang, allLangs);
@@ -240,26 +243,31 @@ wss.on('connection', (ws, req) => {
 });
 
 // === Polycast Mode State ===
-let isTextMode = loadModeFromDisk();
+// Store mode as a string: 'audio', 'text', or 'dictionary'
+let mode = 'audio';
 
-// Set PORT from env, config, or fallback to 3000
-const PORT = process.env.PORT || config.port || 3000;
+// Try to load mode from disk if available (for backward compatibility)
+mode = loadModeStringFromDisk();
 
 // Endpoint to get current mode
 app.get('/mode', (req, res) => {
-    res.json({ isTextMode });
+    res.json({ mode });
 });
 
 // Endpoint to set current mode
 app.post('/mode', (req, res) => {
-    if (typeof req.body.isTextMode === 'boolean') {
-        isTextMode = req.body.isTextMode;
-        saveModeToDisk(isTextMode);
-        res.json({ isTextMode });
+    const { mode: requestedMode } = req.body;
+    if (typeof requestedMode === 'string' && ['audio', 'text', 'dictionary'].includes(requestedMode)) {
+        mode = requestedMode;
+        saveModeStringToDisk(mode);
+        res.json({ mode });
     } else {
-        res.status(400).json({ error: 'Missing or invalid isTextMode' });
+        res.status(400).json({ error: 'Missing or invalid mode' });
     }
 });
+
+// Set PORT from env, config, or fallback to 3000
+const PORT = process.env.PORT || config.port || 3000;
 
 // Start the HTTP server
 server.listen(PORT, () => {
