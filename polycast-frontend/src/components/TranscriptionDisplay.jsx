@@ -62,10 +62,9 @@ const renderSegmentsWithClickableWords = (segments, lastPersisted, selectedWords
   }
   // Each segment on its own line
   return segments.map((segment, segIdx) => {
-    // Match words (including apostrophes, accents, Unicode letters) and punctuation separately
-    // Only words will be clickable
-    // This regex matches words with apostrophes and accents, and separates punctuation
-    const tokens = segment.text.match(/([\p{L}\p{M}\d']+|[^\p{L}\p{M}\d'\s]+)/gu) || [];
+    // Tokenize: words (with apostrophes/accents), punctuation, and spaces
+    // This regex matches words, punctuation, and spaces
+    const tokens = segment.text.match(/([\p{L}\p{M}\d']+|[.,!?;:]+|\s+)/gu) || [];
     return (
       <div key={segIdx} className={segment.isNew ? 'new-text' : ''} style={{ display: 'block', marginBottom: 2 }}>
         {tokens.map((token, i) => {
@@ -77,17 +76,14 @@ const renderSegmentsWithClickableWords = (segments, lastPersisted, selectedWords
               onClick={isWord ? (e => { e.stopPropagation(); handleWordClick(token); }) : undefined}
               style={{
                 cursor: isWord ? 'pointer' : 'default',
-                color: isWord && selectedWords.includes(token) ? '#1976d2' : undefined,
-                background: isWord && selectedWords.includes(token) ? 'rgba(25,118,210,0.07)' : undefined,
-                borderRadius: isWord && selectedWords.includes(token) ? 3 : undefined,
+                color: isWord && selectedWords.some(w => w.toLowerCase() === token.toLowerCase()) ? '#1976d2' : undefined,
+                background: isWord && selectedWords.some(w => w.toLowerCase() === token.toLowerCase()) ? 'rgba(25,118,210,0.07)' : undefined,
+                borderRadius: isWord && selectedWords.some(w => w.toLowerCase() === token.toLowerCase()) ? 3 : undefined,
                 transition: 'color 0.2s',
-                marginRight: 0,
-                marginLeft: 0,
                 userSelect: 'text',
               }}
             >
-              {/* Only add space if previous token was a word and this is also a word */}
-              {i > 0 && /[\p{L}\p{M}\d']$/u.test(tokens[i-1]) && isWord ? ' ' : ''}{token}
+              {token}
             </span>
           );
         })}
@@ -137,8 +133,9 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
   // Helper: add/remove word from list
   const handleWordClick = word => {
     setSelectedWords(prev => {
-      if (prev.includes(word)) {
-        return prev.filter(w => w !== word);
+      const lower = word.toLowerCase();
+      if (prev.some(w => w.toLowerCase() === lower)) {
+        return prev.filter(w => w.toLowerCase() !== lower);
       } else {
         return [...prev, word];
       }
@@ -465,7 +462,11 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
       }}>
         <div style={{ fontWeight: 700, marginBottom: 8, color: '#1976d2', fontSize: 15, letterSpacing: 0.4 }}>Clicked Words</div>
         <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-          {selectedWords.map((word, i) => (
+          {[...selectedWords.reduce((map, w) => {
+            const lower = w.toLowerCase();
+            if (!map.has(lower)) map.set(lower, w);
+            return map;
+          }, new Map()).values()].map((word, i) => (
             <li key={i} style={{ padding: '2px 0', borderBottom: '1px solid #e3eaf2' }}>{word}</li>
           ))}
           {selectedWords.length === 0 && <li style={{ color: '#888' }}>No words clicked</li>}
