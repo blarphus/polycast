@@ -407,13 +407,15 @@ function App({ targetLanguages, onReset }) {
         body: JSON.stringify({ word })
       });
       const data = await res.json();
-      if (data && data.definition) {
+      if (res.ok && data && data.definition) {
         setDefinitions(prev => ({ ...prev, [word.toLowerCase()]: data.definition }));
+      } else if (data && data.error) {
+        setDefinitions(prev => ({ ...prev, [word.toLowerCase()]: `Error: ${data.error}${data.detail ? ' — ' + data.detail : ''}` }));
       } else {
-        setDefinitions(prev => ({ ...prev, [word.toLowerCase()]: 'No definition found.' }));
+        setDefinitions(prev => ({ ...prev, [word.toLowerCase()]: 'Unknown error.' }));
       }
     } catch (err) {
-      setDefinitions(prev => ({ ...prev, [word.toLowerCase()]: 'Error fetching definition.' }));
+      setDefinitions(prev => ({ ...prev, [word.toLowerCase()]: `Network error: ${err.message}` }));
     }
   };
 
@@ -443,7 +445,7 @@ function App({ targetLanguages, onReset }) {
           {uniqueWords.map(word => (
             <tr key={word}>
               <td style={{ padding: 8, borderBottom: '1px solid #333', fontWeight: 600 }}>{word}</td>
-              <td style={{ padding: 8, borderBottom: '1px solid #333' }}>{definitions[word.toLowerCase()] || <span style={{ color: '#888' }}>Loading...</span>}</td>
+              <td style={{ padding: 8, borderBottom: '1px solid #333', maxWidth: 400, wordBreak: 'break-word' }}>{definitions[word.toLowerCase()] || <span style={{ color: '#888' }}>Loading...</span>}</td>
               <td style={{ padding: 8, borderBottom: '1px solid #333' }}>{(wordToSentences[word.toLowerCase()]||[])[0]||''}</td>
             </tr>
           ))}
