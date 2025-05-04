@@ -2,9 +2,13 @@ import React, { useRef, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 
 // Helper function to render segments
-const renderSegments = (segments) => {
+const renderSegments = (segments, lastPersisted) => {
+  if ((!segments || segments.length === 0) && lastPersisted) {
+    // Show the last persisted translation if segments are empty
+    return <span>{lastPersisted}</span>;
+  }
   if (!segments || segments.length === 0) {
-    return <p>Waiting...</p>; // Display placeholder if no segments
+    return <p>Waiting...</p>; // Display placeholder if no segments and nothing persisted
   }
   return segments.map((segment, index) => (
     <span key={index} className={segment.isNew ? 'new-text' : ''}>
@@ -14,7 +18,26 @@ const renderSegments = (segments) => {
 };
 
 // Helper function to render segments as lines (audio mode)
-const renderSegmentsStacked = (segments) => {
+const renderSegmentsStacked = (segments, lastPersisted) => {
+  if ((!segments || segments.length === 0) && lastPersisted) {
+    return <span>{lastPersisted}</span>;
+  }
+  if (!segments || segments.length === 0) {
+    return <p>Waiting...</p>;
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+      {segments.map((segment, index) => (
+        <span key={index} className={segment.isNew ? 'new-text' : ''} style={{ marginBottom: 2 }}>
+          {segment.text}
+        </span>
+      ))}
+    </div>
+  );
+};
+
+// Helper function to render all historical segments for a language
+const renderHistoryStacked = (segments) => {
   if (!segments || segments.length === 0) {
     return <p>Waiting...</p>;
   }
@@ -41,7 +64,7 @@ const colorSchemes = [
 
 // Utility to get window size
 function useWindowSize() {
-  const [size, useState] = useState({ width: window.innerWidth, height: window.innerHeight });
+  const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight });
   useEffect(() => {
     const handleResize = () => setSize({ width: window.innerWidth, height: window.innerHeight });
     window.addEventListener('resize', handleResize);
@@ -64,6 +87,7 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
   const containerRef = useRef(null);
   const [containerSize, setContainerSize] = useState({ width: 1200, height: 600 });
   const [langBoxStates, setLangBoxStates] = useState([]);
+  const lastPersistedTranslations = useRef({});
 
   const handleInputChange = (lang, value) => {
     setTextInputs(inputs => ({ ...inputs, [lang]: value }));
@@ -118,6 +142,16 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
     if (el) el.textContent = `${fontSize}px`;
     return () => window.removeEventListener('changeFontSize', handler);
   }, [fontSize]);
+
+  // Update last persisted translations whenever translations change
+  useEffect(() => {
+    for (const lang of targetLanguages) {
+      const segs = translations[lang];
+      if (segs && segs.length > 0) {
+        lastPersistedTranslations.current[lang] = segs.map(s => s.text).join(' ');
+      }
+    }
+  }, [translations, targetLanguages]);
 
   // Center the English box, and make it taller
   // For single language, center translation box too
@@ -319,9 +353,21 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
                   <>
                     <textarea
                       value={textInputs[lang] ?? ''}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        flex: 1,
+                        fontSize: fontSize,
+                        borderRadius: 6,
+                        border: `1.5px solid ${scheme.accent}`,
+                        padding: 8,
+                        resize: 'none',
+                        background: scheme.bg,
+                        color: scheme.fg,
+                        boxSizing: 'border-box',
+                        minHeight: 80,
+                      }}
                       onChange={e => handleInputChange(lang, e.target.value)}
-                      placeholder={`Type ${lang} translation here...`}
-                      style={{ width: '100%', height: '100%', flex: 1, fontSize: fontSize, borderRadius: 6, border: `1.5px solid ${scheme.accent}`, padding: 8, resize: 'none', background: scheme.bg, color: scheme.fg, boxSizing: 'border-box', minHeight: 80 }}
                       onKeyDown={e => {
                         if (isTextMode && e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
@@ -337,12 +383,9 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
                     </button>
                   </>
                 ) : (
-                  <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-                    <span style={{ fontWeight: 400, fontSize: fontSize }}>
-                      {renderSegmentsStacked(segments)}
-                    </span>
-                    <div className="scroll-end" />
-                  </div>
+                  <span style={{ fontWeight: 400, fontSize: fontSize }}>
+                    {renderHistoryStacked(segments)}
+                  </span>
                 )}
               </div>
             </div>
