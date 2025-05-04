@@ -251,10 +251,12 @@ function App({ targetLanguages, onReset }) {
             const newTranslations = { ...prevTranslations };
             const lang = parsedData.lang;
             const currentLangSegments = newTranslations[lang] || [];
-            newTranslations[lang] = [
+            // Only keep the most recent 3 segments
+            const updatedSegments = [
               ...currentLangSegments.map(seg => ({ ...seg, isNew: false })),
               { text: parsedData.data, isNew: true }
             ];
+            newTranslations[lang] = updatedSegments.slice(-3);
             return newTranslations;
           });
           // Update textInputs in text mode
@@ -271,14 +273,12 @@ function App({ targetLanguages, onReset }) {
             const newTranslations = { ...prevTranslations };
             for (const lang in parsedData.data) {
               if (parsedData.data.hasOwnProperty(lang)) {
-                 // Ensure the language array exists
-                 const currentLangSegments = newTranslations[lang] || [];
-                 newTranslations[lang] = [
-                    // Mark all previous segments as old
-                    ...currentLangSegments.map(seg => ({ ...seg, isNew: false })),
-                    // Add the new segment, marked as new
-                    { text: parsedData.data[lang], isNew: true }
-                 ];
+                const currentLangSegments = newTranslations[lang] || [];
+                const updatedSegments = [
+                  ...currentLangSegments.map(seg => ({ ...seg, isNew: false })),
+                  { text: parsedData.data[lang], isNew: true }
+                ];
+                newTranslations[lang] = updatedSegments.slice(-3);
               }
             }
             return newTranslations;
