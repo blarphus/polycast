@@ -357,15 +357,24 @@ function App({ targetLanguages, onReset }) {
   }, []);
 
   // Get selectedWords from sessionStorage and pass to dictionary table
-  const [selectedWords, setSelectedWords] = useState(() => {
-    try {
-      const saved = sessionStorage.getItem('polycast_selected_words');
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return [];
-  });
+  const [selectedWords, setSelectedWords] = useState([]);
 
-  // Keep selectedWords in sync with sessionStorage
+  // Sync selectedWords with sessionStorage, and listen for changes from TranscriptionDisplay
+  useEffect(() => {
+    const saved = sessionStorage.getItem('polycast_selected_words');
+    if (saved) {
+      try {
+        setSelectedWords(JSON.parse(saved));
+      } catch {}
+    }
+    // Listen for changes from other tabs/windows (shouldn't matter much for sessionStorage, but for robustness)
+    const handleStorage = () => {
+      const updated = sessionStorage.getItem('polycast_selected_words');
+      if (updated) setSelectedWords(JSON.parse(updated));
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
   useEffect(() => {
     sessionStorage.setItem('polycast_selected_words', JSON.stringify(selectedWords));
   }, [selectedWords]);
