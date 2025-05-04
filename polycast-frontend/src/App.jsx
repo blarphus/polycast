@@ -7,7 +7,6 @@ import './App.css'
 import AudioRecorder from './components/AudioRecorder';
 import Controls from './components/Controls';
 import TranscriptionDisplay from './components/TranscriptionDisplay';
-import DictionaryTable from './components/DictionaryTable'; // Import DictionaryTable
 
 // App now receives an array of target languages as a prop
 function App({ targetLanguages, onReset }) {
@@ -32,11 +31,6 @@ function App({ targetLanguages, onReset }) {
   const notificationTimeoutRef = useRef(null);
   const modeRef = useRef(isTextMode);
   const isRecordingRef = useRef(isRecording); // Ref to track recording state in handlers
-
-  // --- Add state for dictionary mode and word selection ---
-  const [mode, setMode] = useState('audio'); // 'audio', 'text', 'dictionary'
-  const [selectedWords, setSelectedWords] = useState([]); // [{ word, sentence, sentenceIndex }]
-  const [dictionaryDefinitions, setDictionaryDefinitions] = useState({}); // { key: { definition, sentence } }
 
   // Update refs when state changes
   useEffect(() => { modeRef.current = isTextMode; }, [isTextMode]);
@@ -314,20 +308,6 @@ function App({ targetLanguages, onReset }) {
     return () => { delete window.showLiveEnglish; };
   }, [showLiveEnglish]);
 
-  // --- Add handler for word selection ---
-  const handleWordSelect = useCallback((word, sentence, sentenceIndex) => {
-    setSelectedWords(prev => {
-      // Avoid duplicates: check for same word in same sentence index
-      if (prev.some(w => w.word === word && w.sentenceIndex === sentenceIndex)) return prev;
-      return [...prev, { word, sentence, sentenceIndex }];
-    });
-  }, []);
-
-  // --- Add handler for mode change ---
-  const handleModeChange = (newMode) => {
-    setMode(newMode);
-  };
-
   // Handlers for recording controls (passed down to components that need to send audio)
   const handleStartRecording = useCallback(() => {
     console.log('APP: Start Recording');
@@ -439,8 +419,6 @@ function App({ targetLanguages, onReset }) {
               onStopRecording={handleStopRecording}
               isTextMode={isTextMode}
               setIsTextMode={handleSetIsTextMode}
-              mode={mode}
-              onModeChange={handleModeChange}
             />
           </div>
           {/* Audio mode note below tools row */}
@@ -499,17 +477,8 @@ function App({ targetLanguages, onReset }) {
           }}
           textInputs={textInputs}
           setTextInputs={setTextInputs}
-          mode={mode}
-          onWordSelect={handleWordSelect}
-          selectedWords={selectedWords}
         />
       </div>
-      {mode === 'dictionary' && (
-        <DictionaryTable
-          selectedWords={selectedWords}
-          dictionaryDefinitions={dictionaryDefinitions}
-        />
-      )}
     </div>
   )
 }
