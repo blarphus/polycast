@@ -24,19 +24,18 @@ function App({ targetLanguages, onReset }) {
   const [translations, setTranslations] = useState({}); // Structure: { lang: [{ text: string, isNew: boolean }] }
   const [errorMessages, setErrorMessages] = useState([]); 
   const [showLiveEnglish, setShowLiveEnglish] = useState(true); // State for toggle
-  const [isTextMode, setIsTextMode] = useState(false); // Default to audio mode
-  const [isDictionaryMode, setIsDictionaryMode] = useState(false); // Dictionary Mode toggle
+  const [appMode, setAppMode] = useState('audio'); // Options: 'audio', 'text', 'dictionary'
   const [selectedWords, setSelectedWords] = useState([]); // Selected words for dictionary
   const [modeError, setModeError] = useState(null);
   const [textInputs, setTextInputs] = useState({}); // Lifted state
   const [showNotification, setShowNotification] = useState(false);
   const [notificationOpacity, setNotificationOpacity] = useState(1);
   const notificationTimeoutRef = useRef(null);
-  const modeRef = useRef(isTextMode);
+  const modeRef = useRef(appMode === 'text');
   const isRecordingRef = useRef(isRecording); // Ref to track recording state in handlers
 
   // Update refs when state changes
-  useEffect(() => { modeRef.current = isTextMode; }, [isTextMode]);
+  useEffect(() => { modeRef.current = appMode === 'text'; }, [appMode]);
   useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
 
   // Add Page Up/Page Down recording hotkeys
@@ -80,7 +79,7 @@ function App({ targetLanguages, onReset }) {
         setModeError(`Could not fetch mode: JSON parse error (${jsonErr.message}). Debug: ${JSON.stringify(debugInfo)}`);
         throw jsonErr;
       }
-      setIsTextMode(data.isTextMode);
+      setAppMode(data.isTextMode ? 'text' : 'audio');
       modeRef.current = data.isTextMode;
     } catch (err) {
       setModeError(`Could not fetch mode: ${err && err.message ? err.message : err}. Debug: ${JSON.stringify({
@@ -98,11 +97,11 @@ function App({ targetLanguages, onReset }) {
   // Update mode on backend
   const updateMode = useCallback(async (value) => {
     const previousMode = modeRef.current;
-    setIsTextMode(value); // Optimistically update UI
+    setAppMode(value === 'text' ? 'text' : 'audio'); // Optimistically update UI
     setModeError(null);
 
     // Clear text inputs when switching from text to audio mode
-    if (!value && previousMode) { 
+    if (value !== 'text' && previousMode) { 
       setTextInputs({});
     }
 
@@ -110,14 +109,14 @@ function App({ targetLanguages, onReset }) {
       const res = await fetch(`${BACKEND_HTTP_BASE}/mode`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isTextMode: value })
+        body: JSON.stringify({ isTextMode: value === 'text' })
       });
       const debugInfo = {
         url: res.url,
         status: res.status,
         statusText: res.statusText,
         headers: Object.fromEntries(res.headers.entries()),
-        requestBody: { isTextMode: value },
+        requestBody: { isTextMode: value === 'text' },
         mode: 'updateMode',
         frontendLocation: window.location.href,
         userAgent: navigator.userAgent,
@@ -134,7 +133,7 @@ function App({ targetLanguages, onReset }) {
         setModeError(`Could not update mode: JSON parse error (${jsonErr.message}). Debug: ${JSON.stringify(debugInfo)}`);
         throw jsonErr;
       }
-      setIsTextMode(data.isTextMode);
+      setAppMode(data.isTextMode ? 'text' : 'audio');
       modeRef.current = data.isTextMode;
     } catch (err) {
       setModeError(`Could not update mode: ${err && err.message ? err.message : err}. Debug: ${JSON.stringify({
@@ -144,9 +143,9 @@ function App({ targetLanguages, onReset }) {
         userAgent: navigator.userAgent,
         time: new Date().toISOString(),
         backendUrl: `${BACKEND_HTTP_BASE}/mode`,
-        requestBody: { isTextMode: value }
+        requestBody: { isTextMode: value === 'text' }
       })}`);
-      setIsTextMode(modeRef.current); // Revert UI if error
+      setAppMode(previousMode ? 'text' : 'audio'); // Revert UI if error
       console.error('Failed to update mode:', err);
     }
   }, []);
@@ -165,7 +164,7 @@ function App({ targetLanguages, onReset }) {
     let spacebarPressed = false; // Prevent repeated starts on key hold
 
     const handleKeyDown = (event) => {
-      if (event.code === 'Space' && !modeRef.current && !isRecordingRef.current && !spacebarPressed) {
+      if (event.code === 'Space' && appMode !== 'text' && !isRecordingRef.current && !spacebarPressed) {
         event.preventDefault(); // Prevent scrolling
         spacebarPressed = true;
         console.log("Spacebar DOWN - Starting recording");
@@ -174,7 +173,7 @@ function App({ targetLanguages, onReset }) {
     };
 
     const handleKeyUp = (event) => {
-      if (event.code === 'Space' && !modeRef.current && isRecordingRef.current) {
+      if (event.code === 'Space' && appMode !== 'text' && isRecordingRef.current) {
         event.preventDefault();
         spacebarPressed = false;
         console.log("Spacebar UP - Stopping recording");
@@ -263,7 +262,7 @@ function App({ targetLanguages, onReset }) {
             return newTranslations;
           });
           // Update textInputs in text mode
-          if (isTextMode) {
+          if (appMode === 'text') {
             setTextInputs(inputs => ({
               ...inputs,
               [parsedData.lang]: parsedData.data
@@ -346,6 +345,10 @@ function App({ targetLanguages, onReset }) {
     updateMode(value); // Update backend and local state
   }, [updateMode]);
 
+  const setIsTextMode = useCallback((value) => {
+    setAppMode(value ? 'text' : 'audio');
+  }, []);
+
   // Get connection status string
   const connectionStatus = {
     [ReadyState.CONNECTING]: 'Connecting',
@@ -390,7 +393,7 @@ function App({ targetLanguages, onReset }) {
         {/* Main Toolbar */}
         <div className="main-toolbar" style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'stretch', marginBottom: 0 }}>
           {/* Absolutely positioned Recording indicator in circled space */}
-          {!isTextMode && isRecording && (
+          {appMode !== 'text' && isRecording && (
             <div style={{
               position: 'absolute',
               top: 100,
@@ -410,24 +413,26 @@ function App({ targetLanguages, onReset }) {
           )}
           <div style={{ display: 'flex', alignItems: 'center' }}>
             {/* Pass sendMessage down to components that need to send audio */}
-            <AudioRecorder
-              sendMessage={sendMessage}
-              isRecording={isRecording}
-              onAudioSent={onAudioSent}
-            />
+            {appMode === 'audio' && (
+              <AudioRecorder
+                sendMessage={sendMessage}
+                isRecording={isRecording}
+                onAudioSent={onAudioSent}
+              />
+            )}
             <Controls
               readyState={readyState}
               isRecording={isRecording}
               onStartRecording={handleStartRecording}
               onStopRecording={handleStopRecording}
-              isTextMode={isTextMode}
+              isTextMode={appMode === 'text'}
               setIsTextMode={handleSetIsTextMode}
-              isDictionaryMode={isDictionaryMode}
-              setIsDictionaryMode={setIsDictionaryMode}
+              appMode={appMode}
+              setAppMode={setAppMode}
             />
           </div>
           {/* Audio mode note below tools row */}
-          {!isTextMode && (
+          {appMode === 'audio' && (
             <div style={{
               marginTop: -45,
               marginBottom: 0,
@@ -470,7 +475,7 @@ function App({ targetLanguages, onReset }) {
         </div>
       )}
       <div className="display-container">
-        {isDictionaryMode ? (
+        {appMode === 'dictionary' ? (
           <DictionaryTable 
             selectedWords={selectedWords}
             englishSegments={englishSegments}
@@ -481,7 +486,7 @@ function App({ targetLanguages, onReset }) {
             translations={translations} 
             targetLanguages={targetLanguages} 
             showLiveEnglish={showLiveEnglish} // Pass toggle state
-            isTextMode={isTextMode}
+            isTextMode={appMode === 'text'}
             onTextSubmit={(lang, text) => {
               // Send text submission for translation to backend
               sendMessage(JSON.stringify({ type: 'text_submit', lang, text }));

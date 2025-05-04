@@ -160,19 +160,39 @@ Only return the JSON object, nothing else.`;
         
         // Extract JSON from response
         try {
-            // Find JSON in the response (it might be wrapped in code blocks)
-            let jsonMatch = text.match(/```(?:json)?(.*?)```/s);
+            // Find JSON in the response (it might be wrapped in code blocks or not)
+            let jsonMatch = text.match(/```(?:json)?([^`]*?)```/s);
             let jsonStr = jsonMatch ? jsonMatch[1].trim() : text;
             
             // If still not JSON object, try to find anything that looks like JSON
-            if (!jsonStr.startsWith('{')) {
-                jsonMatch = text.match(/{.*}/s);
+            if (!jsonStr.startsWith('{') && !jsonStr.startsWith('[')) {
+                jsonMatch = text.match(/(\{.*\})/s);
                 jsonStr = jsonMatch ? jsonMatch[0] : text;
             }
             
-            return JSON.parse(jsonStr);
+            // Try to parse the JSON
+            try {
+                return JSON.parse(jsonStr);
+            } catch (e) {
+                console.error('[LLM Service] Failed to parse JSON first attempt:', e);
+                console.error('[LLM Service] JSON string was:', jsonStr);
+                
+                // Last resort - try to extract just the JSON object
+                const lastMatch = text.match(/\{[^]*\}/);
+                if (lastMatch) {
+                    try {
+                        return JSON.parse(lastMatch[0]);
+                    } catch (e2) {
+                        console.error('[LLM Service] Failed final JSON parse attempt:', e2);
+                        throw e2;
+                    }
+                } else {
+                    throw e;
+                }
+            }
         } catch (jsonError) {
             console.error('[LLM Service] Error parsing definition JSON:', jsonError);
+            console.error('[LLM Service] Raw response was:', text);
             // Return a formatted error as the definition
             return {
                 translation: word,

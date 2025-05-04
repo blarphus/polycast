@@ -10,8 +10,8 @@ function Controls({
     isRecording, 
     isTextMode,
     setIsTextMode,
-    isDictionaryMode,
-    setIsDictionaryMode, 
+    appMode,
+    setAppMode,
 }) {
     const isConnected = readyState === ReadyState.OPEN;
 
@@ -21,16 +21,17 @@ function Controls({
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <label style={{ color: '#ccc', fontSize: 15, fontWeight: 500 }}>Mode:</label>
                 <select 
-                    value={isTextMode ? 'text' : 'audio'}
-                    onChange={e => setIsTextMode(e.target.value === 'text')}
+                    value={appMode}
+                    onChange={e => setAppMode(e.target.value)}
                     style={{ minWidth: 90, fontSize: 15, padding: '2px 6px', borderRadius: 6 }}
                     disabled={isRecording} // Disable mode switch while recording
                 >
-                    <option value="text">text mode</option>
                     <option value="audio">audio mode</option>
+                    <option value="text">text mode</option>
+                    <option value="dictionary">dictionary mode</option>
                 </select>
                 {/* Only show the button in audio mode */}
-                {!isTextMode && (
+                {appMode === 'audio' && (
                   <label style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 14, fontSize: 15, fontWeight: 500, color: '#ccc' }}>
                     <input
                         type="checkbox"
@@ -40,17 +41,6 @@ function Controls({
                     Show Live Transcript
                   </label>
                 )}
-            </div>
-            {/* Dictionary Mode Checkbox */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 14 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 15, fontWeight: 500, color: '#ccc' }}>
-                    <input
-                        type="checkbox"
-                        checked={isDictionaryMode}
-                        onChange={e => setIsDictionaryMode(e.target.checked)}
-                    />
-                    Dictionary Mode
-                </label>
             </div>
             {/* Font size controls */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 18 }}>
@@ -104,10 +94,10 @@ function Controls({
 Controls.propTypes = {
     readyState: PropTypes.number.isRequired,
     isRecording: PropTypes.bool.isRequired,
-    isTextMode: PropTypes.bool.isRequired,
-    setIsTextMode: PropTypes.func.isRequired,
-    isDictionaryMode: PropTypes.bool.isRequired,
-    setIsDictionaryMode: PropTypes.func.isRequired,
+    isTextMode: PropTypes.bool.isRequired, // For backward compatibility
+    setIsTextMode: PropTypes.func.isRequired, // For backward compatibility
+    appMode: PropTypes.string.isRequired,
+    setAppMode: PropTypes.func.isRequired,
 };
 
 export default Controls;

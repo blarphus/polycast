@@ -46,9 +46,14 @@ const DictionaryTable = ({ selectedWords, englishSegments }) => {
 
     // Fetch each word's definition
     wordsToFetch.forEach(word => {
-      fetch(`/api/dictionary/${encodeURIComponent(word)}`)
+      // Use the same backend URL as the WebSocket for consistency
+      const apiUrl = `https://polycast-server.onrender.com/api/dictionary/${encodeURIComponent(word)}`;
+      console.log(`Fetching definition for "${word}" from: ${apiUrl}`);
+      
+      fetch(apiUrl)
         .then(res => res.json())
         .then(data => {
+          console.log(`Received definition for "${word}":`, data);
           setWordDetails(prev => ({
             ...prev,
             [word.toLowerCase()]: data
@@ -82,16 +87,28 @@ const DictionaryTable = ({ selectedWords, englishSegments }) => {
   // Show loading state if no words selected
   if (selectedWords.length === 0) {
     return (
-      <div className="dictionary-table-container" style={{
+      <div style={{
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
         padding: '20px',
-        backgroundColor: '#fff',
-        borderRadius: '8px',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-        maxHeight: '80vh',
-        overflowY: 'auto'
+        maxWidth: '1200px',
+        margin: '0 auto'
       }}>
-        <h2 style={{ color: '#333', marginTop: 0 }}>Dictionary</h2>
-        <p style={{ color: '#666' }}>Click on words in the transcript to add them to the dictionary.</p>
+        <div style={{ 
+          textAlign: 'center',
+          padding: '40px 20px',
+          backgroundColor: 'rgba(255,255,255,0.05)',
+          borderRadius: '8px',
+          width: '100%',
+          maxWidth: '600px'
+        }}>
+          <h2 style={{ color: '#b3b3e7', marginTop: 0, fontSize: '24px' }}>Dictionary</h2>
+          <p style={{ color: '#aaa', fontSize: '16px' }}>Click on words in the transcript to add them to the dictionary.</p>
+        </div>
       </div>
     );
   }
@@ -102,72 +119,90 @@ const DictionaryTable = ({ selectedWords, englishSegments }) => {
   ).values()];
 
   return (
-    <div className="dictionary-table-container" style={{
+    <div style={{
+      width: '100%',
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'flex-start',
       padding: '20px',
-      backgroundColor: '#fff',
-      borderRadius: '8px',
-      boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-      maxHeight: '80vh',
-      overflowY: 'auto',
-      width: '100%'
+      maxWidth: '1200px',
+      margin: '0 auto',
+      overflow: 'hidden'
     }}>
-      <h2 style={{ color: '#333', marginTop: 0 }}>Dictionary</h2>
-      <table style={{
+      <h2 style={{ 
+        color: '#b3b3e7', 
+        marginTop: 0, 
+        marginBottom: '20px',
+        fontSize: '28px',
+        alignSelf: 'flex-start'
+      }}>Dictionary</h2>
+      <div style={{ 
         width: '100%',
-        borderCollapse: 'collapse',
-        marginTop: '15px'
+        height: 'calc(100% - 60px)',
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        backgroundColor: 'rgba(24, 27, 47, 0.7)',
+        borderRadius: '8px'
       }}>
-        <thead>
-          <tr style={{ backgroundColor: '#f5f5f5' }}>
-            <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Word</th>
-            <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Spanish Definition</th>
-            <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Context</th>
-          </tr>
-        </thead>
-        <tbody>
-          {uniqueWords.map((word, index) => {
-            const detail = wordDetails[word.toLowerCase()];
-            const isLoading = loading[word.toLowerCase()];
-            
-            return (
-              <tr key={index} style={{ borderBottom: '1px solid #eee' }}>
-                <td style={{ padding: '12px 10px', fontWeight: 'bold' }}>
-                  {word}
-                  {detail && detail.partOfSpeech && !detail.error && (
-                    <div style={{ fontSize: '0.8em', color: '#666', fontWeight: 'normal' }}>
-                      {detail.partOfSpeech}
+        <table style={{
+          width: '100%',
+          borderCollapse: 'collapse',
+          color: '#fff'
+        }}>
+          <thead>
+            <tr style={{ backgroundColor: 'rgba(124, 98, 255, 0.2)' }}>
+              <th style={{ padding: '16px', textAlign: 'left', borderBottom: '1px solid rgba(124, 98, 255, 0.3)', width: '20%' }}>Word</th>
+              <th style={{ padding: '16px', textAlign: 'left', borderBottom: '1px solid rgba(124, 98, 255, 0.3)', width: '40%' }}>Spanish Definition</th>
+              <th style={{ padding: '16px', textAlign: 'left', borderBottom: '1px solid rgba(124, 98, 255, 0.3)', width: '40%' }}>Context</th>
+            </tr>
+          </thead>
+          <tbody>
+            {uniqueWords.map((word, index) => {
+              const detail = wordDetails[word.toLowerCase()];
+              const isLoading = loading[word.toLowerCase()];
+              
+              return (
+                <tr key={index} style={{ borderBottom: '1px solid rgba(124, 98, 255, 0.15)' }}>
+                  <td style={{ padding: '16px', fontWeight: 'bold', color: '#4ad991' }}>
+                    {word}
+                    {detail && detail.partOfSpeech && !detail.error && (
+                      <div style={{ fontSize: '0.8em', color: '#aaa', fontWeight: 'normal', marginTop: '4px' }}>
+                        {detail.partOfSpeech}
+                      </div>
+                    )}
+                  </td>
+                  <td style={{ padding: '16px' }}>
+                    {isLoading ? (
+                      <div style={{ color: '#aaa', fontStyle: 'italic' }}>Loading...</div>
+                    ) : detail ? (
+                      <div>
+                        <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#72aee0' }}>
+                          {detail.translation}
+                        </div>
+                        <div style={{ marginBottom: '5px' }}>
+                          {detail.definition}
+                        </div>
+                        <div style={{ fontStyle: 'italic', fontSize: '0.9em', color: '#aaa', marginTop: '8px' }}>
+                          {detail.example}
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ color: '#ff6b6b' }}>No definition available</div>
+                    )}
+                  </td>
+                  <td style={{ padding: '16px', fontSize: '0.95em', color: '#ccc' }}>
+                    <div style={{ fontStyle: 'italic', lineHeight: '1.4' }}>
+                      "{findContextSentence(word)}"
                     </div>
-                  )}
-                </td>
-                <td style={{ padding: '12px 10px' }}>
-                  {isLoading ? (
-                    <div>Loading...</div>
-                  ) : detail ? (
-                    <div>
-                      <div style={{ fontWeight: 'bold', marginBottom: '5px', color: '#1976d2' }}>
-                        {detail.translation}
-                      </div>
-                      <div style={{ marginBottom: '5px' }}>
-                        {detail.definition}
-                      </div>
-                      <div style={{ fontStyle: 'italic', fontSize: '0.9em', color: '#666' }}>
-                        {detail.example}
-                      </div>
-                    </div>
-                  ) : (
-                    <div>No definition available</div>
-                  )}
-                </td>
-                <td style={{ padding: '12px 10px', fontSize: '0.9em', color: '#555' }}>
-                  <div style={{ fontStyle: 'italic' }}>
-                    "{findContextSentence(word)}"
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };
