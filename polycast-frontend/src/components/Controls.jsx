@@ -64,6 +64,25 @@ function Controls({
                 >
                     <span style={{ position: 'relative', top: -2 }}>+</span>
                 </button>
+                {/* Full Screen Button */}
+                <button
+                    onClick={() => {
+                        if (!document.fullscreenElement) {
+                            document.documentElement.requestFullscreen();
+                        } else {
+                            document.exitFullscreen();
+                        }
+                    }}
+                    style={{
+                        background: '#23233a', color: '#fff', border: 'none', borderRadius: 6, width: 40, height: 34,
+                        fontSize: 22, fontWeight: 700, boxShadow: '0 2px 8px #0002', cursor: 'pointer', transition: 'background 0.2s',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', marginLeft: 18
+                    }}
+                    aria-label="Toggle Full Screen"
+                    title="Full Screen (F11)"
+                >
+                    <span style={{ fontSize: 18 }}>⛶</span>
+                </button>
             </div>
         </div>
     );
