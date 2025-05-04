@@ -9,7 +9,7 @@ function Controls({
     readyState,
     isRecording, 
     mode,
-    setMode,
+    setMode, 
 }) {
     const isConnected = readyState === ReadyState.OPEN;
 
@@ -21,15 +21,15 @@ function Controls({
                 <select 
                     value={mode}
                     onChange={e => setMode(e.target.value)}
-                    style={{ minWidth: 90, fontSize: 15, padding: '2px 6px', borderRadius: 6 }}
-                    disabled={isRecording}
+                    style={{ fontSize: 17, padding: '2px 12px', borderRadius: 5 }}
+                    disabled={isRecording} // Disable mode switch while recording
                 >
-                    <option value="text">text mode</option>
                     <option value="audio">audio mode</option>
+                    <option value="text">text mode</option>
                     <option value="dictionary">dictionary mode</option>
                 </select>
                 {/* Only show the button in audio mode */}
-                {mode === 'audio' && (
+                {mode !== 'text' && (
                   <label style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 14, fontSize: 15, fontWeight: 500, color: '#ccc' }}>
                     <input
                         type="checkbox"

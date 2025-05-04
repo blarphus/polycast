@@ -7,6 +7,7 @@ import './App.css'
 import AudioRecorder from './components/AudioRecorder';
 import Controls from './components/Controls';
 import TranscriptionDisplay from './components/TranscriptionDisplay';
+import DictionaryTable from './components/DictionaryTable';
 
 // App now receives an array of target languages as a prop
 function App({ targetLanguages, onReset }) {
@@ -23,15 +24,18 @@ function App({ targetLanguages, onReset }) {
   const [translations, setTranslations] = useState({}); // Structure: { lang: [{ text: string, isNew: boolean }] }
   const [errorMessages, setErrorMessages] = useState([]); 
   const [showLiveEnglish, setShowLiveEnglish] = useState(true); // State for toggle
-  const [mode, setMode] = useState('audio'); // Use a single 'mode' state: 'audio', 'text', or 'dictionary'
+  const [mode, setMode] = useState('audio'); // 'audio' | 'text' | 'dictionary'
+  const [selectedWords, setSelectedWords] = useState([]);
   const [modeError, setModeError] = useState(null);
   const [textInputs, setTextInputs] = useState({}); // Lifted state
   const [showNotification, setShowNotification] = useState(false);
   const [notificationOpacity, setNotificationOpacity] = useState(1);
   const notificationTimeoutRef = useRef(null);
+  const modeRef = useRef(mode);
   const isRecordingRef = useRef(isRecording); // Ref to track recording state in handlers
 
   // Update refs when state changes
+  useEffect(() => { modeRef.current = mode; }, [mode]);
   useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
 
   // Add Page Up/Page Down recording hotkeys
@@ -76,6 +80,7 @@ function App({ targetLanguages, onReset }) {
         throw jsonErr;
       }
       setMode(data.mode);
+      modeRef.current = data.mode;
     } catch (err) {
       setModeError(`Could not fetch mode: ${err && err.message ? err.message : err}. Debug: ${JSON.stringify({
         mode: 'fetchMode',
@@ -91,11 +96,12 @@ function App({ targetLanguages, onReset }) {
 
   // Update mode on backend
   const updateMode = useCallback(async (value) => {
+    const previousMode = modeRef.current;
     setMode(value); // Optimistically update UI
     setModeError(null);
 
     // Clear text inputs when switching from text to audio mode
-    if (value === 'audio') { 
+    if (value === 'audio' && previousMode === 'text') { 
       setTextInputs({});
     }
 
@@ -128,6 +134,7 @@ function App({ targetLanguages, onReset }) {
         throw jsonErr;
       }
       setMode(data.mode);
+      modeRef.current = data.mode;
     } catch (err) {
       setModeError(`Could not update mode: ${err && err.message ? err.message : err}. Debug: ${JSON.stringify({
         mode: 'updateMode',
@@ -138,7 +145,7 @@ function App({ targetLanguages, onReset }) {
         backendUrl: `${BACKEND_HTTP_BASE}/mode`,
         requestBody: { mode: value }
       })}`);
-      setMode('audio'); // Revert UI if error
+      setMode(modeRef.current); // Revert UI if error
       console.error('Failed to update mode:', err);
     }
   }, []);
@@ -157,7 +164,7 @@ function App({ targetLanguages, onReset }) {
     let spacebarPressed = false; // Prevent repeated starts on key hold
 
     const handleKeyDown = (event) => {
-      if (event.code === 'Space' && mode !== 'text' && !isRecordingRef.current && !spacebarPressed) {
+      if (event.code === 'Space' && mode !== 'text' && mode !== 'dictionary' && !isRecordingRef.current && !spacebarPressed) {
         event.preventDefault(); // Prevent scrolling
         spacebarPressed = true;
         console.log("Spacebar DOWN - Starting recording");
@@ -166,7 +173,7 @@ function App({ targetLanguages, onReset }) {
     };
 
     const handleKeyUp = (event) => {
-      if (event.code === 'Space' && mode !== 'text' && isRecordingRef.current) {
+      if (event.code === 'Space' && mode !== 'text' && mode !== 'dictionary' && isRecordingRef.current) {
         event.preventDefault();
         spacebarPressed = false;
         console.log("Spacebar UP - Stopping recording");
@@ -356,104 +363,6 @@ function App({ targetLanguages, onReset }) {
     };
   }, []);
 
-  // Get selectedWords from sessionStorage and pass to dictionary table
-  const [selectedWords, setSelectedWords] = useState([]);
-
-  // Sync selectedWords with sessionStorage, and listen for changes from TranscriptionDisplay
-  useEffect(() => {
-    const saved = sessionStorage.getItem('polycast_selected_words');
-    if (saved) {
-      try {
-        setSelectedWords(JSON.parse(saved));
-      } catch {}
-    }
-    // Listen for changes from other tabs/windows (shouldn't matter much for sessionStorage, but for robustness)
-    const handleStorage = () => {
-      const updated = sessionStorage.getItem('polycast_selected_words');
-      if (updated) setSelectedWords(JSON.parse(updated));
-    };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
-  }, []);
-  useEffect(() => {
-    sessionStorage.setItem('polycast_selected_words', JSON.stringify(selectedWords));
-  }, [selectedWords]);
-
-  // Only show flagged words in dictionary mode
-  const flaggedWordSet = new Set(selectedWords.map(w => w.toLowerCase()));
-  const wordToSentences = {};
-  englishSegments.forEach(seg => {
-    const tokens = seg.text.match(/([\p{L}\p{M}\d']+|[.,!?;:]+|\s+)/gu) || [];
-    tokens.forEach(token => {
-      if (/^[\p{L}\p{M}\d']+$/u.test(token) && flaggedWordSet.has(token.toLowerCase())) {
-        const key = token.toLowerCase();
-        if (!wordToSentences[key]) wordToSentences[key] = [];
-        if (!wordToSentences[key].includes(seg.text)) wordToSentences[key].push(seg.text);
-      }
-    });
-  });
-  const uniqueWords = selectedWords.filter((w, i, arr) => arr.findIndex(x => x.toLowerCase() === w.toLowerCase()) === i);
-
-  // --- Spanish Definitions State ---
-  const [definitions, setDefinitions] = useState({}); // { word: definition }
-
-  // Fetch definition for a word if not already fetched
-  const fetchDefinition = async (word) => {
-    if (!word || definitions[word.toLowerCase()]) return;
-    try {
-      const res = await fetch('/api/dictionary/define', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ word })
-      });
-      const data = await res.json();
-      if (res.ok && data && data.definition) {
-        setDefinitions(prev => ({ ...prev, [word.toLowerCase()]: data.definition }));
-      } else if (data && data.error) {
-        setDefinitions(prev => ({ ...prev, [word.toLowerCase()]: `Error: ${data.error}${data.detail ? ' — ' + data.detail : ''}` }));
-      } else {
-        setDefinitions(prev => ({ ...prev, [word.toLowerCase()]: 'Unknown error.' }));
-      }
-    } catch (err) {
-      setDefinitions(prev => ({ ...prev, [word.toLowerCase()]: `Network error: ${err.message}` }));
-    }
-  };
-
-  // Fetch definitions for all uniqueWords in dictionary mode
-  useEffect(() => {
-    if (mode === 'dictionary') {
-      uniqueWords.forEach(word => {
-        fetchDefinition(word);
-      });
-    }
-    // Optionally: clear definitions if no flagged words
-    // if (mode !== 'dictionary') setDefinitions({});
-  }, [mode, uniqueWords]);
-
-  // Render Table in Dictionary Mode
-  const renderDictionaryTable = () => (
-    <div style={{ width: '100%', marginTop: 32, overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', background: '#23233a', color: '#fff' }}>
-        <thead>
-          <tr>
-            <th style={{ padding: 8, borderBottom: '2px solid #444', fontWeight: 700 }}>Word</th>
-            <th style={{ padding: 8, borderBottom: '2px solid #444', fontWeight: 700 }}>Spanish Definition</th>
-            <th style={{ padding: 8, borderBottom: '2px solid #444', fontWeight: 700 }}>Sentence Used In</th>
-          </tr>
-        </thead>
-        <tbody>
-          {uniqueWords.map(word => (
-            <tr key={word}>
-              <td style={{ padding: 8, borderBottom: '1px solid #333', fontWeight: 600 }}>{word}</td>
-              <td style={{ padding: 8, borderBottom: '1px solid #333', maxWidth: 400, wordBreak: 'break-word' }}>{definitions[word.toLowerCase()] || <span style={{ color: '#888' }}>Loading...</span>}</td>
-              <td style={{ padding: 8, borderBottom: '1px solid #333' }}>{(wordToSentences[word.toLowerCase()]||[])[0]||''}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-
   return (
     <div className="App">
       {/* Big Polycast Title */}
@@ -480,7 +389,7 @@ function App({ targetLanguages, onReset }) {
         {/* Main Toolbar */}
         <div className="main-toolbar" style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'stretch', marginBottom: 0 }}>
           {/* Absolutely positioned Recording indicator in circled space */}
-          {mode !== 'text' && isRecording && (
+          {mode !== 'text' && mode !== 'dictionary' && isRecording && (
             <div style={{
               position: 'absolute',
               top: 100,
@@ -510,11 +419,12 @@ function App({ targetLanguages, onReset }) {
               isRecording={isRecording}
               mode={mode}
               setMode={handleSetMode}
-              // ...other props
+              onStartRecording={handleStartRecording}
+              onStopRecording={handleStopRecording}
             />
           </div>
           {/* Audio mode note below tools row */}
-          {mode !== 'text' && (
+          {mode !== 'text' && mode !== 'dictionary' && (
             <div style={{
               marginTop: -45,
               marginBottom: 0,
@@ -557,7 +467,12 @@ function App({ targetLanguages, onReset }) {
         </div>
       )}
       <div className="display-container">
-        {mode === 'dictionary' ? renderDictionaryTable() : (
+        {mode === 'dictionary' ? (
+          <DictionaryTable
+            selectedWords={selectedWords}
+            englishSegments={englishSegments}
+          />
+        ) : (
           <TranscriptionDisplay 
             englishSegments={englishSegments} 
             translations={translations} 
