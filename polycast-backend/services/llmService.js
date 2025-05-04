@@ -136,7 +136,7 @@ async function getSpanishDefinition(word) {
         return definition;
     } catch (error) {
         console.error('[LLM Service] Error during Spanish definition API call:', error);
-        throw new Error('Failed to get Spanish definition');
+        throw error;
     }
 }
 

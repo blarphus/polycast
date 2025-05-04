@@ -8,11 +8,11 @@ const { getSpanishDefinition } = require('./services/llmService');
  * Returns: { definition: string }
  */
 router.post('/define', async (req, res) => {
-  const { word } = req.body;
-  if (!word || typeof word !== 'string') {
-    return res.status(400).json({ error: 'Missing or invalid word', detail: 'Word must be a non-empty string.' });
-  }
   try {
+    const { word } = req.body;
+    if (!word || typeof word !== 'string') {
+      return res.status(400).json({ error: 'Missing or invalid word', detail: 'Word must be a non-empty string.' });
+    }
     const definition = await getSpanishDefinition(word);
     res.json({ definition });
   } catch (err) {
