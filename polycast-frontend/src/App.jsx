@@ -394,6 +394,40 @@ function App({ targetLanguages, onReset }) {
   });
   const uniqueWords = selectedWords.filter((w, i, arr) => arr.findIndex(x => x.toLowerCase() === w.toLowerCase()) === i);
 
+  // --- Spanish Definitions State ---
+  const [definitions, setDefinitions] = useState({}); // { word: definition }
+
+  // Fetch definition for a word if not already fetched
+  const fetchDefinition = async (word) => {
+    if (!word || definitions[word.toLowerCase()]) return;
+    try {
+      const res = await fetch('/api/dictionary/define', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ word })
+      });
+      const data = await res.json();
+      if (data && data.definition) {
+        setDefinitions(prev => ({ ...prev, [word.toLowerCase()]: data.definition }));
+      } else {
+        setDefinitions(prev => ({ ...prev, [word.toLowerCase()]: 'No definition found.' }));
+      }
+    } catch (err) {
+      setDefinitions(prev => ({ ...prev, [word.toLowerCase()]: 'Error fetching definition.' }));
+    }
+  };
+
+  // Fetch definitions for all uniqueWords in dictionary mode
+  useEffect(() => {
+    if (mode === 'dictionary') {
+      uniqueWords.forEach(word => {
+        fetchDefinition(word);
+      });
+    }
+    // Optionally: clear definitions if no flagged words
+    // if (mode !== 'dictionary') setDefinitions({});
+  }, [mode, uniqueWords]);
+
   // Render Table in Dictionary Mode
   const renderDictionaryTable = () => (
     <div style={{ width: '100%', marginTop: 32, overflowX: 'auto' }}>
@@ -409,7 +443,7 @@ function App({ targetLanguages, onReset }) {
           {uniqueWords.map(word => (
             <tr key={word}>
               <td style={{ padding: 8, borderBottom: '1px solid #333', fontWeight: 600 }}>{word}</td>
-              <td style={{ padding: 8, borderBottom: '1px solid #333' }}>{/* TODO: Fetch and display definition */}</td>
+              <td style={{ padding: 8, borderBottom: '1px solid #333' }}>{definitions[word.toLowerCase()] || <span style={{ color: '#888' }}>Loading...</span>}</td>
               <td style={{ padding: 8, borderBottom: '1px solid #333' }}>{(wordToSentences[word.toLowerCase()]||[])[0]||''}</td>
             </tr>
           ))}
