@@ -141,7 +141,7 @@ Your response should be in JSON format with exactly these fields:
 {
   "translation": "Spanish translation of the word",
   "definition": "Clear, concise definition of the word in Spanish (2-3 sentences max)",
-  "example": "A simple example sentence in Spanish that uses this word",
+  "example": "A simple example sentence in English that uses this word. Do NOT translate the example—keep it in English. Make sure the example is natural and highlights the word's typical usage. The word itself should appear in the sentence.",
   "partOfSpeech": "The part of speech (noun, verb, adjective, etc.)"
 }
 

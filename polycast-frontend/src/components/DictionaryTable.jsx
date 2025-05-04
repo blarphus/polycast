@@ -198,7 +198,22 @@ const DictionaryTable = ({
                   </td>
                   <td style={{ padding: '16px', fontSize: '0.95em', color: '#ccc' }}>
                     <div style={{ fontStyle: 'italic', lineHeight: '1.4' }}>
-                      "{findContextSentence(word)}"
+                      {findContextSentence(word) ? (
+                        <span style={{ color: '#fff', fontSize: 15 }}>
+                          {(() => {
+                            const wordRegex = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\b`, 'gi');
+                            return findContextSentence(word).split(wordRegex).reduce((acc, part, idx, arr) => {
+                              acc.push(part);
+                              if (idx < arr.length - 1) {
+                                acc.push(<strong key={idx} style={{ color: '#ffe066', fontWeight: 700 }}>{word}</strong>);
+                              }
+                              return acc;
+                            }, []);
+                          })()}
+                        </span>
+                      ) : (
+                        <span style={{ color: '#a6a6d2', fontSize: 15 }}>No context available</span>
+                      )}
                     </div>
                   </td>
                 </tr>
