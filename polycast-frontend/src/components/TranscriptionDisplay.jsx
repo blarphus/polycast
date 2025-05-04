@@ -63,22 +63,22 @@ const renderSegmentsWithClickableWords = (segments, lastPersisted, selectedWords
   // Each segment on its own line
   return segments.map((segment, segIdx) => {
     // Tokenize: words (with apostrophes/accents), punctuation, and spaces
-    // This regex matches words, punctuation, and spaces
     const tokens = segment.text.match(/([\p{L}\p{M}\d']+|[.,!?;:]+|\s+)/gu) || [];
     return (
       <div key={segIdx} className={segment.isNew ? 'new-text' : ''} style={{ display: 'block', marginBottom: 2 }}>
         {tokens.map((token, i) => {
           // Only words (letters, numbers, apostrophes, accents) are clickable
           const isWord = /^[\p{L}\p{M}\d']+$/u.test(token);
+          const isSelected = isWord && selectedWords.some(w => w.toLowerCase() === token.toLowerCase());
           return (
             <span
               key={i}
               onClick={isWord ? (e => { e.stopPropagation(); handleWordClick(token); }) : undefined}
               style={{
                 cursor: isWord ? 'pointer' : 'default',
-                color: isWord && selectedWords.some(w => w.toLowerCase() === token.toLowerCase()) ? '#1976d2' : undefined,
-                background: isWord && selectedWords.some(w => w.toLowerCase() === token.toLowerCase()) ? 'rgba(25,118,210,0.07)' : undefined,
-                borderRadius: isWord && selectedWords.some(w => w.toLowerCase() === token.toLowerCase()) ? 3 : undefined,
+                color: isSelected ? '#1976d2' : undefined,
+                background: isSelected ? 'rgba(25,118,210,0.07)' : undefined,
+                borderRadius: isSelected ? 3 : undefined,
                 transition: 'color 0.2s',
                 userSelect: 'text',
               }}
@@ -129,6 +129,19 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
   const [langBoxStates, setLangBoxStates] = useState([]);
   const lastPersistedTranslations = useRef({});
   const [selectedWords, setSelectedWords] = useState([]);
+
+  // Persist selectedWords to sessionStorage and load them on mount
+  useEffect(() => {
+    const saved = sessionStorage.getItem('polycast_selected_words');
+    if (saved) {
+      try {
+        setSelectedWords(JSON.parse(saved));
+      } catch {}
+    }
+  }, []);
+  useEffect(() => {
+    sessionStorage.setItem('polycast_selected_words', JSON.stringify(selectedWords));
+  }, [selectedWords]);
 
   // Helper: add/remove word from list
   const handleWordClick = word => {

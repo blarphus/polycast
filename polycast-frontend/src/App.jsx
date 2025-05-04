@@ -356,20 +356,34 @@ function App({ targetLanguages, onReset }) {
     };
   }, []);
 
-  // Derive all unique words (case-insensitive) and their example sentences
+  // Get selectedWords from sessionStorage and pass to dictionary table
+  const [selectedWords, setSelectedWords] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('polycast_selected_words');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [];
+  });
+
+  // Keep selectedWords in sync with sessionStorage
+  useEffect(() => {
+    sessionStorage.setItem('polycast_selected_words', JSON.stringify(selectedWords));
+  }, [selectedWords]);
+
+  // Only show flagged words in dictionary mode
+  const flaggedWordSet = new Set(selectedWords.map(w => w.toLowerCase()));
   const wordToSentences = {};
   englishSegments.forEach(seg => {
-    // Tokenize as before
     const tokens = seg.text.match(/([\p{L}\p{M}\d']+|[.,!?;:]+|\s+)/gu) || [];
     tokens.forEach(token => {
-      if (/^[\p{L}\p{M}\d']+$/u.test(token)) {
+      if (/^[\p{L}\p{M}\d']+$/u.test(token) && flaggedWordSet.has(token.toLowerCase())) {
         const key = token.toLowerCase();
         if (!wordToSentences[key]) wordToSentences[key] = [];
         if (!wordToSentences[key].includes(seg.text)) wordToSentences[key].push(seg.text);
       }
     });
   });
-  const uniqueWords = Object.keys(wordToSentences);
+  const uniqueWords = selectedWords.filter((w, i, arr) => arr.findIndex(x => x.toLowerCase() === w.toLowerCase()) === i);
 
   // Render Table in Dictionary Mode
   const renderDictionaryTable = () => (
@@ -387,7 +401,7 @@ function App({ targetLanguages, onReset }) {
             <tr key={word}>
               <td style={{ padding: 8, borderBottom: '1px solid #333', fontWeight: 600 }}>{word}</td>
               <td style={{ padding: 8, borderBottom: '1px solid #333' }}>{/* TODO: Fetch and display definition */}</td>
-              <td style={{ padding: 8, borderBottom: '1px solid #333' }}>{wordToSentences[word][0]}</td>
+              <td style={{ padding: 8, borderBottom: '1px solid #333' }}>{(wordToSentences[word.toLowerCase()]||[])[0]||''}</td>
             </tr>
           ))}
         </tbody>
@@ -511,6 +525,8 @@ function App({ targetLanguages, onReset }) {
             }}
             textInputs={textInputs}
             setTextInputs={setTextInputs}
+            selectedWords={selectedWords}
+            setSelectedWords={setSelectedWords}
           />
         )}
       </div>
