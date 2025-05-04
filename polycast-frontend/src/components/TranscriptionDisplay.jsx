@@ -52,6 +52,43 @@ const renderHistoryStacked = (segments) => {
   );
 };
 
+// Helper: render a segment with clickable words
+const renderSegmentsWithClickableWords = (segments, lastPersisted, selectedWords, handleWordClick) => {
+  if ((!segments || segments.length === 0) && lastPersisted) {
+    return <span>{lastPersisted}</span>;
+  }
+  if (!segments || segments.length === 0) {
+    return <p>Waiting...</p>;
+  }
+  // Split each segment into words, preserve spaces
+  return segments.map((segment, segIdx) => {
+    // Split on word boundaries, keep punctuation
+    const words = segment.text.match(/\b\w+\b|[^\w\s]+/g) || [];
+    return (
+      <span key={segIdx} className={segment.isNew ? 'new-text' : ''}>
+        {words.map((word, i) => (
+          <span
+            key={i}
+            onClick={e => {
+              e.stopPropagation();
+              handleWordClick(word);
+            }}
+            style={{
+              cursor: 'pointer',
+              color: selectedWords.includes(word) ? '#1976d2' : undefined,
+              background: selectedWords.includes(word) ? 'rgba(25,118,210,0.07)' : undefined,
+              borderRadius: selectedWords.includes(word) ? 3 : undefined,
+              transition: 'color 0.2s',
+            }}
+          >
+            {i > 0 ? ' ' : ''}{word}
+          </span>
+        ))}
+      </span>
+    );
+  });
+};
+
 // Assign a unique color scheme for each language box
 const colorSchemes = [
   { bg: '#2d2a3a', fg: '#fff', accent: '#7c62ff' }, // deep purple
@@ -88,6 +125,18 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
   const [containerSize, setContainerSize] = useState({ width: 1200, height: 600 });
   const [langBoxStates, setLangBoxStates] = useState([]);
   const lastPersistedTranslations = useRef({});
+  const [selectedWords, setSelectedWords] = useState([]);
+
+  // Helper: add/remove word from list
+  const handleWordClick = word => {
+    setSelectedWords(prev => {
+      if (prev.includes(word)) {
+        return prev.filter(w => w !== word);
+      } else {
+        return [...prev, word];
+      }
+    });
+  };
 
   const handleInputChange = (lang, value) => {
     setTextInputs(inputs => ({ ...inputs, [lang]: value }));
@@ -261,7 +310,7 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
           ) : (
             <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
               <span style={{ fontWeight: 400, fontSize: fontSize }}>
-                {renderSegmentsStacked(englishSegments)}
+                {renderSegmentsWithClickableWords(englishSegments, null, selectedWords, handleWordClick)}
               </span>
               <div className="scroll-end" />
             </div>
@@ -391,6 +440,29 @@ const TranscriptionDisplay = ({ englishSegments, targetLanguages, translations, 
             </div>
           );
         })}
+      </div>
+      <div style={{
+        position: 'absolute',
+        top: 24,
+        right: 24,
+        minWidth: 120,
+        background: 'rgba(255,255,255,0.93)',
+        color: '#1976d2',
+        borderRadius: 8,
+        boxShadow: '0 2px 8px rgba(25,118,210,0.08)',
+        padding: '12px 16px',
+        zIndex: 2,
+        fontSize: 17,
+        maxHeight: '50vh',
+        overflowY: 'auto',
+      }}>
+        <div style={{ fontWeight: 700, marginBottom: 8, color: '#1976d2', fontSize: 15, letterSpacing: 0.4 }}>Clicked Words</div>
+        <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+          {selectedWords.map((word, i) => (
+            <li key={i} style={{ padding: '2px 0', borderBottom: '1px solid #e3eaf2' }}>{word}</li>
+          ))}
+          {selectedWords.length === 0 && <li style={{ color: '#888' }}>No words clicked</li>}
+        </ul>
       </div>
     </div>
   );
