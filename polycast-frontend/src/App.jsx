@@ -7,6 +7,8 @@ import './App.css'
 import AudioRecorder from './components/AudioRecorder';
 import Controls from './components/Controls';
 import TranscriptionDisplay from './components/TranscriptionDisplay';
+import ClickableTranscript from './components/ClickableTranscript';
+import DictionaryTable from './components/DictionaryTable';
 
 // App now receives an array of target languages as a prop
 function App({ targetLanguages, onReset }) {
@@ -35,6 +37,11 @@ function App({ targetLanguages, onReset }) {
   // Update refs when state changes
   useEffect(() => { modeRef.current = isTextMode; }, [isTextMode]);
   useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
+
+  // Add state for dictionary mode and selected words
+  const [mode, setMode] = useState('audio'); // 'audio', 'text', 'dictionary'
+  const [selectedWords, setSelectedWords] = useState([]);
+  const [dictionaryEntries, setDictionaryEntries] = useState([]);
 
   // Add Page Up/Page Down recording hotkeys
   useEffect(() => {
@@ -147,6 +154,42 @@ function App({ targetLanguages, onReset }) {
       console.error('Failed to update mode:', err);
     }
   }, []);
+
+  // Handler to extract dictionary words and sentences, and fetch definitions
+  const handleDictionaryMode = useCallback(async () => {
+    // Flatten all transcript segments into a single string
+    const transcript = englishSegments.map(seg => seg.text).join(' ');
+    // Extract all unique words and their sentences
+    const sentences = transcript.match(/[^.!?\n]+[.!?\n]?/g) || [];
+    const wordSentencePairs = [];
+    sentences.forEach((sentence, sIdx) => {
+      const words = sentence.match(/\b\w+\b/g) || [];
+      words.forEach(word => {
+        wordSentencePairs.push({ word, sentence: sentence.trim() });
+      });
+    });
+    // Remove duplicates (by word+sentence)
+    const uniquePairs = Array.from(new Set(wordSentencePairs.map(ws => ws.word + '|' + ws.sentence)))
+      .map(key => {
+        const [word, sentence] = key.split('|');
+        return { word, sentence };
+      });
+    // Fetch definitions from backend
+    const resp = await fetch('/api/define-words', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(uniquePairs)
+    });
+    const defs = await resp.json();
+    setDictionaryEntries(defs);
+  }, [englishSegments]);
+
+  // Run handler when mode changes to dictionary
+  useEffect(() => {
+    if (mode === 'dictionary') {
+      handleDictionaryMode();
+    }
+  }, [mode, handleDictionaryMode]);
 
   // On mount, fetch initial mode
   useEffect(() => { fetchMode(); }, [fetchMode]);
@@ -419,6 +462,8 @@ function App({ targetLanguages, onReset }) {
               onStopRecording={handleStopRecording}
               isTextMode={isTextMode}
               setIsTextMode={handleSetIsTextMode}
+              mode={mode}
+              setMode={setMode}
             />
           </div>
           {/* Audio mode note below tools row */}
@@ -465,19 +510,30 @@ function App({ targetLanguages, onReset }) {
         </div>
       )}
       <div className="display-container">
-        <TranscriptionDisplay 
-          englishSegments={englishSegments} 
-          translations={translations} 
-          targetLanguages={targetLanguages} 
-          showLiveEnglish={showLiveEnglish} // Pass toggle state
-          isTextMode={isTextMode}
-          onTextSubmit={(lang, text) => {
-            // Send text submission for translation to backend
-            sendMessage(JSON.stringify({ type: 'text_submit', lang, text }));
-          }}
-          textInputs={textInputs}
-          setTextInputs={setTextInputs}
-        />
+        {mode === 'dictionary' ? (
+          <DictionaryTable entries={dictionaryEntries} />
+        ) : (
+          <TranscriptionDisplay 
+            englishSegments={englishSegments} 
+            targetLanguages={targetLanguages} 
+            translations={translations} 
+            showLiveEnglish={showLiveEnglish} 
+            isTextMode={isTextMode}
+            onTextSubmit={(lang, text) => {
+              // Send text submission for translation to backend
+              sendMessage(JSON.stringify({ type: 'text_submit', lang, text }));
+            }}
+            textInputs={textInputs}
+            setTextInputs={setTextInputs}
+            renderClickableTranscript={(
+              <ClickableTranscript
+                transcript={englishSegments.map(seg => seg.text).join(' ')}
+                selectedWords={selectedWords}
+                setSelectedWords={setSelectedWords}
+              />
+            )}
+          />
+        )}
       </div>
     </div>
   )
