@@ -47,13 +47,17 @@ function App({ targetLanguages, onReset }) {
     const fetchTestImage = async () => {
       try {
         setTestImageLoading(true);
-        const response = await fetch('/api/test-image');
+        const response = await fetch('/api/test-image'); // Use GET by default
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
         const data = await response.json();
         
         if (data.success && data.imageUrl) {
           setTestImage(data.imageUrl);
+          console.log('Test iguana image loaded successfully:', data.imageUrl);
         } else {
-          console.error('Failed to get test image:', data.error);
+          console.error('Failed to get test image:', data.error || 'No image URL returned');
         }
       } catch (error) {
         console.error('Error fetching test image:', error);
@@ -62,52 +66,40 @@ function App({ targetLanguages, onReset }) {
       }
     };
     
-    fetchTestImage();
-  }, []);
-
-  // --- FIX: Only listen for spacebar in audio mode ---
-  useEffect(() => {
-    let spacebarPressed = false;
-    if (appMode !== 'audio') return; // Only add listeners in audio mode
-
-    const handleKeyDown = (event) => {
-      if (event.code === 'Space' && !isRecordingRef.current && !spacebarPressed) {
-        event.preventDefault();
-        spacebarPressed = true;
-        setIsRecording(true);
-      }
-    };
-    const handleKeyUp = (event) => {
-      if (event.code === 'Space' && isRecordingRef.current) {
-        event.preventDefault();
-        spacebarPressed = false;
-        setIsRecording(false);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, [appMode]);
-
-  // Add Page Up/Page Down recording hotkeys
-  useEffect(() => {
-    function handlePageKey(e) {
-      if (e.repeat) return; // Prevent holding key from triggering repeatedly
-      if (e.key === "PageUp") {
-        e.preventDefault();
-        handleStartRecording && handleStartRecording();
-      }
-      if (e.key === "PageDown") {
-        e.preventDefault();
-        handleStopRecording && handleStopRecording();
-      }
+    // Only fetch test image if not already loaded (e.g. on HMR)
+    if (!testImage) {
+        fetchTestImage();
     }
-    window.addEventListener("keydown", handlePageKey);
-    return () => window.removeEventListener("keydown", handlePageKey);
-  }, []);
+  }, [testImage]); // Depend on testImage to prevent re-fetch on every render
+
+  // --- Handle Mode Change --- 
+  const handleModeChange = async (newMode) => {
+    console.log(`Changing mode to: ${newMode}`);
+    try {
+        // Send mode update to backend
+        const response = await fetch(`/api/mode/${newMode}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Failed to update mode on backend');
+        }
+        
+        // Update frontend state only after backend confirmation
+        setAppMode(newMode);
+        console.log(`Mode successfully changed to ${newMode} on backend and frontend`);
+
+    } catch (error) {
+        console.error('Could not update mode:', error);
+        // Show error notification to user
+        showNotification(`Error updating mode: ${error.message}`, 'error');
+    }
+  };
 
   // Backend base URL for /mode endpoints
   const BACKEND_HTTP_BASE = 'https://polycast-server.onrender.com';
@@ -396,9 +388,9 @@ function App({ targetLanguages, onReset }) {
       setAppMode('flashcard');
     } else {
       // Call updateMode for audio/text modes to sync with backend
-      updateMode(newMode);
+      handleModeChange(newMode);
     }
-  }, [updateMode]);
+  }, [handleModeChange]);
 
   // Get connection status string
   const connectionStatus = {
