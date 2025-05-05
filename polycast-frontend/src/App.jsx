@@ -37,36 +37,36 @@ function App({ targetLanguages, onReset }) {
   const isRecordingRef = useRef(isRecording); // Ref to track recording state in handlers
 
   // === Iguana Image State ===
-  const [iguanaImageUrl, setIguanaImageUrl] = useState(null);
-  const [iguanaLoading, setIguanaLoading] = useState(false);
-  useEffect(() => {
-    if (appMode === 'audio') {
-      console.log('Audio mode detected - fetching iguana image');
-      setIguanaLoading(true);
+  // const [iguanaImageUrl, setIguanaImageUrl] = useState(null);
+  // const [iguanaLoading, setIguanaLoading] = useState(false);
+  // useEffect(() => {
+  //   if (appMode === 'audio') {
+  //     console.log('Audio mode detected - fetching iguana image');
+  //     setIguanaLoading(true);
       
-      // Debug logging
-      fetch('https://polycast-server.onrender.com/api/generate-image?prompt=A big, realistic photo of an iguana, natural background, standard quality, photorealistic', { 
-        cache: 'no-cache',
-        mode: 'cors'
-      })
-        .then(res => {
-          console.log('Image API Response status:', res.status);
-          if (!res.ok) throw new Error(`Failed with status: ${res.status}`);
-          return res.json();
-        })
-        .then(data => {
-          console.log('Image data received:', data);
-          setIguanaImageUrl(data.url);
-        })
-        .catch(err => {
-          console.error('Error fetching iguana image:', err);
-          setIguanaImageUrl(null);
-        })
-        .finally(() => setIguanaLoading(false));
-    } else {
-      setIguanaImageUrl(null);
-    }
-  }, [appMode]);
+  //     // Debug logging
+  //     fetch('https://polycast-server.onrender.com/api/generate-image?prompt=A big, realistic photo of an iguana, natural background, standard quality, photorealistic', { 
+  //       cache: 'no-cache',
+  //       mode: 'cors'
+  //     })
+  //       .then(res => {
+  //         console.log('Image API Response status:', res.status);
+  //         if (!res.ok) throw new Error(`Failed with status: ${res.status}`);
+  //         return res.json();
+  //       })
+  //       .then(data => {
+  //         console.log('Image data received:', data);
+  //         setIguanaImageUrl(data.url);
+  //       })
+  //       .catch(err => {
+  //         console.error('Error fetching iguana image:', err);
+  //         setIguanaImageUrl(null);
+  //       })
+  //       .finally(() => setIguanaLoading(false));
+  //   } else {
+  //     setIguanaImageUrl(null);
+  //   }
+  // }, [appMode]);
 
   // Update refs when state changes
   useEffect(() => { modeRef.current = appMode === 'text'; }, [appMode]);
@@ -427,7 +427,7 @@ function App({ targetLanguages, onReset }) {
 
   return (
     <div className="App">
-      {/* Iguana overlay for audio mode (with debug info) */}
+      {/* Remove the iguana overlay for audio mode 
       {appMode === 'audio' && (
         <div className="iguana-debug" style={{
           position: 'fixed',
@@ -459,7 +459,7 @@ function App({ targetLanguages, onReset }) {
           transition: 'opacity 0.6s',
           pointerEvents: 'none',
         }} />
-      )}
+      )} */}
       {/* Big Polycast Title */}
       <h1
         className="polycast-title"

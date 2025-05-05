@@ -11,6 +11,8 @@ const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
     correctAnswers: 0,
     history: []
   });
+  const [iguanaImages, setIguanaImages] = useState({});
+  const [imageLoading, setImageLoading] = useState({});
   
   // Filter only words that have definitions
   const availableCards = selectedWords.filter(word => 
@@ -114,6 +116,41 @@ const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
     );
   };
   
+  // Load iguana image for current card if not already loaded
+  useEffect(() => {
+    if (availableCards.length === 0 || showStats) return;
+    
+    const currentWord = availableCards[currentIndex];
+    // Only fetch if we don't already have this image loading or loaded
+    if (!iguanaImages[currentWord] && !imageLoading[currentWord]) {
+      console.log(`Fetching iguana image for: ${currentWord}`);
+      
+      // Mark as loading
+      setImageLoading(prev => ({...prev, [currentWord]: true}));
+      
+      // Generate a unique, word-specific prompt for more variety
+      const prompt = `A realistic photo of an iguana representing the word "${currentWord}", natural background, photorealistic`;
+      
+      fetch(`https://polycast-server.onrender.com/api/generate-image?prompt=${encodeURIComponent(prompt)}`, {
+        mode: 'cors'
+      })
+        .then(res => {
+          if (!res.ok) throw new Error(`Failed with status: ${res.status}`);
+          return res.json();
+        })
+        .then(data => {
+          console.log(`Image loaded for: ${currentWord}`);
+          setIguanaImages(prev => ({...prev, [currentWord]: data.url}));
+        })
+        .catch(err => {
+          console.error(`Error fetching iguana image for ${currentWord}:`, err);
+        })
+        .finally(() => {
+          setImageLoading(prev => ({...prev, [currentWord]: false}));
+        });
+    }
+  }, [currentIndex, availableCards, showStats, iguanaImages, imageLoading]);
+  
   // Calculate stats for the visualization
   const calculatedStats = {
     totalCards: availableCards.length,
@@ -211,57 +248,84 @@ const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
           >
             <div className="flashcard-inner">
               <div className="flashcard-front">
-                <div className="flashcard-word">{currentWord}</div>
-                <div className="flashcard-pos">{definition?.partOfSpeech || ''}</div>
-                {definition?.frequencyRating && (
-                  <div className="frequency-indicator" title={`Frequency: ${getFrequencyLabel(definition.frequencyRating)}`}>
-                    <div className="frequency-label">Frequency:</div>
-                    <div className="frequency-dots">
-                      {[1, 2, 3, 4, 5].map(dot => (
-                        <span 
-                          key={dot} 
-                          className={`frequency-dot ${Number(definition.frequencyRating) <= dot ? 'active' : ''}`}
-                        />
-                      ))}
+                <div className="flashcard-content">
+                  <div className="flashcard-word">{currentWord}</div>
+                  <div className="flashcard-pos">{definition?.partOfSpeech || ''}</div>
+                  {definition?.frequencyRating && (
+                    <div className="frequency-indicator" title={`Frequency: ${getFrequencyLabel(definition.frequencyRating)}`}>
+                      <div className="frequency-label">Frequency:</div>
+                      <div className="frequency-dots">
+                        {[1, 2, 3, 4, 5].map(dot => (
+                          <span 
+                            key={dot} 
+                            className={`frequency-dot ${Number(definition.frequencyRating) <= dot ? 'active' : ''}`}
+                          />
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-              <div className="flashcard-back">
-                <div className="flashcard-translation">{definition?.translation || ''}</div>
-                <div className="flashcard-definition">{definition?.definition || ''}</div>
-                <div className="flashcard-example">
-                  {definition?.example ? (
-                    <span>
-                      {(() => {
-                        const wordRegex = new RegExp(`\\b${currentWord.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\b`, 'gi');
-                        return definition.example.split(wordRegex).reduce((acc, part, idx, arr) => {
-                          acc.push(part);
-                          if (idx < arr.length - 1) {
-                            acc.push(<strong key={idx} style={{ color: '#ffe066', fontWeight: 700 }}>{currentWord}</strong>);
-                          }
-                          return acc;
-                        }, []);
-                      })()}
-                    </span>
-                  ) : (
-                    <span>No example available</span>
                   )}
                 </div>
-
-                <div className="flashcard-rating">
-                  <button 
-                    className="incorrect-btn"
-                    onClick={(e) => { e.stopPropagation(); markCard(false); }}
-                  >
-                    Incorrect (1)
-                  </button>
-                  <button 
-                    className="correct-btn"
-                    onClick={(e) => { e.stopPropagation(); markCard(true); }}
-                  >
-                    Correct (2)
-                  </button>
+                <div className="flashcard-image-container">
+                  {imageLoading[currentWord] && (
+                    <div className="image-loading">Loading iguana image...</div>
+                  )}
+                  {iguanaImages[currentWord] && (
+                    <img 
+                      src={iguanaImages[currentWord]} 
+                      alt={`Iguana visual for ${currentWord}`}
+                      className="flashcard-iguana-image"
+                    />
+                  )}
+                </div>
+              </div>
+              <div className="flashcard-back">
+                <div className="flashcard-content">
+                  <div className="flashcard-translation">{definition?.translation || ''}</div>
+                  <div className="flashcard-definition">{definition?.definition || ''}</div>
+                  <div className="flashcard-example">
+                    {definition?.example ? (
+                      <span>
+                        {(() => {
+                          const wordRegex = new RegExp(`\\b${currentWord.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\b`, 'gi');
+                          return definition.example.split(wordRegex).reduce((acc, part, idx, arr) => {
+                            acc.push(part);
+                            if (idx < arr.length - 1) {
+                              acc.push(<strong key={idx} style={{ color: '#ffe066', fontWeight: 700 }}>{currentWord}</strong>);
+                            }
+                            return acc;
+                          }, []);
+                        })()}
+                      </span>
+                    ) : (
+                      <span>No example available</span>
+                    )}
+                  </div>
+                  <div className="flashcard-rating">
+                    <button 
+                      className="incorrect-btn"
+                      onClick={(e) => { e.stopPropagation(); markCard(false); }}
+                    >
+                      Incorrect (1)
+                    </button>
+                    <button 
+                      className="correct-btn"
+                      onClick={(e) => { e.stopPropagation(); markCard(true); }}
+                    >
+                      Correct (2)
+                    </button>
+                  </div>
+                </div>
+                <div className="flashcard-image-container">
+                  {imageLoading[currentWord] && (
+                    <div className="image-loading">Loading iguana image...</div>
+                  )}
+                  {iguanaImages[currentWord] && (
+                    <img 
+                      src={iguanaImages[currentWord]} 
+                      alt={`Iguana visual for ${currentWord}`}
+                      className="flashcard-iguana-image"
+                    />
+                  )}
                 </div>
               </div>
             </div>
