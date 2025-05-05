@@ -135,13 +135,15 @@ async function getWordDefinition(word) {
         return { definition: '', example: '' };
     }
 
-    const prompt = `As a language dictionary, provide a Spanish translation and definition for the English word "${word}".
+    const prompt = `You are acting as a bilingual dictionary for Spanish speakers who are learning English. Your job is to help a Spanish-speaking learner understand what the English word "${word}" means.
 
-Your response should be in JSON format with exactly these fields:
+Explain the meaning of the English word in clear and simple Spanish, focusing on what the word means and how it is used. Do NOT just translate it—give a brief explanation that would help a Spanish learner truly understand the concept behind the word in English.
+
+Your response must be in JSON format with exactly these fields:
 {
   "translation": "Spanish translation of the word",
-  "definition": "Clear, concise definition of the word in Spanish (2-3 sentences max)",
-  "example": "A simple example sentence in English that uses this word. Do NOT translate the example—keep it in English. Make sure the example is natural and highlights the word's typical usage. The word itself should appear in the sentence.",
+  "definition": "Clear, concise explanation in Spanish of what the word means and how it is used (2-3 sentences max, focus on meaning for a Spanish learner)",
+  "example": "A simple example sentence in English that uses this word. Do NOT translate the example—keep it in English. The word itself should appear in the sentence.",
   "partOfSpeech": "The part of speech (noun, verb, adjective, etc.)"
 }
 
