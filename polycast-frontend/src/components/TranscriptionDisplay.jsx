@@ -477,33 +477,6 @@ const TranscriptionDisplay = ({
           );
         })}
       </div>
-      <div style={{
-        position: 'absolute',
-        top: 24,
-        right: 24,
-        minWidth: 120,
-        background: 'rgba(255,255,255,0.93)',
-        color: '#1976d2',
-        borderRadius: 8,
-        boxShadow: '0 2px 8px rgba(25,118,210,0.08)',
-        padding: '12px 16px',
-        zIndex: 2,
-        fontSize: 17,
-        maxHeight: '50vh',
-        overflowY: 'auto',
-      }}>
-        <div style={{ fontWeight: 700, marginBottom: 8, color: '#1976d2', fontSize: 15, letterSpacing: 0.4 }}>Clicked Words</div>
-        <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-          {[...selectedWords.reduce((map, w) => {
-            const lower = w.toLowerCase();
-            if (!map.has(lower)) map.set(lower, w);
-            return map;
-          }, new Map()).values()].map((word, i) => (
-            <li key={i} style={{ padding: '2px 0', borderBottom: '1px solid #e3eaf2' }}>{word}</li>
-          ))}
-          {selectedWords.length === 0 && <li style={{ color: '#888' }}>No words clicked</li>}
-        </ul>
-      </div>
     </div>
   );
 };
