@@ -42,7 +42,7 @@ function App({ targetLanguages, onReset }) {
   useEffect(() => {
     if (appMode === 'audio') {
       setIguanaLoading(true);
-      fetch('/api/generate-image?prompt=A big, realistic photo of an iguana, natural background, standard quality, photorealistic', { cache: 'reload' })
+      fetch('https://polycast-server.onrender.com/api/generate-image?prompt=A big, realistic photo of an iguana, natural background, standard quality, photorealistic', { cache: 'reload' })
         .then(res => res.json())
         .then(data => {
           setIguanaImageUrl(data.url);
