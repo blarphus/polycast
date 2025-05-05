@@ -85,7 +85,7 @@ ${targetLanguage} Translation:`; // Added label for clarity but LLM should ignor
  * @param {string[]} targetLanguages The target languages (e.g., ['Spanish', 'Portuguese', ...]).
  * @returns {Promise<Object>} An object mapping each language to its translation.
  */
-async function translateTextBatch(text, targetLanguages) {
+async function batchTranslateText(text, targetLanguages) {
     initializeLLM();
     if (!text || text.trim().length === 0) {
         console.log('[LLM Service] Skipping translation for empty text batch.');
@@ -122,9 +122,9 @@ async function translateTextBatch(text, targetLanguages) {
 }
 
 /**
- * Gets a Spanish dictionary-style definition for the given English word.
+ * Gets a language-agnostic dictionary-style definition for the given English word.
  * @param {string} word The English word to define.
- * @returns {Promise<Object>} The definition object with Spanish definition and example.
+ * @returns {Promise<Object>} The definition object with definition, example, image prompt and audio.
  * @throws {Error} If initialization fails or API call fails.
  */
 async function getWordDefinition(word) {
@@ -135,22 +135,25 @@ async function getWordDefinition(word) {
         return { definition: '', example: '' };
     }
 
-    const prompt = `You are acting as a bilingual dictionary for Spanish speakers who are learning English. Your job is to help a Spanish-speaking learner understand what the English word "${word}" means.
+    const prompt = `You are acting as a bilingual dictionary for English language learners from any language background. Your job is to help language learners understand what the English word "${word}" means.
 
-Explain the meaning of the English word in clear and simple Spanish, focusing on what the word means and how it is used. Do NOT just translate it—give a brief explanation that would help a Spanish learner truly understand the concept behind the word in English.
+Explain the meaning of the English word in clear and simple English, focusing on what the word means and how it is used. Use simple language that a beginner or intermediate learner would understand.
 
 Your response must be in JSON format with exactly these fields:
 {
-  "translation": "Spanish translation of the word",
-  "definition": "Clear, concise explanation in Spanish of what the word means and how it is used (2-3 sentences max, focus on meaning for a Spanish learner)",
-  "example": "A simple example sentence in English that uses this word. Do NOT translate the example—keep it in English. The word itself should appear in the sentence.",
+  "translation": "Leave this field empty since we're not targeting a specific language",
+  "definition": "Clear, concise explanation in simple English of what the word means and how it is used (2-3 sentences max)",
+  "example": "A simple example sentence that uses this word. The word itself should appear in the sentence and be used in the same way as it would typically be used in conversation.",
+  "contextExample": "If available, a sentence showing how this word was used in the original transcript",
   "partOfSpeech": "The part of speech (noun, verb, adjective, etc.)",
-  "frequencyRating": "A number from 1 to 5 representing how common this word is in everyday English, where 1 = extremely common (basic vocabulary), 2 = very common, 3 = moderately common, 4 = somewhat uncommon, 5 = rare or specialized"
+  "frequencyRating": "A number from 1 to 5 representing how common this word is in everyday English, where 1 = extremely common (basic vocabulary), 2 = very common, 3 = moderately common, 4 = somewhat uncommon, 5 = rare or specialized",
+  "pronunciationTips": "Simple tips for pronouncing this word correctly, noting any difficult sounds or stress patterns",
+  "imagePrompt": "A detailed prompt to generate a clear, educational, animated-style illustration of this word. The image should be in a consistent, friendly cartoon style with bright colors, clean outlines, and a simple background. The image should clearly represent the word's meaning without text."
 }
 
 Only return the JSON object, nothing else.`;
 
-    console.log(`[LLM Service] Getting Spanish definition for: "${word}"`);
+    console.log(`[LLM Service] Getting definition for: "${word}"`);
     console.log(`--- LLM Definition Prompt ---`);
     console.log(prompt);
     console.log(`--- End LLM Definition Prompt ---`);
@@ -163,55 +166,164 @@ Only return the JSON object, nothing else.`;
         
         // Extract JSON from response
         try {
-            // Find JSON in the response (it might be wrapped in code blocks or not)
-            let jsonMatch = text.match(/```(?:json)?([^`]*?)```/s);
-            let jsonStr = jsonMatch ? jsonMatch[1].trim() : text;
+            // First try to directly parse the text
+            let jsonResponse = JSON.parse(text);
             
-            // If still not JSON object, try to find anything that looks like JSON
-            if (!jsonStr.startsWith('{') && !jsonStr.startsWith('[')) {
-                jsonMatch = text.match(/(\{.*\})/s);
-                jsonStr = jsonMatch ? jsonMatch[0] : text;
-            }
-            
-            // Try to parse the JSON
-            try {
-                return JSON.parse(jsonStr);
-            } catch (e) {
-                console.error('[LLM Service] Failed to parse JSON first attempt:', e);
-                console.error('[LLM Service] JSON string was:', jsonStr);
-                
-                // Last resort - try to extract just the JSON object
-                const lastMatch = text.match(/\{[^]*\}/);
-                if (lastMatch) {
-                    try {
-                        return JSON.parse(lastMatch[0]);
-                    } catch (e2) {
-                        console.error('[LLM Service] Failed final JSON parse attempt:', e2);
-                        throw e2;
-                    }
-                } else {
-                    throw e;
+            // Generate image if we have a prompt
+            if (jsonResponse.imagePrompt) {
+                try {
+                    const imageUrl = await generateImage(jsonResponse.imagePrompt);
+                    jsonResponse.imageUrl = imageUrl;
+                } catch (imageError) {
+                    console.error('[LLM Service] Error generating image:', imageError);
+                    jsonResponse.imageUrl = ''; // Empty if failed
                 }
             }
+            
+            return jsonResponse;
+            
         } catch (jsonError) {
             console.error('[LLM Service] Error parsing definition JSON:', jsonError);
-            console.error('[LLM Service] Raw response was:', text);
+            
+            // Try to extract JSON from text if it's wrapped in code blocks or has extra text
+            const jsonMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```|(\{[\s\S]*?\})/);
+            if (jsonMatch) {
+                const jsonContent = (jsonMatch[1] || jsonMatch[2]).trim();
+                try {
+                    const jsonResponse = JSON.parse(jsonContent);
+                    
+                    // Generate image if we have a prompt
+                    if (jsonResponse.imagePrompt) {
+                        try {
+                            const imageUrl = await generateImage(jsonResponse.imagePrompt);
+                            jsonResponse.imageUrl = imageUrl;
+                        } catch (imageError) {
+                            console.error('[LLM Service] Error generating image:', imageError);
+                            jsonResponse.imageUrl = ''; // Empty if failed
+                        }
+                    }
+                    
+                    return jsonResponse;
+                } catch (nestedJsonError) {
+                    console.error('[LLM Service] Error parsing extracted JSON:', nestedJsonError);
+                }
+            }
+            
             // Return a formatted error as the definition
             return {
-                translation: word,
-                definition: "Error obteniendo definición",
-                example: "N/A",
-                partOfSpeech: "unknown"
+                translation: "",
+                definition: "Error retrieving definition",
+                example: "",
+                partOfSpeech: "",
+                imageUrl: ""
             };
         }
     } catch (error) {
         console.error('[LLM Service] Error during definition API call:', error);
-        throw new Error(`LLM API Error: ${error.message}`);
+        return {
+            translation: "",
+            definition: "API error: " + (error.message || "Unknown error"),
+            example: "",
+            partOfSpeech: ""
+        };
+    }
+}
+
+/**
+ * Generates an image based on the provided prompt using OpenAI's DALL-E API
+ * @param {string} prompt - The prompt to generate an image for
+ * @returns {Promise<string>} - URL of the generated image
+ */
+async function generateImage(prompt) {
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+    
+    if (!openaiApiKey) {
+        throw new Error('OpenAI API key is not configured');
+    }
+    
+    try {
+        console.log(`[Image Generation] Generating image for prompt: ${prompt.substring(0, 50)}...`);
+        
+        const response = await fetch('https://api.openai.com/v1/images/generations', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${openaiApiKey}`
+            },
+            body: JSON.stringify({
+                model: "dall-e-3",
+                prompt: prompt,
+                n: 1,
+                size: "1024x1024",
+                quality: "standard", // Use standard to save costs
+                response_format: "url"
+            })
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`DALL-E API error: ${response.status} ${errorText}`);
+        }
+        
+        const data = await response.json();
+        console.log('[Image Generation] Successfully generated image');
+        
+        return data.data[0].url;
+    } catch (error) {
+        console.error('[Image Generation] Error:', error);
+        throw error;
+    }
+}
+
+/**
+ * Generates speech audio from text using OpenAI TTS API
+ * @param {string} text - The text to convert to speech
+ * @param {string} voice - The voice to use (default: 'alloy')
+ * @returns {Promise<Buffer>} - Audio data as buffer
+ */
+async function generateSpeech(text, voice = 'alloy') {
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+    
+    if (!openaiApiKey) {
+        throw new Error('OpenAI API key is not configured');
+    }
+    
+    try {
+        console.log(`[TTS] Generating speech for: "${text.substring(0, 50)}..."`);
+        
+        const response = await fetch('https://api.openai.com/v1/audio/speech', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${openaiApiKey}`
+            },
+            body: JSON.stringify({
+                model: "tts-1",
+                voice: voice,
+                input: text,
+                response_format: "mp3"
+            })
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`TTS API error: ${response.status} ${errorText}`);
+        }
+        
+        const buffer = await response.arrayBuffer();
+        console.log('[TTS] Successfully generated speech audio');
+        
+        return Buffer.from(buffer);
+    } catch (error) {
+        console.error('[TTS] Error:', error);
+        throw error;
     }
 }
 
 module.exports = {
     translateText,
-    translateTextBatch,
-    getWordDefinition
-};
+    batchTranslateText,
+    getWordDefinition,
+    generateImage,
+    generateSpeech
+}

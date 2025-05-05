@@ -158,6 +158,7 @@ wss.on('connection', (ws, req) => {
                 // For now, always use 'audio.webm' as filename, but set contentType dynamically if possible
                 const transcription = await transcribeAudio(message, 'audio.webm');
                 if (transcription && ws.readyState === ws.OPEN) {
+                    storeWordContext(transcription);
                     // Translate to all target languages (batch)
                     const targetLangs = clientTargetLanguages.get(ws) || ['Spanish'];
                     try {
@@ -260,13 +261,56 @@ app.get('/api/translate/:language/:text', async (req, res) => {
 // Dictionary API route
 app.get('/api/dictionary/:word', async (req, res) => {
     try {
-        const { word } = req.params;
+        const word = req.params.word;
         console.log(`[Dictionary API] Getting definition for: ${word}`);
         const definition = await llmService.getWordDefinition(word);
         res.json(definition);
     } catch (error) {
         console.error("Dictionary API error:", error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ error: error.message || 'Unknown error occurred' });
+    }
+});
+
+// Text-to-Speech API route
+app.get('/api/tts', async (req, res) => {
+    try {
+        const { text, voice } = req.query;
+        
+        if (!text) {
+            return res.status(400).json({ error: 'Text parameter is required' });
+        }
+        
+        console.log(`[TTS API] Generating speech for: "${text.substring(0, 50)}..."`);
+        const audioBuffer = await llmService.generateSpeech(text, voice || 'alloy');
+        
+        // Cache headers
+        res.set({
+            'Content-Type': 'audio/mpeg',
+            'Content-Length': audioBuffer.length,
+            'Cache-Control': 'public, max-age=86400' // Cache for 24 hours
+        });
+        
+        res.send(audioBuffer);
+    } catch (error) {
+        console.error("TTS API error:", error);
+        res.status(500).json({ error: error.message || 'Unknown error occurred' });
+    }
+});
+
+// Original context examples API
+app.get('/api/context/:word', async (req, res) => {
+    try {
+        const word = req.params.word;
+        console.log(`[Context API] Getting original context for: ${word}`);
+        
+        // Get original context examples from the transcript history
+        // This is a placeholder - implement based on your data storage
+        const examples = wordContextCache.get(word.toLowerCase()) || [];
+        
+        res.json({ examples });
+    } catch (error) {
+        console.error("Context API error:", error);
+        res.status(500).json({ error: error.message || 'Unknown error occurred' });
     }
 });
 
@@ -285,6 +329,34 @@ app.post('/mode', (req, res) => {
         res.status(400).json({ error: 'Missing or invalid isTextMode' });
     }
 });
+
+// Global cache for word contexts from transcripts
+const wordContextCache = new Map();
+
+// Store word context when transcriptions come in
+function storeWordContext(transcription) {
+    if (!transcription || typeof transcription !== 'string') return;
+    
+    const words = transcription.match(/\b\w+\b/g) || [];
+    const lowerTranscription = transcription.toLowerCase();
+    
+    words.forEach(word => {
+        if (word.length < 2) return; // Skip very short words
+        
+        const lowerWord = word.toLowerCase();
+        const contexts = wordContextCache.get(lowerWord) || [];
+        
+        // Avoid duplicates
+        if (!contexts.includes(transcription)) {
+            contexts.push(transcription);
+            // Keep only the last 5 examples
+            if (contexts.length > 5) {
+                contexts.shift();
+            }
+            wordContextCache.set(lowerWord, contexts);
+        }
+    });
+}
 
 // Start the HTTP server
 server.listen(PORT, () => {
