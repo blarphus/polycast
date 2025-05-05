@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import './FlashcardMode.css';
 
-const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
+const FlashcardMode = ({ selectedWords, wordDefinitions, englishSegments }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [showStats, setShowStats] = useState(false);
@@ -11,7 +11,7 @@ const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
     correctAnswers: 0,
     history: []
   });
-  const [iguanaImages, setIguanaImages] = useState({});
+  const [wordImages, setWordImages] = useState({});
   const [imageLoading, setImageLoading] = useState({});
   
   // Filter only words that have definitions
@@ -116,20 +116,27 @@ const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
     );
   };
   
-  // Load iguana image for current card if not already loaded
+  // Load image for current card if not already loaded
   useEffect(() => {
     if (availableCards.length === 0 || showStats) return;
     
     const currentWord = availableCards[currentIndex];
     // Only fetch if we don't already have this image loading or loaded
-    if (!iguanaImages[currentWord] && !imageLoading[currentWord]) {
-      console.log(`Fetching iguana image for: ${currentWord}`);
+    if (!wordImages[currentWord] && !imageLoading[currentWord]) {
+      console.log(`Fetching image for word: ${currentWord}`);
       
       // Mark as loading
       setImageLoading(prev => ({...prev, [currentWord]: true}));
       
-      // Generate a unique, word-specific prompt for more variety
-      const prompt = `A realistic photo of an iguana representing the word "${currentWord}", natural background, photorealistic`;
+      // Find the original context for this word
+      const contextSentence = englishSegments && englishSegments.length > 0
+        ? englishSegments.find(segment => 
+            segment.text.toLowerCase().includes(currentWord.toLowerCase())
+          )?.text || ""
+        : "";
+      
+      // Generate a word-specific prompt that creates consistent, animated-style images
+      const prompt = `A digital illustration of the concept "${currentWord}" in a colorful, animated style with clean outlines and vibrant colors. Context: "${contextSentence}". The image should be simple, iconic, and educational, suitable for language learning. Use bright colors, flat design elements, and make it centered with good margins to avoid cropping.`;
       
       fetch(`https://polycast-server.onrender.com/api/generate-image?prompt=${encodeURIComponent(prompt)}`, {
         mode: 'cors'
@@ -140,16 +147,16 @@ const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
         })
         .then(data => {
           console.log(`Image loaded for: ${currentWord}`);
-          setIguanaImages(prev => ({...prev, [currentWord]: data.url}));
+          setWordImages(prev => ({...prev, [currentWord]: data.url}));
         })
         .catch(err => {
-          console.error(`Error fetching iguana image for ${currentWord}:`, err);
+          console.error(`Error fetching image for ${currentWord}:`, err);
         })
         .finally(() => {
           setImageLoading(prev => ({...prev, [currentWord]: false}));
         });
     }
-  }, [currentIndex, availableCards, showStats, iguanaImages, imageLoading]);
+  }, [currentIndex, availableCards, showStats, wordImages, imageLoading, englishSegments]);
   
   // Calculate stats for the visualization
   const calculatedStats = {
@@ -249,7 +256,9 @@ const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
             <div className="flashcard-inner">
               <div className="flashcard-front">
                 <div className="flashcard-content">
-                  <div className="flashcard-word">{currentWord}</div>
+                  <div className="flashcard-word-container">
+                    <div className="flashcard-word">{currentWord}</div>
+                  </div>
                   <div className="flashcard-pos">{definition?.partOfSpeech || ''}</div>
                   {definition?.frequencyRating && (
                     <div className="frequency-indicator" title={`Frequency: ${getFrequencyLabel(definition.frequencyRating)}`}>
@@ -267,13 +276,13 @@ const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
                 </div>
                 <div className="flashcard-image-container">
                   {imageLoading[currentWord] && (
-                    <div className="image-loading">Loading iguana image...</div>
+                    <div className="image-loading">Creating image for "{currentWord}"...</div>
                   )}
-                  {iguanaImages[currentWord] && (
+                  {wordImages[currentWord] && (
                     <img 
-                      src={iguanaImages[currentWord]} 
-                      alt={`Iguana visual for ${currentWord}`}
-                      className="flashcard-iguana-image"
+                      src={wordImages[currentWord]} 
+                      alt={`Visual representation of "${currentWord}"`}
+                      className="flashcard-word-image"
                     />
                   )}
                 </div>
@@ -317,13 +326,13 @@ const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
                 </div>
                 <div className="flashcard-image-container">
                   {imageLoading[currentWord] && (
-                    <div className="image-loading">Loading iguana image...</div>
+                    <div className="image-loading">Creating image for "{currentWord}"...</div>
                   )}
-                  {iguanaImages[currentWord] && (
+                  {wordImages[currentWord] && (
                     <img 
-                      src={iguanaImages[currentWord]} 
-                      alt={`Iguana visual for ${currentWord}`}
-                      className="flashcard-iguana-image"
+                      src={wordImages[currentWord]} 
+                      alt={`Visual representation of "${currentWord}"`}
+                      className="flashcard-word-image"
                     />
                   )}
                 </div>
@@ -414,7 +423,8 @@ function formatShortDate(dateStr) {
 
 FlashcardMode.propTypes = {
   selectedWords: PropTypes.arrayOf(PropTypes.string).isRequired,
-  wordDefinitions: PropTypes.object.isRequired
+  wordDefinitions: PropTypes.object.isRequired,
+  englishSegments: PropTypes.arrayOf(PropTypes.object)
 };
 
 export default FlashcardMode;

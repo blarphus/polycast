@@ -577,6 +577,7 @@ function App({ targetLanguages, onReset }) {
           <FlashcardMode 
             selectedWords={selectedWords}
             wordDefinitions={wordDefinitions}
+            englishSegments={englishSegments}
           />
         ) : (
           <TranscriptionDisplay 
