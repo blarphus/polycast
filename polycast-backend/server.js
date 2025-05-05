@@ -53,6 +53,14 @@ const { generateImage } = require('./services/imageService');
 // Initialize Express app
 const app = express();
 
+// Add CORS middleware to enable cross-origin requests
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    next();
+});
+
 // Enable CORS for frontend on Render
 app.use(cors({
   origin: 'https://polycast-frontend.onrender.com',
@@ -275,11 +283,13 @@ app.get('/api/dictionary/:word', async (req, res) => {
 app.get('/api/generate-image', async (req, res) => {
     const prompt = req.query.prompt || 'A photo of an iguana';
     const size = req.query.size || '1024x1024';
+    console.log(`[Image Generation] Request received. Prompt: "${prompt.substring(0, 30)}...", Size: ${size}`);
     try {
         const url = await generateImage(prompt, size);
+        console.log(`[Image Generation] Success! Generated image URL: ${url.substring(0, 60)}...`);
         res.json({ url });
     } catch (error) {
-        console.error('[Image Generation] Error:', error.message);
+        console.error('[Image Generation] Error:', error.message, error.stack);
         res.status(500).json({ error: 'Failed to generate image.' });
     }
 });

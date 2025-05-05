@@ -41,13 +41,27 @@ function App({ targetLanguages, onReset }) {
   const [iguanaLoading, setIguanaLoading] = useState(false);
   useEffect(() => {
     if (appMode === 'audio') {
+      console.log('Audio mode detected - fetching iguana image');
       setIguanaLoading(true);
-      fetch('https://polycast-server.onrender.com/api/generate-image?prompt=A big, realistic photo of an iguana, natural background, standard quality, photorealistic', { cache: 'reload' })
-        .then(res => res.json())
+      
+      // Debug logging
+      fetch('https://polycast-server.onrender.com/api/generate-image?prompt=A big, realistic photo of an iguana, natural background, standard quality, photorealistic', { 
+        cache: 'no-cache',
+        mode: 'cors'
+      })
+        .then(res => {
+          console.log('Image API Response status:', res.status);
+          if (!res.ok) throw new Error(`Failed with status: ${res.status}`);
+          return res.json();
+        })
         .then(data => {
+          console.log('Image data received:', data);
           setIguanaImageUrl(data.url);
         })
-        .catch(() => setIguanaImageUrl(null))
+        .catch(err => {
+          console.error('Error fetching iguana image:', err);
+          setIguanaImageUrl(null);
+        })
         .finally(() => setIguanaLoading(false));
     } else {
       setIguanaImageUrl(null);
@@ -413,12 +427,28 @@ function App({ targetLanguages, onReset }) {
 
   return (
     <div className="App">
-      {/* Iguana overlay for audio mode */}
+      {/* Iguana overlay for audio mode (with debug info) */}
+      {appMode === 'audio' && (
+        <div className="iguana-debug" style={{
+          position: 'fixed',
+          zIndex: 999,
+          top: '10px',
+          left: '10px',
+          background: 'rgba(0,0,0,0.7)',
+          color: 'white',
+          padding: '5px 10px',
+          borderRadius: '4px',
+          fontSize: '12px',
+          pointerEvents: 'none'
+        }}>
+          {iguanaLoading ? 'Loading iguana...' : (iguanaImageUrl ? 'Iguana loaded!' : 'Failed to load iguana')}
+        </div>
+      )}
       {appMode === 'audio' && iguanaImageUrl && (
         <div className="iguana-bg" style={{
           backgroundImage: `url(${iguanaImageUrl})`,
           position: 'fixed',
-          zIndex: 0,
+          zIndex: 1,
           top: 0,
           left: 0,
           width: '100vw',
