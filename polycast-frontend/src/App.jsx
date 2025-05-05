@@ -9,7 +9,6 @@ import Controls from './components/Controls';
 import TranscriptionDisplay from './components/TranscriptionDisplay';
 import DictionaryTable from './components/DictionaryTable';
 import FlashcardMode from './components/FlashcardMode';
-import ImageBackground from './components/ImageBackground';
 
 // App now receives an array of target languages as a prop
 function App({ targetLanguages, onReset }) {
@@ -36,6 +35,24 @@ function App({ targetLanguages, onReset }) {
   const notificationTimeoutRef = useRef(null);
   const modeRef = useRef(appMode === 'text');
   const isRecordingRef = useRef(isRecording); // Ref to track recording state in handlers
+
+  // === Iguana Image State ===
+  const [iguanaImageUrl, setIguanaImageUrl] = useState(null);
+  const [iguanaLoading, setIguanaLoading] = useState(false);
+  useEffect(() => {
+    if (appMode === 'audio') {
+      setIguanaLoading(true);
+      fetch('/api/generate-image?prompt=A big, realistic photo of an iguana, natural background, standard quality, photorealistic', { cache: 'reload' })
+        .then(res => res.json())
+        .then(data => {
+          setIguanaImageUrl(data.url);
+        })
+        .catch(() => setIguanaImageUrl(null))
+        .finally(() => setIguanaLoading(false));
+    } else {
+      setIguanaImageUrl(null);
+    }
+  }, [appMode]);
 
   // Update refs when state changes
   useEffect(() => { modeRef.current = appMode === 'text'; }, [appMode]);
@@ -396,9 +413,23 @@ function App({ targetLanguages, onReset }) {
 
   return (
     <div className="App">
-      {/* Image Background for Audio Mode */}
-      <ImageBackground show={appMode === 'audio'} />
-      
+      {/* Iguana overlay for audio mode */}
+      {appMode === 'audio' && iguanaImageUrl && (
+        <div className="iguana-bg" style={{
+          backgroundImage: `url(${iguanaImageUrl})`,
+          position: 'fixed',
+          zIndex: 0,
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          opacity: 0.93,
+          transition: 'opacity 0.6s',
+          pointerEvents: 'none',
+        }} />
+      )}
       {/* Big Polycast Title */}
       <h1
         className="polycast-title"

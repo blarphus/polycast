@@ -48,7 +48,7 @@ const config = require('./config/config');
 const speechService = require('./services/speechService');
 const llmService = require('./services/llmService');
 const { transcribeAudio } = require('./services/whisperService');
-const { generateImage } = require('./services/imageGenerationService');
+const { generateImage } = require('./services/imageService');
 
 // Initialize Express app
 const app = express();
@@ -271,20 +271,16 @@ app.get('/api/dictionary/:word', async (req, res) => {
     }
 });
 
-// Image generation API route
+// === IMAGE GENERATION ENDPOINT ===
 app.get('/api/generate-image', async (req, res) => {
+    const prompt = req.query.prompt || 'A photo of an iguana';
+    const size = req.query.size || '1024x1024';
     try {
-        const prompt = req.query.prompt || 'A colorful iguana on a branch';
-        const size = req.query.size || '1024x1024';
-        const quality = req.query.quality || 'standard';
-        
-        console.log(`[Image API] Generating image with prompt: "${prompt}"`);
-        const imageUrl = await generateImage(prompt, size, quality);
-        
-        res.json({ url: imageUrl });
+        const url = await generateImage(prompt, size);
+        res.json({ url });
     } catch (error) {
-        console.error("Image Generation API error:", error);
-        res.status(500).json({ error: error.message });
+        console.error('[Image Generation] Error:', error.message);
+        res.status(500).json({ error: 'Failed to generate image.' });
     }
 });
 
