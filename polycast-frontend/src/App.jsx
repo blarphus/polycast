@@ -9,6 +9,7 @@ import Controls from './components/Controls';
 import TranscriptionDisplay from './components/TranscriptionDisplay';
 import DictionaryTable from './components/DictionaryTable';
 import FlashcardMode from './components/FlashcardMode';
+import ImageBackground from './components/ImageBackground';
 
 // App now receives an array of target languages as a prop
 function App({ targetLanguages, onReset }) {
@@ -395,6 +396,9 @@ function App({ targetLanguages, onReset }) {
 
   return (
     <div className="App">
+      {/* Image Background for Audio Mode */}
+      <ImageBackground show={appMode === 'audio'} />
+      
       {/* Big Polycast Title */}
       <h1
         className="polycast-title"
