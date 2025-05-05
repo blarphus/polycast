@@ -1,14 +1,14 @@
 // imageService.js
 // Service for generating images using OpenAI's DALL·E API
 
-const { Configuration, OpenAIApi } = require('openai');
+const OpenAI = require('openai');
 const config = require('../config/config');
 
 if (!config.openaiApiKey) {
   throw new Error('OpenAI API key is not configured.');
 }
 
-const openai = new OpenAIApi(new Configuration({ apiKey: config.openaiApiKey }));
+const openai = new OpenAI({ apiKey: config.openaiApiKey });
 
 /**
  * Generate an image using OpenAI's DALL·E API
@@ -17,13 +17,13 @@ const openai = new OpenAIApi(new Configuration({ apiKey: config.openaiApiKey }))
  * @returns {Promise<string>} - The image URL
  */
 async function generateImage(prompt, size = '1024x1024') {
-  const response = await openai.createImage({
+  const response = await openai.images.generate({
     prompt,
     n: 1,
     size,
     response_format: 'url',
   });
-  return response.data.data[0].url;
+  return response.data[0].url;
 }
 
 module.exports = { generateImage };
