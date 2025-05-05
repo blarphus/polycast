@@ -144,7 +144,8 @@ Your response must be in JSON format with exactly these fields:
   "translation": "Spanish translation of the word",
   "definition": "Clear, concise explanation in Spanish of what the word means and how it is used (2-3 sentences max, focus on meaning for a Spanish learner)",
   "example": "A simple example sentence in English that uses this word. Do NOT translate the example—keep it in English. The word itself should appear in the sentence.",
-  "partOfSpeech": "The part of speech (noun, verb, adjective, etc.)"
+  "partOfSpeech": "The part of speech (noun, verb, adjective, etc.)",
+  "frequencyRating": "A number from 1 to 5 representing how common this word is in everyday English, where 1 = extremely common (basic vocabulary), 2 = very common, 3 = moderately common, 4 = somewhat uncommon, 5 = rare or specialized"
 }
 
 Only return the JSON object, nothing else.`;

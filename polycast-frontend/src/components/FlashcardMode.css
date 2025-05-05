@@ -81,6 +81,7 @@
   perspective: 1000px;
   margin-bottom: 30px;
   cursor: pointer;
+  position: relative;
 }
 
 .flashcard-inner {
@@ -230,6 +231,51 @@
 .next-btn {
   padding-right: 15px;
 }
+
+/* Frequency indicator styling */
+.frequency-indicator {
+  position: absolute;
+  bottom: 15px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  background-color: rgba(0, 0, 0, 0.2);
+  padding: 8px 12px;
+  border-radius: 10px;
+}
+
+.frequency-label {
+  font-size: 12px;
+  color: #b3b3e7;
+  margin-bottom: 4px;
+}
+
+.frequency-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.frequency-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.frequency-dot.active {
+  background-color: #4ad991;
+  border-color: #4ad991;
+  box-shadow: 0 0 4px rgba(74, 217, 145, 0.7);
+}
+
+/* For 1 = more common, 5 = less common, reverse the display */
+.frequency-dot:nth-child(1).active { background-color: #4ad991; } /* Very common - green */
+.frequency-dot:nth-child(2).active { background-color: #7edbad; }
+.frequency-dot:nth-child(3).active { background-color: #ffb86b; } /* Medium - orange */
+.frequency-dot:nth-child(4).active { background-color: #ff9d8a; }
+.frequency-dot:nth-child(5).active { background-color: #ff7773; } /* Rare - red */
 
 /* Empty state */
 .flashcard-empty-state {

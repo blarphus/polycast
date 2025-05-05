@@ -155,6 +155,18 @@ const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
     return Object.values(days);
   }
   
+  // Helper to get frequency label based on rating
+  const getFrequencyLabel = (rating) => {
+    const ratings = {
+      '1': 'Extremely Common',
+      '2': 'Very Common',
+      '3': 'Moderately Common',
+      '4': 'Somewhat Uncommon',
+      '5': 'Rare/Specialized'
+    };
+    return ratings[rating] || 'Unknown';
+  };
+  
   // If no cards are available, show a message
   if (availableCards.length === 0) {
     return (
@@ -201,6 +213,19 @@ const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
               <div className="flashcard-front">
                 <div className="flashcard-word">{currentWord}</div>
                 <div className="flashcard-pos">{definition?.partOfSpeech || ''}</div>
+                {definition?.frequencyRating && (
+                  <div className="frequency-indicator" title={`Frequency: ${getFrequencyLabel(definition.frequencyRating)}`}>
+                    <div className="frequency-label">Frequency:</div>
+                    <div className="frequency-dots">
+                      {[1, 2, 3, 4, 5].map(dot => (
+                        <span 
+                          key={dot} 
+                          className={`frequency-dot ${Number(definition.frequencyRating) <= dot ? 'active' : ''}`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="flashcard-back">
                 <div className="flashcard-translation">{definition?.translation || ''}</div>
