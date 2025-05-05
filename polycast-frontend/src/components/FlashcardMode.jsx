@@ -309,11 +309,15 @@ const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
                 <div className="flashcard-translation">{definition?.translation || ''}</div>
                 <div className="flashcard-definition">{definition?.definition || ''}</div>
 
-                {definition?.imageUrl && (
+                {definition?.imageUrl === null ? (
+                  <div className="flashcard-image loading">
+                    <div className="loading-message">Cargando imagen...</div>
+                  </div>
+                ) : definition?.imageUrl ? (
                   <div className="flashcard-image">
                     <img src={definition.imageUrl} alt={`Visual representation of ${currentWord}`} />
                   </div>
-                )}
+                ) : null}
 
                 <div className="flashcard-example">
                   <div className="example-header">

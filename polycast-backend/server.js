@@ -74,6 +74,7 @@ console.log(`WebSocket server created.`);
 
 const clientTextBuffers = new Map();
 const clientTargetLanguages = new Map(); // Keep for language from URL, will store an array now
+const clientAppMode = new Map();
 
 // Modify connection handler to accept request object (req) and make it async
 wss.on('connection', (ws, req) => {
@@ -103,6 +104,7 @@ wss.on('connection', (ws, req) => {
     }
     clientTargetLanguages.set(ws, targetLangsArray); // Store the array
     clientTextBuffers.set(ws, { text: '', lastEndTimeMs: 0 }); // Ensure this uses correct state
+    clientAppMode.set(ws, 'audio'); // Default to audio mode
 
     ws.on('message', async (message) => {
         // Log the raw message and its type for debugging
@@ -116,14 +118,14 @@ wss.on('connection', (ws, req) => {
                 const data = JSON.parse(msgString);
                 if (data && data.type === 'text_submit') {
                     console.log('[WS DEBUG] Parsed text_submit from buffer:', data);
-                    if (isTextMode) {
+                    if (clientAppMode.get(ws) === 'text') {
                         const translateThis = data.text;
                         const sourceLang = data.lang;
                         const targetLangs = clientTargetLanguages.get(ws) || ['Spanish'];
                         // Always include English as a possible translation target
                         const allLangs = Array.from(new Set(['English', ...targetLangs]));
                         // Use textModeLLM for text mode, llmService for audio mode
-                        if (isTextMode) {
+                        if (clientAppMode.get(ws) === 'text') {
                             // Use textModeLLM with sourceLang and targetLangs
                             const textModeLLM = require('./services/textModeLLM');
                             const translations = await textModeLLM.translateTextBatch(translateThis, sourceLang, allLangs);
@@ -161,16 +163,49 @@ wss.on('connection', (ws, req) => {
                     storeWordContext(transcription);
                     // Translate to all target languages (batch)
                     const targetLangs = clientTargetLanguages.get(ws) || ['Spanish'];
-                    try {
-                        console.log(`[Polycast] Calling Gemini for batch translation: '${transcription}' -> ${targetLangs.join(', ')}`);
-                        const translations = await llmService.translateTextBatch(transcription, targetLangs);
-                        for (const lang of targetLangs) {
-                            ws.send(JSON.stringify({ type: 'translation', lang, data: translations[lang] }));
+                    // Check appMode to determine which service to use
+                    if (clientAppMode.get(ws) === 'text') {
+                        console.log(`[Polycast] Calling Text Mode translation: '${transcription}' → ${targetLangs.join(', ')}`);
+                        // Use textModeLLM for text mode
+                        try {
+                            const translations = await Promise.all(
+                                targetLangs.map(lang => textModeLLM.translateText(transcription, 'English', lang))
+                            );
+                            
+                            // Format as batch result
+                            const transResult = {};
+                            targetLangs.forEach((lang, i) => {
+                                transResult[lang] = translations[i];
+                            });
+                            
+                            ws.send(JSON.stringify({
+                                type: 'translation',
+                                text: transcription,
+                                translations: transResult
+                            }));
+                        } catch (err) {
+                            console.error(`[Polycast] Text Mode translation error:`, err);
+                            ws.send(JSON.stringify({
+                                type: 'error',
+                                message: `Translation error: ${err.message}`
+                            }));
                         }
-                    } catch (transErr) {
-                        console.error(`[Polycast] Gemini batch translation error:`, transErr);
-                        for (const lang of targetLangs) {
-                            ws.send(JSON.stringify({ type: 'translation_error', lang, message: transErr.message }));
+                    } else {
+                        // Default to audio mode - use batch translation
+                        console.log(`[Polycast] Calling Gemini for batch translation: '${transcription}' → ${targetLangs.join(', ')}`);
+                        try {
+                            const transResult = await llmService.batchTranslateText(transcription, targetLangs);
+                            ws.send(JSON.stringify({
+                                type: 'translation',
+                                text: transcription,
+                                translations: transResult
+                            }));
+                        } catch (transErr) {
+                            console.error(`[Polycast] Gemini batch translation error:`, transErr);
+                            ws.send(JSON.stringify({
+                                type: 'error',
+                                message: `Translation error: ${transErr.message}`
+                            }));
                         }
                     }
                     // Always send recognized as well
@@ -188,14 +223,14 @@ wss.on('connection', (ws, req) => {
                 const data = JSON.parse(message);
                 if (data.type === 'text_submit') {
                     console.log('[WS DEBUG] Parsed text_submit from string:', data);
-                    if (isTextMode) {
+                    if (clientAppMode.get(ws) === 'text') {
                         const translateThis = data.text;
                         const sourceLang = data.lang;
                         const targetLangs = clientTargetLanguages.get(ws) || ['Spanish'];
                         // Always include English as a possible translation target
                         const allLangs = Array.from(new Set(['English', ...targetLangs]));
                         // Use textModeLLM for text mode, llmService for audio mode
-                        if (isTextMode) {
+                        if (clientAppMode.get(ws) === 'text') {
                             // Use textModeLLM with sourceLang and targetLangs
                             const textModeLLM = require('./services/textModeLLM');
                             const translations = await textModeLLM.translateTextBatch(translateThis, sourceLang, allLangs);
@@ -230,12 +265,14 @@ wss.on('connection', (ws, req) => {
     ws.on('close', () => {
         clientTextBuffers.delete(ws);
         clientTargetLanguages.delete(ws);
+        clientAppMode.delete(ws);
         console.log('Client disconnected');
     });
     ws.on('error', (error) => {
         console.error('WebSocket error:', error);
         clientTextBuffers.delete(ws);
         clientTargetLanguages.delete(ws);
+        clientAppMode.delete(ws);
     });
     ws.send(JSON.stringify({ type: 'info', message: `Connected to Polycast backend (Targets: ${targetLangsArray.join(', ')})` }));
 });

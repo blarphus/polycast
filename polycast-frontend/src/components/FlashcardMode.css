@@ -477,6 +477,26 @@
   border-radius: 8px;
 }
 
+.flashcard-image.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 150px;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  margin: 15px 0;
+}
+
+.loading-message {
+  color: #a6a6d2;
+  font-size: 14px;
+  font-style: italic;
+  padding: 15px;
+  border-radius: 8px;
+  background-color: rgba(0, 0, 0, 0.2);
+  display: inline-block;
+}
+
 /* Pronunciation button */
 .pronunciation-button {
   position: absolute;

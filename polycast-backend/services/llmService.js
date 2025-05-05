@@ -122,9 +122,9 @@ async function batchTranslateText(text, targetLanguages) {
 }
 
 /**
- * Gets a language-agnostic dictionary-style definition for the given English word.
+ * Gets a Spanish dictionary-style definition for the given English word.
  * @param {string} word The English word to define.
- * @returns {Promise<Object>} The definition object with definition, example, image prompt and audio.
+ * @returns {Promise<Object>} The definition object with Spanish definition and example.
  * @throws {Error} If initialization fails or API call fails.
  */
 async function getWordDefinition(word) {
@@ -135,25 +135,23 @@ async function getWordDefinition(word) {
         return { definition: '', example: '' };
     }
 
-    const prompt = `You are acting as a bilingual dictionary for English language learners from any language background. Your job is to help language learners understand what the English word "${word}" means.
+    const prompt = `You are acting as a bilingual dictionary for Spanish speakers learning English. Your job is to help a Spanish-speaking learner understand the English word "${word}".
 
-Explain the meaning of the English word in clear and simple English, focusing on what the word means and how it is used. Use simple language that a beginner or intermediate learner would understand.
+Provide a SIMPLE explanation in Spanish of what this English word means. Use basic vocabulary a beginner would understand. Do NOT just translate it—explain the concept clearly, using examples if helpful.
 
 Your response must be in JSON format with exactly these fields:
 {
-  "translation": "Leave this field empty since we're not targeting a specific language",
-  "definition": "Clear, concise explanation in simple English of what the word means and how it is used (2-3 sentences max)",
-  "example": "A simple example sentence that uses this word. The word itself should appear in the sentence and be used in the same way as it would typically be used in conversation.",
-  "contextExample": "If available, a sentence showing how this word was used in the original transcript",
+  "translation": "A direct Spanish translation of the word (1-3 words)",
+  "definition": "A VERY simple explanation in Spanish of what the word means (1-2 short sentences, using basic vocabulary)",
+  "example": "A simple example sentence in English that uses this word. The word itself should appear in the sentence.",
   "partOfSpeech": "The part of speech (noun, verb, adjective, etc.)",
   "frequencyRating": "A number from 1 to 5 representing how common this word is in everyday English, where 1 = extremely common (basic vocabulary), 2 = very common, 3 = moderately common, 4 = somewhat uncommon, 5 = rare or specialized",
-  "pronunciationTips": "Simple tips for pronouncing this word correctly, noting any difficult sounds or stress patterns",
-  "imagePrompt": "A detailed prompt to generate a clear, educational, animated-style illustration of this word. The image should be in a consistent, friendly cartoon style with bright colors, clean outlines, and a simple background. The image should clearly represent the word's meaning without text."
+  "imagePrompt": "A detailed prompt to generate a clear, educational, animated-style illustration of this word. The image should be in a friendly cartoon style with bright colors and simple background."
 }
 
 Only return the JSON object, nothing else.`;
 
-    console.log(`[LLM Service] Getting definition for: "${word}"`);
+    console.log(`[LLM Service] Getting Spanish definition for: "${word}"`);
     console.log(`--- LLM Definition Prompt ---`);
     console.log(prompt);
     console.log(`--- End LLM Definition Prompt ---`);
@@ -166,7 +164,7 @@ Only return the JSON object, nothing else.`;
         
         // Extract JSON from response
         try {
-            // First try to directly parse the text
+            // Parse the response JSON
             let jsonResponse = JSON.parse(text);
             
             // Generate image if we have a prompt
@@ -176,12 +174,11 @@ Only return the JSON object, nothing else.`;
                     jsonResponse.imageUrl = imageUrl;
                 } catch (imageError) {
                     console.error('[LLM Service] Error generating image:', imageError);
-                    jsonResponse.imageUrl = ''; // Empty if failed
+                    jsonResponse.imageUrl = null; // null indicates loading state
                 }
             }
             
             return jsonResponse;
-            
         } catch (jsonError) {
             console.error('[LLM Service] Error parsing definition JSON:', jsonError);
             
@@ -199,7 +196,7 @@ Only return the JSON object, nothing else.`;
                             jsonResponse.imageUrl = imageUrl;
                         } catch (imageError) {
                             console.error('[LLM Service] Error generating image:', imageError);
-                            jsonResponse.imageUrl = ''; // Empty if failed
+                            jsonResponse.imageUrl = null; // null indicates loading state
                         }
                     }
                     
@@ -211,17 +208,16 @@ Only return the JSON object, nothing else.`;
             
             // Return a formatted error as the definition
             return {
-                translation: "",
-                definition: "Error retrieving definition",
-                example: "",
-                partOfSpeech: "",
-                imageUrl: ""
+                translation: word,
+                definition: "Error obteniendo definición",
+                example: "N/A",
+                partOfSpeech: "unknown"
             };
         }
     } catch (error) {
         console.error('[LLM Service] Error during definition API call:', error);
         return {
-            translation: "",
+            translation: word,
             definition: "API error: " + (error.message || "Unknown error"),
             example: "",
             partOfSpeech: ""
