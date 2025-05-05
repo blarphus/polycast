@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import './FlashcardMode.css';
-import { FaPlay, FaVolumeMute, FaVolumeUp } from 'react-icons/fa';
 
 const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -12,30 +11,20 @@ const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
     correctAnswers: 0,
     history: []
   });
-  const [audioPlaying, setAudioPlaying] = useState(false);
-  const audioRef = useRef(null);
-
+  
   // Filter only words that have definitions
   const availableCards = selectedWords.filter(word => 
     wordDefinitions[word.toLowerCase()] && 
     !wordDefinitions[word.toLowerCase()].error
   );
-
+  
   const cardContainerRef = useRef(null);
-
-  // Automatically play word pronunciation when flipping to back of card
-  useEffect(() => {
-    if (isFlipped && currentIndex < availableCards.length) {
-      const currentWord = availableCards[currentIndex];
-      playWordAudio(currentWord);
-    }
-  }, [isFlipped, currentIndex, availableCards]);
-
+  
   // Handle key presses for navigation and flipping
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (showStats) return; // Disable keyboard navigation when viewing stats
-
+      
       if (e.code === 'Space') {
         // Flip card on spacebar
         e.preventDefault();
@@ -73,19 +62,13 @@ const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
         if (isFlipped) {
           markCard(true);
         }
-      } else if (e.key === 'p' || e.key === 'P') {
-        // Play audio
-        if (isFlipped) {
-          const currentWord = availableCards[currentIndex];
-          playWordAudio(currentWord);
-        }
       }
     };
-
+    
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentIndex, isFlipped, availableCards, showStats]);
-
+  
   const markCard = (isCorrect) => {
     setStats(prev => ({
       ...prev,
@@ -96,18 +79,18 @@ const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
         correct: isCorrect
       }]
     }));
-
+    
     // Move to next card after marking
     setTimeout(() => {
       setIsFlipped(false);
       setCurrentIndex(prev => (prev + 1) % availableCards.length);
     }, 500);
   };
-
+  
   const flipCard = () => {
     setIsFlipped(prev => !prev);
   };
-
+  
   const nextCard = () => {
     if (isFlipped) {
       // Track this card as reviewed before moving to next
@@ -123,68 +106,14 @@ const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
     setIsFlipped(false);
     setCurrentIndex(prev => (prev + 1) % availableCards.length);
   };
-
+  
   const prevCard = () => {
     setIsFlipped(false);
     setCurrentIndex(prev => 
       prev === 0 ? availableCards.length - 1 : prev - 1
     );
   };
-
-  const playWordAudio = (word) => {
-    if (!word) return;
-
-    try {
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
-
-      const audio = new Audio(`/api/tts?text=${encodeURIComponent(word)}&voice=nova`);
-      audioRef.current = audio;
-
-      audio.onplay = () => setAudioPlaying(true);
-      audio.onended = () => setAudioPlaying(false);
-      audio.onerror = (e) => {
-        console.error('Audio playback error:', e);
-        setAudioPlaying(false);
-      };
-
-      audio.play().catch(err => {
-        console.error('Failed to play audio:', err);
-        setAudioPlaying(false);
-      });
-    } catch (error) {
-      console.error('Error playing audio:', error);
-    }
-  };
-
-  const playExampleAudio = (text) => {
-    if (!text) return;
-
-    try {
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
-
-      const audio = new Audio(`/api/tts?text=${encodeURIComponent(text)}&voice=nova`);
-      audioRef.current = audio;
-
-      audio.onplay = () => setAudioPlaying(true);
-      audio.onended = () => setAudioPlaying(false);
-      audio.onerror = (e) => {
-        console.error('Audio playback error:', e);
-        setAudioPlaying(false);
-      };
-
-      audio.play().catch(err => {
-        console.error('Failed to play audio:', err);
-        setAudioPlaying(false);
-      });
-    } catch (error) {
-      console.error('Error playing audio:', error);
-    }
-  };
-
+  
   // Calculate stats for the visualization
   const calculatedStats = {
     totalCards: availableCards.length,
@@ -196,14 +125,14 @@ const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
       : 0,
     dayStats: calculateDayStats(stats.history)
   };
-
+  
   // Helper to calculate daily stats for the chart
   function calculateDayStats(history) {
     if (!history.length) return [];
-
+    
     const days = {};
     const now = new Date();
-
+    
     // Initialize last 7 days
     for (let i = 6; i >= 0; i--) {
       const date = new Date(now);
@@ -211,7 +140,7 @@ const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
       const dateKey = date.toISOString().split('T')[0];
       days[dateKey] = { date: dateKey, count: 0, correct: 0 };
     }
-
+    
     // Fill with actual data
     history.forEach(item => {
       const dateKey = item.date.split('T')[0];
@@ -222,10 +151,10 @@ const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
         }
       }
     });
-
+    
     return Object.values(days);
   }
-
+  
   // Helper to get frequency label based on rating
   const getFrequencyLabel = (rating) => {
     const ratings = {
@@ -237,7 +166,7 @@ const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
     };
     return ratings[rating] || 'Unknown';
   };
-
+  
   // If no cards are available, show a message
   if (availableCards.length === 0) {
     return (
@@ -249,10 +178,10 @@ const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
       </div>
     );
   }
-
+  
   const currentWord = availableCards[currentIndex];
   const definition = wordDefinitions[currentWord.toLowerCase()];
-
+  
   return (
     <div className="flashcard-container">
       {!showStats ? (
@@ -269,12 +198,12 @@ const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
               📊 Stats
             </button>
           </div>
-
+          
           <div className="flashcard-instructions">
             <p>Press <kbd>Space</kbd> to flip card. Use <kbd>←</kbd> <kbd>→</kbd> arrow keys to navigate.</p>
-            <p>After revealing, press <kbd>1</kbd> for incorrect, <kbd>2</kbd> for correct, or <kbd>P</kbd> to hear pronunciation.</p>
+            <p>After revealing, press <kbd>1</kbd> for incorrect or <kbd>2</kbd> for correct.</p>
           </div>
-
+          
           <div 
             className={`flashcard ${isFlipped ? 'flipped' : ''}`}
             onClick={flipCard}
@@ -297,38 +226,11 @@ const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
                     </div>
                   </div>
                 )}
-                <button 
-                  className="pronunciation-button"
-                  onClick={(e) => { e.stopPropagation(); playWordAudio(currentWord); }}
-                  title="Play Pronunciation"
-                >
-                  {audioPlaying ? <FaVolumeUp /> : <FaVolumeMute />}
-                </button>
               </div>
               <div className="flashcard-back">
                 <div className="flashcard-translation">{definition?.translation || ''}</div>
                 <div className="flashcard-definition">{definition?.definition || ''}</div>
-
-                {definition?.imageUrl === null ? (
-                  <div className="flashcard-image loading">
-                    <div className="loading-message">Cargando imagen...</div>
-                  </div>
-                ) : definition?.imageUrl ? (
-                  <div className="flashcard-image">
-                    <img src={definition.imageUrl} alt={`Visual representation of ${currentWord}`} />
-                  </div>
-                ) : null}
-
                 <div className="flashcard-example">
-                  <div className="example-header">
-                    <h4>Example:</h4>
-                    <button 
-                      className="play-example-btn"
-                      onClick={(e) => { e.stopPropagation(); playExampleAudio(definition?.example); }}
-                    >
-                      <FaPlay /> Listen
-                    </button>
-                  </div>
                   {definition?.example ? (
                     <span>
                       {(() => {
@@ -347,28 +249,6 @@ const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
                   )}
                 </div>
 
-                {definition?.contextExample && (
-                  <div className="context-example">
-                    <div className="context-header">
-                      <h4>From Transcript:</h4>
-                      <button 
-                        className="play-example-btn"
-                        onClick={(e) => { e.stopPropagation(); playExampleAudio(definition?.contextExample); }}
-                      >
-                        <FaPlay /> Listen
-                      </button>
-                    </div>
-                    <p>{definition.contextExample}</p>
-                  </div>
-                )}
-
-                {definition?.pronunciationTips && (
-                  <div className="pronunciation-tips">
-                    <h4>Pronunciation Tips:</h4>
-                    <p>{definition.pronunciationTips}</p>
-                  </div>
-                )}
-
                 <div className="flashcard-rating">
                   <button 
                     className="incorrect-btn"
@@ -386,7 +266,7 @@ const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
               </div>
             </div>
           </div>
-
+          
           <div className="flashcard-navigation">
             <button onClick={prevCard} className="nav-btn prev-btn">
               ← Previous
@@ -407,7 +287,7 @@ const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
               Back to Flashcards
             </button>
           </div>
-
+          
           <div className="stats-summary">
             <div className="stat-card">
               <div className="stat-value">{calculatedStats.totalCards}</div>
@@ -422,7 +302,7 @@ const FlashcardMode = ({ selectedWords, wordDefinitions }) => {
               <div className="stat-label">Accuracy</div>
             </div>
           </div>
-
+          
           <div className="stats-chart">
             <h3>Daily Activity</h3>
             <div className="chart-container">

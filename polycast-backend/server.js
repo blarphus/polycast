@@ -74,7 +74,6 @@ console.log(`WebSocket server created.`);
 
 const clientTextBuffers = new Map();
 const clientTargetLanguages = new Map(); // Keep for language from URL, will store an array now
-const clientAppMode = new Map();
 
 // Modify connection handler to accept request object (req) and make it async
 wss.on('connection', (ws, req) => {
@@ -104,7 +103,6 @@ wss.on('connection', (ws, req) => {
     }
     clientTargetLanguages.set(ws, targetLangsArray); // Store the array
     clientTextBuffers.set(ws, { text: '', lastEndTimeMs: 0 }); // Ensure this uses correct state
-    clientAppMode.set(ws, 'audio'); // Default to audio mode
 
     ws.on('message', async (message) => {
         // Log the raw message and its type for debugging
@@ -118,14 +116,14 @@ wss.on('connection', (ws, req) => {
                 const data = JSON.parse(msgString);
                 if (data && data.type === 'text_submit') {
                     console.log('[WS DEBUG] Parsed text_submit from buffer:', data);
-                    if (clientAppMode.get(ws) === 'text') {
+                    if (isTextMode) {
                         const translateThis = data.text;
                         const sourceLang = data.lang;
                         const targetLangs = clientTargetLanguages.get(ws) || ['Spanish'];
                         // Always include English as a possible translation target
                         const allLangs = Array.from(new Set(['English', ...targetLangs]));
                         // Use textModeLLM for text mode, llmService for audio mode
-                        if (clientAppMode.get(ws) === 'text') {
+                        if (isTextMode) {
                             // Use textModeLLM with sourceLang and targetLangs
                             const textModeLLM = require('./services/textModeLLM');
                             const translations = await textModeLLM.translateTextBatch(translateThis, sourceLang, allLangs);
@@ -160,52 +158,18 @@ wss.on('connection', (ws, req) => {
                 // For now, always use 'audio.webm' as filename, but set contentType dynamically if possible
                 const transcription = await transcribeAudio(message, 'audio.webm');
                 if (transcription && ws.readyState === ws.OPEN) {
-                    storeWordContext(transcription);
                     // Translate to all target languages (batch)
                     const targetLangs = clientTargetLanguages.get(ws) || ['Spanish'];
-                    // Check appMode to determine which service to use
-                    if (clientAppMode.get(ws) === 'text') {
-                        console.log(`[Polycast] Calling Text Mode translation: '${transcription}' → ${targetLangs.join(', ')}`);
-                        // Use textModeLLM for text mode
-                        try {
-                            const translations = await Promise.all(
-                                targetLangs.map(lang => textModeLLM.translateText(transcription, 'English', lang))
-                            );
-                            
-                            // Format as batch result
-                            const transResult = {};
-                            targetLangs.forEach((lang, i) => {
-                                transResult[lang] = translations[i];
-                            });
-                            
-                            ws.send(JSON.stringify({
-                                type: 'translation',
-                                text: transcription,
-                                translations: transResult
-                            }));
-                        } catch (err) {
-                            console.error(`[Polycast] Text Mode translation error:`, err);
-                            ws.send(JSON.stringify({
-                                type: 'error',
-                                message: `Translation error: ${err.message}`
-                            }));
+                    try {
+                        console.log(`[Polycast] Calling Gemini for batch translation: '${transcription}' -> ${targetLangs.join(', ')}`);
+                        const translations = await llmService.translateTextBatch(transcription, targetLangs);
+                        for (const lang of targetLangs) {
+                            ws.send(JSON.stringify({ type: 'translation', lang, data: translations[lang] }));
                         }
-                    } else {
-                        // Default to audio mode - use batch translation
-                        console.log(`[Polycast] Calling Gemini for batch translation: '${transcription}' → ${targetLangs.join(', ')}`);
-                        try {
-                            const transResult = await llmService.batchTranslateText(transcription, targetLangs);
-                            ws.send(JSON.stringify({
-                                type: 'translation',
-                                text: transcription,
-                                translations: transResult
-                            }));
-                        } catch (transErr) {
-                            console.error(`[Polycast] Gemini batch translation error:`, transErr);
-                            ws.send(JSON.stringify({
-                                type: 'error',
-                                message: `Translation error: ${transErr.message}`
-                            }));
+                    } catch (transErr) {
+                        console.error(`[Polycast] Gemini batch translation error:`, transErr);
+                        for (const lang of targetLangs) {
+                            ws.send(JSON.stringify({ type: 'translation_error', lang, message: transErr.message }));
                         }
                     }
                     // Always send recognized as well
@@ -223,14 +187,14 @@ wss.on('connection', (ws, req) => {
                 const data = JSON.parse(message);
                 if (data.type === 'text_submit') {
                     console.log('[WS DEBUG] Parsed text_submit from string:', data);
-                    if (clientAppMode.get(ws) === 'text') {
+                    if (isTextMode) {
                         const translateThis = data.text;
                         const sourceLang = data.lang;
                         const targetLangs = clientTargetLanguages.get(ws) || ['Spanish'];
                         // Always include English as a possible translation target
                         const allLangs = Array.from(new Set(['English', ...targetLangs]));
                         // Use textModeLLM for text mode, llmService for audio mode
-                        if (clientAppMode.get(ws) === 'text') {
+                        if (isTextMode) {
                             // Use textModeLLM with sourceLang and targetLangs
                             const textModeLLM = require('./services/textModeLLM');
                             const translations = await textModeLLM.translateTextBatch(translateThis, sourceLang, allLangs);
@@ -265,14 +229,12 @@ wss.on('connection', (ws, req) => {
     ws.on('close', () => {
         clientTextBuffers.delete(ws);
         clientTargetLanguages.delete(ws);
-        clientAppMode.delete(ws);
         console.log('Client disconnected');
     });
     ws.on('error', (error) => {
         console.error('WebSocket error:', error);
         clientTextBuffers.delete(ws);
         clientTargetLanguages.delete(ws);
-        clientAppMode.delete(ws);
     });
     ws.send(JSON.stringify({ type: 'info', message: `Connected to Polycast backend (Targets: ${targetLangsArray.join(', ')})` }));
 });
@@ -298,56 +260,13 @@ app.get('/api/translate/:language/:text', async (req, res) => {
 // Dictionary API route
 app.get('/api/dictionary/:word', async (req, res) => {
     try {
-        const word = req.params.word;
+        const { word } = req.params;
         console.log(`[Dictionary API] Getting definition for: ${word}`);
         const definition = await llmService.getWordDefinition(word);
         res.json(definition);
     } catch (error) {
         console.error("Dictionary API error:", error);
-        res.status(500).json({ error: error.message || 'Unknown error occurred' });
-    }
-});
-
-// Text-to-Speech API route
-app.get('/api/tts', async (req, res) => {
-    try {
-        const { text, voice } = req.query;
-        
-        if (!text) {
-            return res.status(400).json({ error: 'Text parameter is required' });
-        }
-        
-        console.log(`[TTS API] Generating speech for: "${text.substring(0, 50)}..."`);
-        const audioBuffer = await llmService.generateSpeech(text, voice || 'alloy');
-        
-        // Cache headers
-        res.set({
-            'Content-Type': 'audio/mpeg',
-            'Content-Length': audioBuffer.length,
-            'Cache-Control': 'public, max-age=86400' // Cache for 24 hours
-        });
-        
-        res.send(audioBuffer);
-    } catch (error) {
-        console.error("TTS API error:", error);
-        res.status(500).json({ error: error.message || 'Unknown error occurred' });
-    }
-});
-
-// Original context examples API
-app.get('/api/context/:word', async (req, res) => {
-    try {
-        const word = req.params.word;
-        console.log(`[Context API] Getting original context for: ${word}`);
-        
-        // Get original context examples from the transcript history
-        // This is a placeholder - implement based on your data storage
-        const examples = wordContextCache.get(word.toLowerCase()) || [];
-        
-        res.json({ examples });
-    } catch (error) {
-        console.error("Context API error:", error);
-        res.status(500).json({ error: error.message || 'Unknown error occurred' });
+        res.status(500).json({ error: error.message });
     }
 });
 
@@ -356,84 +275,16 @@ app.get('/mode', (req, res) => {
     res.json({ isTextMode });
 });
 
-// Mode switching API route
-app.post('/api/mode/:mode', (req, res) => {
-    const { mode } = req.params;
-    
-    if (!['audio', 'text', 'dictionary', 'flashcard'].includes(mode)) {
-        return res.status(400).json({ error: 'Invalid mode' });
-    }
-    
-    // Update global state
-    const isTextMode = mode === 'text';
-    console.log(`[Mode] Saved isTextMode=${isTextMode} to disk`);
-    
-    // Also inform all connected clients
-    wss.clients.forEach(client => {
-        if (client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify({ 
-                type: 'mode_update', 
-                mode: mode
-            }));
-            
-            // Update the stored mode for this client
-            clientAppMode.set(client, mode);
-        }
-    });
-    
-    res.json({ success: true, mode });
-});
-
-// Test Image Generation API
-app.get('/api/test-image', async (req, res) => {
-    try {
-        console.log('[Test] Generating iguana test image');
-        
-        const imagePrompt = "Create a friendly, cartoon-style illustration of a bright green iguana sitting on a tropical branch with a blue sky background. The iguana should have large expressive eyes and a slight smile. Use vibrant colors and a simple, clean art style suitable for educational materials.";
-        
-        const imageUrl = await llmService.generateImage(imagePrompt);
-        
-        res.json({ 
-            success: true, 
-            imageUrl,
-            message: 'Test image generated successfully'
-        });
-    } catch (error) {
-        console.error('Test image generation error:', error);
-        res.status(500).json({ 
-            success: false, 
-            error: error.message || 'Unknown error generating test image'
-        });
+// Endpoint to set current mode
+app.post('/mode', (req, res) => {
+    if (typeof req.body.isTextMode === 'boolean') {
+        isTextMode = req.body.isTextMode;
+        saveModeToDisk(isTextMode);
+        res.json({ isTextMode });
+    } else {
+        res.status(400).json({ error: 'Missing or invalid isTextMode' });
     }
 });
-
-// Global cache for word contexts from transcripts
-const wordContextCache = new Map();
-
-// Store word context when transcriptions come in
-function storeWordContext(transcription) {
-    if (!transcription || typeof transcription !== 'string') return;
-    
-    const words = transcription.match(/\b\w+\b/g) || [];
-    const lowerTranscription = transcription.toLowerCase();
-    
-    words.forEach(word => {
-        if (word.length < 2) return; // Skip very short words
-        
-        const lowerWord = word.toLowerCase();
-        const contexts = wordContextCache.get(lowerWord) || [];
-        
-        // Avoid duplicates
-        if (!contexts.includes(transcription)) {
-            contexts.push(transcription);
-            // Keep only the last 5 examples
-            if (contexts.length > 5) {
-                contexts.shift();
-            }
-            wordContextCache.set(lowerWord, contexts);
-        }
-    });
-}
 
 // Start the HTTP server
 server.listen(PORT, () => {

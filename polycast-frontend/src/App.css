@@ -392,43 +392,6 @@ h1, h2, h3 {
     justify-content: center;
 }
 
-/* Test image styling */
-.test-image-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin: 20px auto;
-  padding: 15px;
-  background-color: rgba(124, 98, 255, 0.1);
-  border-radius: 10px;
-  max-width: 500px;
-}
-
-.test-image-container h3 {
-  color: #7c62ff;
-  margin-top: 0;
-  margin-bottom: 15px;
-}
-
-.test-image {
-  max-width: 100%;
-  border-radius: 8px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-}
-
-.test-image-loading {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 200px;
-  background-color: rgba(124, 98, 255, 0.1);
-  border-radius: 10px;
-  margin: 20px auto;
-  max-width: 500px;
-  color: #a6a6d2;
-  font-style: italic;
-}
-
 /* Unified toolbar/header styles - COMPACT HORIZONTAL LAYOUT */
 .main-toolbar {
   width: 100%;

@@ -35,71 +35,54 @@ function App({ targetLanguages, onReset }) {
   const notificationTimeoutRef = useRef(null);
   const modeRef = useRef(appMode === 'text');
   const isRecordingRef = useRef(isRecording); // Ref to track recording state in handlers
-  const [testImage, setTestImage] = useState(null);
-  const [testImageLoading, setTestImageLoading] = useState(false);
 
   // Update refs when state changes
   useEffect(() => { modeRef.current = appMode === 'text'; }, [appMode]);
   useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
 
-  // Fetch test image on initial load
+  // --- FIX: Only listen for spacebar in audio mode ---
   useEffect(() => {
-    const fetchTestImage = async () => {
-      try {
-        setTestImageLoading(true);
-        const response = await fetch('/api/test-image'); // Use GET by default
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        
-        if (data.success && data.imageUrl) {
-          setTestImage(data.imageUrl);
-          console.log('Test iguana image loaded successfully:', data.imageUrl);
-        } else {
-          console.error('Failed to get test image:', data.error || 'No image URL returned');
-        }
-      } catch (error) {
-        console.error('Error fetching test image:', error);
-      } finally {
-        setTestImageLoading(false);
+    let spacebarPressed = false;
+    if (appMode !== 'audio') return; // Only add listeners in audio mode
+
+    const handleKeyDown = (event) => {
+      if (event.code === 'Space' && !isRecordingRef.current && !spacebarPressed) {
+        event.preventDefault();
+        spacebarPressed = true;
+        setIsRecording(true);
       }
     };
-    
-    // Only fetch test image if not already loaded (e.g. on HMR)
-    if (!testImage) {
-        fetchTestImage();
-    }
-  }, [testImage]); // Depend on testImage to prevent re-fetch on every render
+    const handleKeyUp = (event) => {
+      if (event.code === 'Space' && isRecordingRef.current) {
+        event.preventDefault();
+        spacebarPressed = false;
+        setIsRecording(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [appMode]);
 
-  // --- Handle Mode Change --- 
-  const handleModeChange = async (newMode) => {
-    console.log(`Changing mode to: ${newMode}`);
-    try {
-        // Send mode update to backend
-        const response = await fetch(`/api/mode/${newMode}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        const data = await response.json();
-        
-        if (!response.ok || !data.success) {
-            throw new Error(data.error || 'Failed to update mode on backend');
-        }
-        
-        // Update frontend state only after backend confirmation
-        setAppMode(newMode);
-        console.log(`Mode successfully changed to ${newMode} on backend and frontend`);
-
-    } catch (error) {
-        console.error('Could not update mode:', error);
-        // Show error notification to user
-        showNotification(`Error updating mode: ${error.message}`, 'error');
+  // Add Page Up/Page Down recording hotkeys
+  useEffect(() => {
+    function handlePageKey(e) {
+      if (e.repeat) return; // Prevent holding key from triggering repeatedly
+      if (e.key === "PageUp") {
+        e.preventDefault();
+        handleStartRecording && handleStartRecording();
+      }
+      if (e.key === "PageDown") {
+        e.preventDefault();
+        handleStopRecording && handleStopRecording();
+      }
     }
-  };
+    window.addEventListener("keydown", handlePageKey);
+    return () => window.removeEventListener("keydown", handlePageKey);
+  }, []);
 
   // Backend base URL for /mode endpoints
   const BACKEND_HTTP_BASE = 'https://polycast-server.onrender.com';
@@ -388,9 +371,9 @@ function App({ targetLanguages, onReset }) {
       setAppMode('flashcard');
     } else {
       // Call updateMode for audio/text modes to sync with backend
-      handleModeChange(newMode);
+      updateMode(newMode);
     }
-  }, [handleModeChange]);
+  }, [updateMode]);
 
   // Get connection status string
   const connectionStatus = {
@@ -550,16 +533,6 @@ function App({ targetLanguages, onReset }) {
           />
         )}
       </div>
-      {/* Test image display */}
-      {testImage && (
-        <div className="test-image-container">
-          <h3>Test Image Generation - Iguana</h3>
-          <img src={testImage} alt="Test iguana" className="test-image" />
-        </div>
-      )}
-      {testImageLoading && (
-        <div className="test-image-loading">Loading test image...</div>
-      )}
     </div>
   )
 }
