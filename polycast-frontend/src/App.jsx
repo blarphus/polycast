@@ -40,6 +40,33 @@ function App({ targetLanguages, onReset }) {
   useEffect(() => { modeRef.current = appMode === 'text'; }, [appMode]);
   useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
 
+  // --- FIX: Only listen for spacebar in audio mode ---
+  useEffect(() => {
+    let spacebarPressed = false;
+    if (appMode !== 'audio') return; // Only add listeners in audio mode
+
+    const handleKeyDown = (event) => {
+      if (event.code === 'Space' && !isRecordingRef.current && !spacebarPressed) {
+        event.preventDefault();
+        spacebarPressed = true;
+        setIsRecording(true);
+      }
+    };
+    const handleKeyUp = (event) => {
+      if (event.code === 'Space' && isRecordingRef.current) {
+        event.preventDefault();
+        spacebarPressed = false;
+        setIsRecording(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [appMode]);
+
   // Add Page Up/Page Down recording hotkeys
   useEffect(() => {
     function handlePageKey(e) {
@@ -173,37 +200,8 @@ function App({ targetLanguages, onReset }) {
     return () => clearInterval(interval);
   }, [fetchMode]);
 
-  // Spacebar listener for recording
-  useEffect(() => {
-    let spacebarPressed = false; // Prevent repeated starts on key hold
-
-    const handleKeyDown = (event) => {
-      if (event.code === 'Space' && appMode !== 'text' && !isRecordingRef.current && !spacebarPressed) {
-        event.preventDefault(); // Prevent scrolling
-        spacebarPressed = true;
-        console.log("Spacebar DOWN - Starting recording");
-        setIsRecording(true);
-      }
-    };
-
-    const handleKeyUp = (event) => {
-      if (event.code === 'Space' && appMode !== 'text' && isRecordingRef.current) {
-        event.preventDefault();
-        spacebarPressed = false;
-        console.log("Spacebar UP - Stopping recording");
-        setIsRecording(false);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-
-    // Cleanup listeners on component unmount
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, []); // Empty dependency array ensures this runs only once on mount
+  // --- FIX: Prevent text submission error in text mode ---
+  // (No code needed here, but ensure isTextMode is derived from appMode === 'text')
 
   const { sendMessage, lastMessage, readyState } = useWebSocket(socketUrl, {
     onOpen: () => {
