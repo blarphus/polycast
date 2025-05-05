@@ -15,6 +15,7 @@ async function generateImage(prompt, size = '1024x1024', quality = 'standard') {
 
     try {
         console.log(`[Image Generation] Generating image with prompt: "${prompt}"`);
+        console.log(`[Image Generation] Request parameters: size=${size}, quality=${quality}`);
         
         const response = await fetch('https://api.openai.com/v1/images/generations', {
             method: 'POST',
@@ -31,13 +32,28 @@ async function generateImage(prompt, size = '1024x1024', quality = 'standard') {
             })
         });
 
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            console.error('[Image Generation] OpenAI API error:', errorData);
-            throw new Error(`OpenAI API responded with status ${response.status}: ${errorData.error?.message || 'Unknown error'}`);
+        const responseText = await response.text();
+        console.log(`[Image Generation] Raw response: ${responseText.substring(0, 200)}...`);
+        
+        let data;
+        try {
+            data = JSON.parse(responseText);
+        } catch (parseError) {
+            console.error('[Image Generation] JSON parse error:', parseError);
+            throw new Error(`Failed to parse OpenAI response: ${parseError.message}`);
         }
 
-        const data = await response.json();
+        if (!response.ok) {
+            console.error('[Image Generation] OpenAI API error:', data);
+            throw new Error(`OpenAI API responded with status ${response.status}: ${data.error?.message || 'Unknown error'}`);
+        }
+
+        if (!data.data || !data.data[0] || !data.data[0].url) {
+            console.error('[Image Generation] Unexpected response format:', data);
+            throw new Error('Invalid response format from OpenAI API');
+        }
+
+        console.log(`[Image Generation] Success! Image URL: ${data.data[0].url.substring(0, 50)}...`);
         return data.data[0].url;
     } catch (error) {
         console.error('[Image Generation] Error generating image:', error);
