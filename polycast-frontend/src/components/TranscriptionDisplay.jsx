@@ -126,7 +126,9 @@ const TranscriptionDisplay = ({
   textInputs, 
   setTextInputs,
   selectedWords,
-  setSelectedWords 
+  setSelectedWords,
+  wordDefinitions,
+  setWordDefinitions
 }) => {
   const englishRef = useRef(null);
   const translationRefs = useRef({});
@@ -141,15 +143,35 @@ const TranscriptionDisplay = ({
   const lastPersistedTranslations = useRef({});
 
   // Helper: add/remove word from list
-  const handleWordClick = word => {
-    setSelectedWords(prev => {
-      const lower = word.toLowerCase();
-      if (prev.some(w => w.toLowerCase() === lower)) {
-        return prev.filter(w => w.toLowerCase() !== lower);
-      } else {
-        return [...prev, word];
-      }
-    });
+  const handleWordClick = (word) => {
+    // Don't add duplicates (case insensitive)
+    const wordLower = word.toLowerCase();
+    const isSelected = selectedWords.some(w => w.toLowerCase() === wordLower);
+    
+    if (isSelected) {
+      // Remove the word if already selected
+      setSelectedWords(prev => prev.filter(w => w.toLowerCase() !== wordLower));
+    } else {
+      // Add the word to selected words
+      setSelectedWords(prev => [...prev, word]);
+      
+      // Preload the definition immediately
+      const apiUrl = `https://polycast-server.onrender.com/api/dictionary/${encodeURIComponent(word)}`;
+      console.log(`Preloading definition for "${word}" from: ${apiUrl}`);
+      
+      fetch(apiUrl)
+        .then(res => res.json())
+        .then(data => {
+          console.log(`Preloaded definition for "${word}":`, data);
+          setWordDefinitions(prev => ({
+            ...prev,
+            [word.toLowerCase()]: data
+          }));
+        })
+        .catch(err => {
+          console.error(`Error preloading definition for ${word}:`, err);
+        });
+    }
   };
 
   const handleInputChange = (lang, value) => {
@@ -499,7 +521,9 @@ TranscriptionDisplay.propTypes = {
   textInputs: PropTypes.object.isRequired,
   setTextInputs: PropTypes.func.isRequired,
   selectedWords: PropTypes.array.isRequired,
-  setSelectedWords: PropTypes.func.isRequired
+  setSelectedWords: PropTypes.func.isRequired,
+  wordDefinitions: PropTypes.object.isRequired,
+  setWordDefinitions: PropTypes.func.isRequired
 };
 
 TranscriptionDisplay.defaultProps = {

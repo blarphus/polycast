@@ -8,6 +8,7 @@ import AudioRecorder from './components/AudioRecorder';
 import Controls from './components/Controls';
 import TranscriptionDisplay from './components/TranscriptionDisplay';
 import DictionaryTable from './components/DictionaryTable';
+import FlashcardMode from './components/FlashcardMode';
 
 // App now receives an array of target languages as a prop
 function App({ targetLanguages, onReset }) {
@@ -24,7 +25,7 @@ function App({ targetLanguages, onReset }) {
   const [translations, setTranslations] = useState({}); // Structure: { lang: [{ text: string, isNew: boolean }] }
   const [errorMessages, setErrorMessages] = useState([]); 
   const [showLiveEnglish, setShowLiveEnglish] = useState(true); // State for toggle
-  const [appMode, setAppMode] = useState('audio'); // Options: 'audio', 'text', 'dictionary'
+  const [appMode, setAppMode] = useState('audio'); // Options: 'audio', 'text', 'dictionary', 'flashcard'
   const [selectedWords, setSelectedWords] = useState([]); // Selected words for dictionary
   const [wordDefinitions, setWordDefinitions] = useState({}); // Cache for word definitions
   const [modeError, setModeError] = useState(null);
@@ -363,6 +364,9 @@ function App({ targetLanguages, onReset }) {
     if (newMode === 'dictionary') {
       // Just update local state for dictionary mode
       setAppMode('dictionary');
+    } else if (newMode === 'flashcard') {
+      // Just update local state for flashcard mode
+      setAppMode('flashcard');
     } else {
       // Call updateMode for audio/text modes to sync with backend
       updateMode(newMode);
@@ -502,6 +506,11 @@ function App({ targetLanguages, onReset }) {
             wordDefinitions={wordDefinitions}
             setWordDefinitions={setWordDefinitions}
           />
+        ) : appMode === 'flashcard' ? (
+          <FlashcardMode 
+            selectedWords={selectedWords}
+            wordDefinitions={wordDefinitions}
+          />
         ) : (
           <TranscriptionDisplay 
             englishSegments={englishSegments} 
@@ -517,6 +526,8 @@ function App({ targetLanguages, onReset }) {
             setTextInputs={setTextInputs}
             selectedWords={selectedWords}
             setSelectedWords={setSelectedWords}
+            wordDefinitions={wordDefinitions}
+            setWordDefinitions={setWordDefinitions}
           />
         )}
       </div>

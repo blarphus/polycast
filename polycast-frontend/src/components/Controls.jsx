@@ -29,6 +29,7 @@ function Controls({
                     <option value="audio">audio mode</option>
                     <option value="text">text mode</option>
                     <option value="dictionary">dictionary mode</option>
+                    <option value="flashcard">flashcard mode</option>
                 </select>
                 {/* Only show the button in audio mode */}
                 {appMode === 'audio' && (
