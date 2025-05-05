@@ -35,10 +35,35 @@ function App({ targetLanguages, onReset }) {
   const notificationTimeoutRef = useRef(null);
   const modeRef = useRef(appMode === 'text');
   const isRecordingRef = useRef(isRecording); // Ref to track recording state in handlers
+  const [testImage, setTestImage] = useState(null);
+  const [testImageLoading, setTestImageLoading] = useState(false);
 
   // Update refs when state changes
   useEffect(() => { modeRef.current = appMode === 'text'; }, [appMode]);
   useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
+
+  // Fetch test image on initial load
+  useEffect(() => {
+    const fetchTestImage = async () => {
+      try {
+        setTestImageLoading(true);
+        const response = await fetch('/api/test-image');
+        const data = await response.json();
+        
+        if (data.success && data.imageUrl) {
+          setTestImage(data.imageUrl);
+        } else {
+          console.error('Failed to get test image:', data.error);
+        }
+      } catch (error) {
+        console.error('Error fetching test image:', error);
+      } finally {
+        setTestImageLoading(false);
+      }
+    };
+    
+    fetchTestImage();
+  }, []);
 
   // --- FIX: Only listen for spacebar in audio mode ---
   useEffect(() => {
@@ -533,6 +558,16 @@ function App({ targetLanguages, onReset }) {
           />
         )}
       </div>
+      {/* Test image display */}
+      {testImage && (
+        <div className="test-image-container">
+          <h3>Test Image Generation - Iguana</h3>
+          <img src={testImage} alt="Test iguana" className="test-image" />
+        </div>
+      )}
+      {testImageLoading && (
+        <div className="test-image-loading">Loading test image...</div>
+      )}
     </div>
   )
 }

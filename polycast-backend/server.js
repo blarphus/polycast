@@ -356,14 +356,54 @@ app.get('/mode', (req, res) => {
     res.json({ isTextMode });
 });
 
-// Endpoint to set current mode
-app.post('/mode', (req, res) => {
-    if (typeof req.body.isTextMode === 'boolean') {
-        isTextMode = req.body.isTextMode;
-        saveModeToDisk(isTextMode);
-        res.json({ isTextMode });
-    } else {
-        res.status(400).json({ error: 'Missing or invalid isTextMode' });
+// Mode switching API route
+app.post('/api/mode/:mode', (req, res) => {
+    const { mode } = req.params;
+    
+    if (!['audio', 'text', 'dictionary', 'flashcard'].includes(mode)) {
+        return res.status(400).json({ error: 'Invalid mode' });
+    }
+    
+    // Update global state
+    const isTextMode = mode === 'text';
+    console.log(`[Mode] Saved isTextMode=${isTextMode} to disk`);
+    
+    // Also inform all connected clients
+    wss.clients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({ 
+                type: 'mode_update', 
+                mode: mode
+            }));
+            
+            // Update the stored mode for this client
+            clientAppMode.set(client, mode);
+        }
+    });
+    
+    res.json({ success: true, mode });
+});
+
+// Test Image Generation API
+app.get('/api/test-image', async (req, res) => {
+    try {
+        console.log('[Test] Generating iguana test image');
+        
+        const imagePrompt = "Create a friendly, cartoon-style illustration of a bright green iguana sitting on a tropical branch with a blue sky background. The iguana should have large expressive eyes and a slight smile. Use vibrant colors and a simple, clean art style suitable for educational materials.";
+        
+        const imageUrl = await llmService.generateImage(imagePrompt);
+        
+        res.json({ 
+            success: true, 
+            imageUrl,
+            message: 'Test image generated successfully'
+        });
+    } catch (error) {
+        console.error('Test image generation error:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message || 'Unknown error generating test image'
+        });
     }
 });
 
