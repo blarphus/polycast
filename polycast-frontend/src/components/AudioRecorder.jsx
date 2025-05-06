@@ -11,7 +11,7 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
   const silenceDetectorRef = useRef(null);
-  const lastSoundTimeRef = useRef(0);
+  const pauseTimerRef = useRef(null);
   const speechDetectedRef = useRef(false); // Track if real speech was detected
   
   // Adaptive noise floor tracking
@@ -99,7 +99,12 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
       
       // Reset speech detection for this segment
       speechDetectedRef.current = false;
-      lastSoundTimeRef.current = Date.now();
+      
+      // Clear any existing pause timer
+      if (pauseTimerRef.current) {
+        clearTimeout(pauseTimerRef.current);
+        pauseTimerRef.current = null;
+      }
       
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
@@ -161,8 +166,12 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
         // Require BOTH: energy > threshold AND zcr > 0.05
         // This checks for both volume AND the modulation characteristic of speech
         if (rms > dynamicThreshRef.current && zcr > 0.05) {
-          // Sound detected, update timestamp
-          lastSoundTimeRef.current = Date.now();
+          // Sound detected, cancel any pause timer
+          if (pauseTimerRef.current) {
+            clearTimeout(pauseTimerRef.current);
+            pauseTimerRef.current = null;
+          }
+          
           setIsSilent(false);
           setSilenceDuration(0);
           
@@ -175,65 +184,63 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
           // We're in silence
           setIsSilent(true);
           
-          // Check how long we've been silent
-          const duration = Date.now() - lastSoundTimeRef.current;
-          setSilenceDuration(duration);
-          
-          // Add explicit debug logging for silence
-          if (duration > 400) {
-            console.log(`In silence for ${duration}ms, speech detected: ${speechDetectedRef.current}`);
-          }
-          
-          // Only send if speech was detected and we've been silent for 500ms
-          if (duration >= 500 && 
-              mediaRecorderRef.current.state === 'recording' && 
-              speechDetectedRef.current) {
-            
-            console.log(`PAUSE DETECTED after speech (${duration}ms), sending chunk`);
-            const currentRecorder = mediaRecorderRef.current;
-            
-            try {
-              // Stop current recorder
-              currentRecorder.stop();
-              
-              // Create new recorder after a small delay
-              setTimeout(() => {
-                if (isRecording) {
-                  try {
-                    const newRecorder = new MediaRecorder(streamRef.current);
-                    mediaRecorderRef.current = newRecorder;
-                    audioChunksRef.current = [];
-                    
-                    // Reset speech detection for new segment
-                    speechDetectedRef.current = false;
-                    
-                    newRecorder.ondataavailable = (e) => {
-                      if (e.data.size > 0) {
-                        audioChunksRef.current.push(e.data);
-                      }
-                    };
-                    
-                    newRecorder.onstop = () => {
-                      if (audioChunksRef.current.length > 0) {
-                        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-                        console.log('Sending audio chunk, size:', blob.size, 'bytes, speech detected:', speechDetectedRef.current);
-                        sendMessage(blob);
-                        if (onAudioSent) onAudioSent();
-                      }
-                    };
-                    
-                    newRecorder.start();
-                    console.log('Started new recorder after pause');
-                    lastSoundTimeRef.current = Date.now();
-                  } catch (e) {
-                    console.error('Error creating new recorder:', e);
+          // Only start a pause timer if:
+          // 1. We don't already have one running
+          // 2. We're currently recording
+          // 3. We've detected speech during this segment
+          if (
+            !pauseTimerRef.current &&
+            mediaRecorderRef.current?.state === 'recording' &&
+            speechDetectedRef.current
+          ) {
+            // Start a 500ms timer - this will only fire if silence is continuous
+            pauseTimerRef.current = setTimeout(() => {
+              console.log('500ms of continuous silence detected - sending chunk');
+              try {
+                mediaRecorderRef.current.stop();
+                
+                // Create new recorder after a small delay
+                setTimeout(() => {
+                  if (isRecording) {
+                    try {
+                      const newRecorder = new MediaRecorder(streamRef.current);
+                      mediaRecorderRef.current = newRecorder;
+                      audioChunksRef.current = [];
+                      
+                      // Reset speech detection for new segment
+                      speechDetectedRef.current = false;
+                      
+                      newRecorder.ondataavailable = (e) => {
+                        if (e.data.size > 0) {
+                          audioChunksRef.current.push(e.data);
+                        }
+                      };
+                      
+                      newRecorder.onstop = () => {
+                        if (audioChunksRef.current.length > 0) {
+                          const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                          console.log('Sending audio chunk, size:', blob.size, 'bytes, speech detected:', speechDetectedRef.current);
+                          sendMessage(blob);
+                          if (onAudioSent) onAudioSent();
+                        }
+                      };
+                      
+                      newRecorder.start();
+                      console.log('Started new recorder after pause');
+                    } catch (e) {
+                      console.error('Error creating new recorder:', e);
+                    }
                   }
-                }
-              }, 50);
-            } catch (e) {
-              console.error('Error stopping recorder:', e);
-            }
+                }, 50);
+              } catch (e) {
+                console.error('Error stopping recorder:', e);
+              }
+              pauseTimerRef.current = null; // Reset for next chunk
+            }, 500);
           }
+          
+          // For display purposes only, approximate the silence duration
+          setSilenceDuration(pauseTimerRef.current ? Date.now() - (Date.now() - 500) : 0);
         }
       }, 100);
       
