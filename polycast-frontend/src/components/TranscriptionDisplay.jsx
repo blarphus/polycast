@@ -41,9 +41,11 @@ const renderHistoryStacked = (segments) => {
   if (!segments || segments.length === 0) {
     return <p>Waiting...</p>;
   }
+  // Show only the last 10 segments (instead of previous 3)
+  const visibleSegments = segments.slice(-10);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
-      {segments.map((segment, index) => (
+      {visibleSegments.map((segment, index) => (
         <span key={index} className={segment.isNew ? 'new-text' : ''} style={{ marginBottom: 2 }}>
           {segment.text}
         </span>
