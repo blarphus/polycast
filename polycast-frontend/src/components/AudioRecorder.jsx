@@ -14,10 +14,15 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
   const lastSoundTimeRef = useRef(0);
   const speechDetectedRef = useRef(false); // Track if real speech was detected
   
+  // Speech duration tracking
+  const speechStartTimeRef = useRef(0);
+  const minSpeechDurationRef = useRef(200); // Require at least 200ms of speech
+  
   // Audio visualization state
   const [audioLevel, setAudioLevel] = useState(0);
   const [isSilent, setIsSilent] = useState(true);
   const [silenceDuration, setSilenceDuration] = useState(0);
+  const [speechDuration, setSpeechDuration] = useState(0);
   
   // Get microphone access on mount
   useEffect(() => {
@@ -71,6 +76,7 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
       // Reset speech detection for this segment
       speechDetectedRef.current = false;
       lastSoundTimeRef.current = Date.now();
+      speechStartTimeRef.current = 0;
       
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
@@ -119,14 +125,35 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
           setIsSilent(false);
           setSilenceDuration(0);
           
-          // If we detect significant volume, mark as speech
+          // If we detect significant volume, track speech duration
           if (avg > SPEECH_THRESHOLD) {
-            if (!speechDetectedRef.current) {
-              console.log(`Speech detected! Level: ${avg.toFixed(1)}`);
+            // If this is the start of speech, note the time
+            if (speechStartTimeRef.current === 0) {
+              speechStartTimeRef.current = Date.now();
             }
-            speechDetectedRef.current = true;
+            
+            // Calculate how long we've been above speech threshold
+            const currentSpeechDuration = Date.now() - speechStartTimeRef.current;
+            setSpeechDuration(currentSpeechDuration);
+            
+            // Only mark as speech if the duration exceeds minimum
+            if (currentSpeechDuration >= minSpeechDurationRef.current) {
+              if (!speechDetectedRef.current) {
+                console.log(`Sustained speech detected for ${currentSpeechDuration}ms! Level: ${avg.toFixed(1)}`);
+                speechDetectedRef.current = true;
+              }
+            }
+          } else {
+            // Reset speech start time if we drop below speech threshold
+            // but are still above silence threshold
+            speechStartTimeRef.current = 0;
+            setSpeechDuration(0);
           }
         } else {
+          // We're in silence - reset speech tracking
+          speechStartTimeRef.current = 0;
+          setSpeechDuration(0);
+          
           // We're in silence
           setIsSilent(true);
           
@@ -161,6 +188,7 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
                     
                     // Reset speech detection for new segment
                     speechDetectedRef.current = false;
+                    speechStartTimeRef.current = 0;
                     
                     newRecorder.ondataavailable = (e) => {
                       if (e.data.size > 0) {
@@ -210,6 +238,7 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
       setAudioLevel(0);
       setIsSilent(true);
       setSilenceDuration(0);
+      setSpeechDuration(0);
     }
   }, [isRecording, sendMessage, onAudioSent, micError]);
   
@@ -228,7 +257,8 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
           color: 'white',
           borderRadius: '5px',
           zIndex: 9999,
-          fontSize: '12px'
+          fontSize: '12px',
+          width: '180px'
         }}>
           <div>Level: {audioLevel.toFixed(1)}</div>
           <div style={{ 
@@ -245,7 +275,7 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
             }}></div>
           </div>
           <div style={{ marginTop: '5px' }}>
-            {isSilent ? `Silent: ${silenceDuration}ms` : 'Sound detected'}
+            {isSilent ? `Silent: ${silenceDuration}ms` : `Sound: ${speechDuration}ms`}
           </div>
           <div>
             Speech: {speechDetectedRef.current ? 'YES' : 'NO'}
