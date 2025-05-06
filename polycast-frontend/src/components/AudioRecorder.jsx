@@ -155,8 +155,8 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent, autoSend, showNo
       };
       
       recorder.onstop = () => {
-        // Send the audio data when recorder stops
-        if (audioChunksRef.current.length > 0) {
+        // Send the audio data when recorder stops, but only if not in auto-send mode
+        if (audioChunksRef.current.length > 0 && !autoSend) {
           const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
           console.log('Sending audio chunk, size:', blob.size, 'bytes, speech detected:', speechDetectedRef.current);
           sendMessage(blob);
@@ -253,7 +253,8 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent, autoSend, showNo
                     };
                     
                     newRecorder.onstop = () => {
-                      if (audioChunksRef.current.length > 0) {
+                      // Send the audio data when recorder stops, but only if not in auto-send mode
+                      if (audioChunksRef.current.length > 0 && !autoSend) {
                         const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
                         console.log('Sending audio chunk, size:', blob.size, 'bytes, speech detected:', speechDetectedRef.current);
                         sendMessage(blob);
