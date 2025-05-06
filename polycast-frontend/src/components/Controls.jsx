@@ -16,6 +16,10 @@ function Controls({
     setAutoSend,
     showNoiseLevel,
     setShowNoiseLevel,
+    showLiveTranscript,
+    setShowLiveTranscript,
+    showTranslation,
+    setShowTranslation,
 }) {
     const isConnected = readyState === ReadyState.OPEN;
 
@@ -35,16 +39,32 @@ function Controls({
                     <option value="dictionary">dictionary mode</option>
                     <option value="flashcard">flashcard mode</option>
                 </select>
-                {/* Only show the live transcript checkbox in audio mode */}
+                {/* Only show the live transcript and translation checkboxes in audio mode */}
                 {appMode === 'audio' && (
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 14, fontSize: 15, fontWeight: 500, color: '#ccc' }}>
-                    <input
+                  <>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 14, fontSize: 15, fontWeight: 500, color: '#ccc' }}>
+                      <input
                         type="checkbox"
-                        checked={typeof window.showLiveEnglish === 'function' ? window.showLiveEnglish() : true}
-                        onChange={e => window.dispatchEvent(new CustomEvent('toggleLiveEnglish', { detail: e.target.checked }))}
-                    />
-                    Show Live Transcript
-                  </label>
+                        checked={showLiveTranscript}
+                        onChange={e => {
+                          setShowLiveTranscript(e.target.checked);
+                        }}
+                        disabled={isRecording}
+                      />
+                      Show Transcript
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 14, fontSize: 15, fontWeight: 500, color: '#ccc' }}>
+                      <input
+                        type="checkbox"
+                        checked={showTranslation}
+                        onChange={e => {
+                          setShowTranslation(e.target.checked);
+                        }}
+                        disabled={isRecording}
+                      />
+                      Show Translation
+                    </label>
+                  </>
                 )}
                 {/* Add auto-send checkbox in audio mode */}
                 {appMode === 'audio' && (
@@ -130,6 +150,10 @@ Controls.propTypes = {
     setAutoSend: PropTypes.func.isRequired,
     showNoiseLevel: PropTypes.bool.isRequired,
     setShowNoiseLevel: PropTypes.func.isRequired,
+    showLiveTranscript: PropTypes.bool.isRequired,
+    setShowLiveTranscript: PropTypes.func.isRequired,
+    showTranslation: PropTypes.bool.isRequired,
+    setShowTranslation: PropTypes.func.isRequired,
 };
 
 export default Controls;

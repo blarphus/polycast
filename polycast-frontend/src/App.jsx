@@ -24,7 +24,8 @@ function App({ targetLanguages, onReset }) {
   const [englishSegments, setEnglishSegments] = useState([]); 
   const [translations, setTranslations] = useState({}); // Structure: { lang: [{ text: string, isNew: boolean }] }
   const [errorMessages, setErrorMessages] = useState([]); 
-  const [showLiveEnglish, setShowLiveEnglish] = useState(true); // State for toggle
+  const [showLiveTranscript, setShowLiveTranscript] = useState(true); 
+  const [showTranslation, setShowTranslation] = useState(true); 
   const [appMode, setAppMode] = useState('audio'); // Options: 'audio', 'text', 'dictionary', 'flashcard'
   const [selectedWords, setSelectedWords] = useState([]); // Selected words for dictionary
   const [wordDefinitions, setWordDefinitions] = useState({}); // Cache for word definitions
@@ -37,6 +38,13 @@ function App({ targetLanguages, onReset }) {
   const notificationTimeoutRef = useRef(null);
   const modeRef = useRef(appMode === 'text');
   const isRecordingRef = useRef(isRecording); // Ref to track recording state in handlers
+
+  // Ensure mutual exclusivity between transcript and translation checkboxes
+  useEffect(() => {
+    if (!showLiveTranscript && !showTranslation) {
+      setShowTranslation(true);
+    }
+  }, [showLiveTranscript, showTranslation]);
 
   // === Iguana Image State ===
   // const [iguanaImageUrl, setIguanaImageUrl] = useState(null);
@@ -284,7 +292,7 @@ function App({ targetLanguages, onReset }) {
           ]);
         } else if (parsedData.type === 'recognizing_interim') { 
            // Only update if toggle is on
-           if (showLiveEnglish) {
+           if (showLiveTranscript) {
              setEnglishSegments([{ text: parsedData.data, isNew: false }]); 
            }
         } else if (parsedData.type === 'error') {
@@ -341,20 +349,20 @@ function App({ targetLanguages, onReset }) {
         // setMessageHistory((prev) => prev.concat(lastMessage));
       }
     }
-  }, [lastMessage, showLiveEnglish]); // Add showLiveEnglish to dependency array
+  }, [lastMessage, showLiveTranscript]); // Update dependency array
 
-  // Listen for toggleLiveEnglish event from Controls
+  // Listen for toggleLiveTranscript event from Controls
   useEffect(() => {
-    function handler(e) { setShowLiveEnglish(!!e.detail); }
-    window.addEventListener('toggleLiveEnglish', handler);
-    return () => window.removeEventListener('toggleLiveEnglish', handler);
+    function handler(e) { setShowLiveTranscript(!!e.detail); }
+    window.addEventListener('toggleLiveTranscript', handler);
+    return () => window.removeEventListener('toggleLiveTranscript', handler);
   }, []);
 
   // Provide a global getter for Controls to read the toggle state
   useEffect(() => {
-    window.showLiveEnglish = () => showLiveEnglish;
-    return () => { delete window.showLiveEnglish; };
-  }, [showLiveEnglish]);
+    window.showLiveTranscript = () => showLiveTranscript;
+    return () => { delete window.showLiveTranscript; };
+  }, [showLiveTranscript]);
 
   // Handlers for recording controls (passed down to components that need to send audio)
   const handleStartRecording = useCallback(() => {
@@ -528,6 +536,16 @@ function App({ targetLanguages, onReset }) {
               setAutoSend={setAutoSend}
               showNoiseLevel={showNoiseLevel}
               setShowNoiseLevel={setShowNoiseLevel}
+              showLiveTranscript={showLiveTranscript}
+              setShowLiveTranscript={checked => {
+                setShowLiveTranscript(checked);
+                if (!checked && !showTranslation) setShowTranslation(true);
+              }}
+              showTranslation={showTranslation}
+              setShowTranslation={checked => {
+                setShowTranslation(checked);
+                if (!checked && !showLiveTranscript) setShowLiveTranscript(true);
+              }}
             />
           </div>
           {/* Audio mode note below tools row */}
@@ -592,7 +610,8 @@ function App({ targetLanguages, onReset }) {
             englishSegments={englishSegments} 
             translations={translations} 
             targetLanguages={targetLanguages} 
-            showLiveEnglish={showLiveEnglish} // Pass toggle state
+            showLiveTranscript={showLiveTranscript}
+            showTranslation={showTranslation}
             isTextMode={appMode === 'text'}
             onTextSubmit={(lang, text) => {
               // Send text submission for translation to backend

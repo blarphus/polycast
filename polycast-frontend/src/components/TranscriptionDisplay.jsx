@@ -122,7 +122,8 @@ const TranscriptionDisplay = ({
   englishSegments, 
   targetLanguages, 
   translations, 
-  showLiveEnglish, 
+  showLiveTranscript, 
+  showTranslation, 
   isTextMode, 
   onTextSubmit, 
   textInputs, 
@@ -392,11 +393,13 @@ const TranscriptionDisplay = ({
 
   // --- Main render ---
   // Use flex layout to fill the available vertical space
-  const transcriptVisible = showLiveEnglish || isTextMode;
+  const transcriptVisible = showLiveTranscript || isTextMode;
+  const translationVisible = showTranslation;
+
+  // ...existing logic...
+
   return (
     <div
-      ref={containerRef}
-      className="split-transcription-layout"
       style={{
         position: 'relative',
         width: '100%',
@@ -413,104 +416,106 @@ const TranscriptionDisplay = ({
     >
       {/* Transcript/English box always renders and updates first */}
       {transcriptVisible && (
-        <div style={{ width: '100%', flex: '0 0 33.5%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>{renderEnglishBox()}</div>
+        <div style={{ width: translationVisible ? '100%' : '100%', flex: translationVisible ? '0 0 33.5%' : '1 1 100%', minHeight: 0, display: 'flex', flexDirection: 'column', transition: 'flex 0.3s, width 0.3s' }}>{renderEnglishBox()}</div>
       )}
       {/* Language boxes fill the remaining space */}
-      <div
-        style={{
-          width: '100%',
-          display: 'flex',
-          justifyContent: langCount === 1 ? 'center' : 'flex-start',
-          flex: '1 1 66.5%',
-          alignItems: 'stretch',
-          minHeight: 0,
-          gap: 24,
-          boxSizing: 'border-box',
-          marginTop: 24,
-        }}
-      >
-        {targetLanguages.map((lang, idx) => {
-          const scheme = colorSchemes[(idx + 1) % colorSchemes.length];
-          const layout = langBoxLayout[idx] || { x: 0, y: 0, w: 320, h: 250 };
-          const segments = translations[lang] || [];
-          return (
-            <div
-              key={lang}
-              style={{
-                flex: 1,
-                minWidth: 0,
-                minHeight: 0,
-                maxHeight: '100%',
-                overflow: 'hidden',
-                margin: 0,
-                background: scheme.bg,
-                color: scheme.fg,
-                borderTop: `4px solid ${scheme.accent}`,
-                borderRadius: 12,
-                boxShadow: '0 2px 12px 0 rgba(124, 98, 255, 0.07)',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'flex-start',
-                alignItems: 'stretch',
-                padding: 0,
-              }}
-            >
-              <span style={{
-                letterSpacing: 0.5,
-                textAlign: 'center',
-                fontWeight: 800,
-                fontSize: 20,
-                margin: '18px 0 10px 0',
-                color: scheme.accent + 'cc',
-                textTransform: 'uppercase',
-                opacity: 0.92,
-              }}>
-                {lang}
-              </span>
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 16, gap: 8, overflow: 'auto', minHeight: 0 }} ref={el => translationRefs.current[lang] = el}>
-                {isTextMode ? (
-                  <>
-                    <textarea
-                      value={textInputs[lang] ?? ''}
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        flex: 1,
-                        fontSize: fontSize,
-                        borderRadius: 6,
-                        border: `1.5px solid ${scheme.accent}`,
-                        padding: 8,
-                        resize: 'none',
-                        background: scheme.bg,
-                        color: scheme.fg,
-                        boxSizing: 'border-box',
-                        minHeight: 80,
-                      }}
-                      onChange={e => handleInputChange(lang, e.target.value)}
-                      onKeyDown={e => {
-                        if (isTextMode && e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSubmit(lang);
-                        }
-                      }}
-                    />
-                    <button
-                      style={{ marginTop: 10, alignSelf: 'center', background: scheme.accent, color: '#fff', border: 'none', borderRadius: 6, padding: '6px 18px', fontWeight: 700, fontSize: 16, cursor: 'pointer' }}
-                      onClick={() => handleSubmit(lang)}
-                    >
-                      Submit
-                    </button>
-                  </>
-                ) : (
-                  <span style={{ fontWeight: 400, fontSize: fontSize }}>
-                    {renderHistoryStacked(segments)}
-                  </span>
-                )}
+      {translationVisible && (
+        <div
+          style={{
+            width: '100%',
+            display: 'flex',
+            justifyContent: langCount === 1 ? 'center' : 'flex-start',
+            flex: '1 1 66.5%',
+            alignItems: 'stretch',
+            minHeight: 0,
+            gap: 24,
+            boxSizing: 'border-box',
+            marginTop: 24,
+          }}
+        >
+          {targetLanguages.map((lang, idx) => {
+            const scheme = colorSchemes[(idx + 1) % colorSchemes.length];
+            const layout = langBoxLayout[idx] || { x: 0, y: 0, w: 320, h: 250 };
+            const segments = translations[lang] || [];
+            return (
+              <div
+                key={lang}
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  minHeight: 0,
+                  maxHeight: '100%',
+                  overflow: 'hidden',
+                  margin: 0,
+                  background: scheme.bg,
+                  color: scheme.fg,
+                  borderTop: `4px solid ${scheme.accent}`,
+                  borderRadius: 12,
+                  boxShadow: '0 2px 12px 0 rgba(124, 98, 255, 0.07)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'flex-start',
+                  alignItems: 'stretch',
+                  padding: 0,
+                }}
+              >
+                <span style={{
+                  letterSpacing: 0.5,
+                  textAlign: 'center',
+                  fontWeight: 800,
+                  fontSize: 20,
+                  margin: '18px 0 10px 0',
+                  color: scheme.accent + 'cc',
+                  textTransform: 'uppercase',
+                  opacity: 0.92,
+                }}>
+                  {lang}
+                </span>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 16, gap: 8, overflow: 'auto', minHeight: 0 }} ref={el => translationRefs.current[lang] = el}>
+                  {isTextMode ? (
+                    <>
+                      <textarea
+                        value={textInputs[lang] ?? ''}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          flex: 1,
+                          fontSize: fontSize,
+                          borderRadius: 6,
+                          border: `1.5px solid ${scheme.accent}`,
+                          padding: 8,
+                          resize: 'none',
+                          background: scheme.bg,
+                          color: scheme.fg,
+                          boxSizing: 'border-box',
+                          minHeight: 80,
+                        }}
+                        onChange={e => handleInputChange(lang, e.target.value)}
+                        onKeyDown={e => {
+                          if (isTextMode && e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSubmit(lang);
+                          }
+                        }}
+                      />
+                      <button
+                        style={{ marginTop: 10, alignSelf: 'center', background: scheme.accent, color: '#fff', border: 'none', borderRadius: 6, padding: '6px 18px', fontWeight: 700, fontSize: 16, cursor: 'pointer' }}
+                        onClick={() => handleSubmit(lang)}
+                      >
+                        Submit
+                      </button>
+                    </>
+                  ) : (
+                    <span style={{ fontWeight: 400, fontSize: fontSize }}>
+                      {renderHistoryStacked(segments)}
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
@@ -522,7 +527,8 @@ TranscriptionDisplay.propTypes = {
   })),
   targetLanguages: PropTypes.arrayOf(PropTypes.string).isRequired,
   translations: PropTypes.object.isRequired,
-  showLiveEnglish: PropTypes.bool,
+  showLiveTranscript: PropTypes.bool,
+  showTranslation: PropTypes.bool,
   isTextMode: PropTypes.bool.isRequired,
   onTextSubmit: PropTypes.func,
   textInputs: PropTypes.object.isRequired,
@@ -536,7 +542,8 @@ TranscriptionDisplay.propTypes = {
 TranscriptionDisplay.defaultProps = {
   englishSegments: [],
   translations: {},
-  showLiveEnglish: true,
+  showLiveTranscript: true,
+  showTranslation: true,
   isTextMode: false,
   onTextSubmit: null,
 };
