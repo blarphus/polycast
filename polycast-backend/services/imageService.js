@@ -44,7 +44,23 @@ async function generateImage(prompt, size = '1024x1024', moderation = 'auto') {
             throw new Error(json.error?.message || 'Failed to generate image (HTTP)');
         }
         console.log('Image generated successfully via HTTP');
-        return json.data[0].url;
+
+        const item = json?.data?.[0];
+
+        // GPT‑image‑1 always returns b64_json
+        if (item?.b64_json) {
+            // Option A: return a data‑URI the front‑end can <img src="…">
+            return `data:image/png;base64,${item.b64_json}`;
+
+            // Option B (uncomment if you'd rather save a file and return a URL):
+            // const buffer = Buffer.from(item.b64_json, 'base64');
+            // const fileKey = `img_${Date.now()}.png`;
+            // await fs.promises.writeFile(`/tmp/${fileKey}`, buffer);
+            // return `https://your‑cdn/${fileKey}`;
+        }
+
+        console.warn('No b64_json in image response', json);
+        throw new Error('OpenAI image response missing b64_json');
     } catch (error) {
         console.error('Error generating image:', error.message || error);
         throw new Error('Failed to generate image');

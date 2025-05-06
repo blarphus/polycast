@@ -288,13 +288,11 @@ app.get('/api/generate-image', async (req, res) => {
     console.log(`[Image Generation] Request received. Prompt: "${prompt.substring(0, 30)}...", Size: ${size}, Moderation: ${moderation}`);
     
     try {
-        const url = await generateImage(prompt, size, moderation);
-        if (url) {
-            console.log(`[Image Generation] Success! Generated image URL: ${url.substring(0, 60)}...`);
-        } else {
-            console.warn('[Image Generation] Warning: No image URL returned from generateImage');
-        }
-        res.json({ url });
+        const imgPayload = await generateImage(prompt, size, moderation);
+
+        // imgPayload is now a data-URI (or the file URL you create)
+        console.log('[Image Generation] Success! Image payload ready');
+        res.json({ url: imgPayload });
     } catch (error) {
         console.error('[Image Generation] Error:', error.message, error.stack);
         res.status(500).json({ error: 'Failed to generate image.' });
