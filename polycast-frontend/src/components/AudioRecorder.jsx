@@ -12,6 +12,7 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
   const analyserRef = useRef(null);
   const silenceDetectorRef = useRef(null);
   const lastSoundTimeRef = useRef(0);
+  const speechDetectedRef = useRef(false); // Track if real speech was detected
   
   // Get microphone access on mount
   useEffect(() => {
@@ -62,6 +63,9 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
       mediaRecorderRef.current = recorder;
       audioChunksRef.current = [];
       
+      // Reset speech detection for this segment
+      speechDetectedRef.current = false;
+      
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
           audioChunksRef.current.push(e.data);
@@ -72,7 +76,7 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
         // Send the audio data when recorder stops
         if (audioChunksRef.current.length > 0) {
           const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-          console.log('Sending audio chunk, size:', blob.size);
+          console.log('Sending audio chunk, size:', blob.size, 'speech detected:', speechDetectedRef.current);
           sendMessage(blob);
           if (onAudioSent) onAudioSent();
         }
@@ -97,16 +101,27 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
         // Calculate average volume
         const avg = dataArray.reduce((sum, val) => sum + val, 0) / dataArray.length;
         
-        if (avg > 10) {
+        if (avg > 15) { // Slightly higher threshold to avoid background noise
           // Sound detected, update timestamp
           lastSoundTimeRef.current = Date.now();
+          
+          // If we detect significant volume, mark as speech
+          if (avg > 25) {
+            speechDetectedRef.current = true;
+          }
         } else {
           // Check if we've had silence for >500ms
           const silenceDuration = Date.now() - lastSoundTimeRef.current;
           
-          if (silenceDuration >= 500 && mediaRecorderRef.current.state === 'recording') {
-            // Stop current recorder to send chunk
-            console.log(`Pause detected (${silenceDuration}ms), sending chunk`);
+          // Only send if:
+          // 1. We've been silent for >= 500ms
+          // 2. The recorder is still recording
+          // 3. We detected real speech in this segment
+          if (silenceDuration >= 500 && 
+              mediaRecorderRef.current.state === 'recording' && 
+              speechDetectedRef.current) {
+            
+            console.log(`Pause detected after speech (${silenceDuration}ms), sending chunk`);
             const currentRecorder = mediaRecorderRef.current;
             
             // Stop current recorder
@@ -119,6 +134,9 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
                 mediaRecorderRef.current = newRecorder;
                 audioChunksRef.current = [];
                 
+                // Reset speech detection for new segment
+                speechDetectedRef.current = false;
+                
                 newRecorder.ondataavailable = (e) => {
                   if (e.data.size > 0) {
                     audioChunksRef.current.push(e.data);
@@ -128,7 +146,7 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
                 newRecorder.onstop = () => {
                   if (audioChunksRef.current.length > 0) {
                     const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-                    console.log('Sending audio chunk, size:', blob.size);
+                    console.log('Sending audio chunk, size:', blob.size, 'speech detected:', speechDetectedRef.current);
                     sendMessage(blob);
                     if (onAudioSent) onAudioSent();
                   }
@@ -143,8 +161,9 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
       }, 100);
       
     } else {
-      // Stop recording
+      // Stop recording if user releases key
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        // Always send the final chunk when user stops recording
         console.log('Stopping recorder (user released key)');
         mediaRecorderRef.current.stop();
       }
