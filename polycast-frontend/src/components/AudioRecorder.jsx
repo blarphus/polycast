@@ -11,18 +11,39 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
   const silenceDetectorRef = useRef(null);
-  const pauseTimerRef = useRef(null);
   const speechDetectedRef = useRef(false); // Track if real speech was detected
   
-  // Adaptive noise floor tracking
-  const noiseFloorRef = useRef(null);  // running average of silence energy
-  const dynamicThreshRef = useRef(0);  // noise + margin
+  // RMS and frame tracking
+  const rmsHistoryRef = useRef([]);
+  const baselineRMSRef = useRef(null);
+  const speechFramesRef = useRef(0);
+  const silenceFramesRef = useRef(0);
+  
+  // Constants
+  const FRAME_MS = 100;
+  const GAP_MS = 700;            // flush after 700ms silence
+  const MIN_SPEECH_MS = 250;     // need 250ms > thresh to mark as speech
+  const MARGIN_DB = 10;          // threshold = noise + 10dB
   
   // Audio visualization state
   const [audioLevel, setAudioLevel] = useState(0);
   const [isSilent, setIsSilent] = useState(true);
   const [silenceDuration, setSilenceDuration] = useState(0);
   const [zeroCrossings, setZeroCrossings] = useState(0);
+  const [threshold, setThreshold] = useState(0);
+  
+  // Helper functions
+  function rawRMS(arr) {
+    const sum = arr.reduce((s, v) => {
+      const f = (v - 128) / 128;
+      return s + f * f;
+    }, 0);
+    return Math.sqrt(sum / arr.length);
+  }
+  
+  function average(a) {
+    return a.reduce((s, v) => s + v, 0) / a.length;
+  }
   
   // Zero crossing rate calculation function
   function zeroCrossingRate(array) {
@@ -34,6 +55,26 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
     }
     return crossings / array.length; // 0...0.5
   }
+  
+  // Calibrate noise floor
+  const calibrateNoiseFloor = async (analyser) => {
+    return new Promise((resolve) => {
+      const samples = [];
+      const dataArray = new Uint8Array(analyser.fftSize);
+      
+      const calibrationInterval = setInterval(() => {
+        analyser.getByteTimeDomainData(dataArray);
+        samples.push(rawRMS(dataArray));
+        
+        if (samples.length >= 750 / FRAME_MS) {
+          clearInterval(calibrationInterval);
+          const baseline = average(samples);
+          console.log(`Noise floor calibrated: ${baseline.toFixed(4)}`);
+          resolve(baseline);
+        }
+      }, FRAME_MS);
+    });
+  };
   
   // Get microphone access on mount
   useEffect(() => {
@@ -61,6 +102,10 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
         source.connect(hp);
         hp.connect(lp);
         lp.connect(analyserRef.current);
+        
+        // Calibrate the noise floor
+        const baseline = await calibrateNoiseFloor(analyserRef.current);
+        baselineRMSRef.current = baseline;
         
         setMicError(null);
       } catch (err) {
@@ -99,12 +144,9 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
       
       // Reset speech detection for this segment
       speechDetectedRef.current = false;
-      
-      // Clear any existing pause timer
-      if (pauseTimerRef.current) {
-        clearTimeout(pauseTimerRef.current);
-        pauseTimerRef.current = null;
-      }
+      speechFramesRef.current = 0;
+      silenceFramesRef.current = 0;
+      rmsHistoryRef.current = [];
       
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
@@ -125,124 +167,112 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
       // Start recording
       recorder.start();
       
-      // Start silence detection
+      // Start audio processing loop
       if (silenceDetectorRef.current) {
         clearInterval(silenceDetectorRef.current);
       }
       
       silenceDetectorRef.current = setInterval(() => {
-        if (!analyserRef.current || !mediaRecorderRef.current) return;
+        if (!analyserRef.current || !mediaRecorderRef.current || !baselineRMSRef.current) return;
         
         // Get time-domain audio data
         const dataArray = new Uint8Array(analyserRef.current.fftSize);
         analyserRef.current.getByteTimeDomainData(dataArray);
         
-        // Calculate RMS (root mean square) for better energy representation
-        const rms = Math.sqrt(dataArray.reduce((sum, val) => {
-          const n = (val - 128) / 128;  // convert to -1...1
-          return sum + n * n;
-        }, 0) / dataArray.length);
+        // Calculate raw RMS
+        const rms = rawRMS(dataArray);
         
-        // Calculate zero crossing rate
+        // Calculate zero crossing rate (still useful for visualization)
         const zcr = zeroCrossingRate(dataArray);
         setZeroCrossings(zcr.toFixed(3));
         
+        // Add to history for smoothing
+        rmsHistoryRef.current.push(rms);
+        if (rmsHistoryRef.current.length > 3) rmsHistoryRef.current.shift();
+        
+        // Get smoothed RMS (3-frame average)
+        const smoothRMS = average(rmsHistoryRef.current);
+        
         // Scale for UI (0-100)
-        setAudioLevel(rms * 100);
+        setAudioLevel(smoothRMS * 100);
         
-        // Update noise floor whenever the mic has been silent for a while
-        if (isSilent) {
-          const α = 0.05;  // smoothing factor
-          noiseFloorRef.current = noiseFloorRef.current === null
-            ? rms
-            : (1 - α) * noiseFloorRef.current + α * rms;
-        }
+        // Threshold: baseline × 10^(marginDB/20)
+        const thresh = baselineRMSRef.current * Math.pow(10, MARGIN_DB / 20);
+        setThreshold(thresh * 100); // For display
         
-        // Dynamic threshold: noise floor + 6 dB (×2 in power)
-        if (noiseFloorRef.current !== null) {
-          dynamicThreshRef.current = noiseFloorRef.current * 2;
-        }
+        // Check if current level is above threshold
+        const isSound = smoothRMS > thresh;
         
-        // Require BOTH: energy > threshold AND zcr > 0.05
-        // This checks for both volume AND the modulation characteristic of speech
-        if (rms > dynamicThreshRef.current && zcr > 0.05) {
-          // Sound detected, cancel any pause timer
-          if (pauseTimerRef.current) {
-            clearTimeout(pauseTimerRef.current);
-            pauseTimerRef.current = null;
-          }
-          
+        if (isSound) {
+          // Sound detected
+          speechFramesRef.current++;
+          silenceFramesRef.current = 0;
           setIsSilent(false);
-          setSilenceDuration(0);
           
-          // Mark as speech
-          if (!speechDetectedRef.current) {
-            console.log(`Speech detected! RMS: ${(rms * 100).toFixed(1)}, ZCR: ${zcr.toFixed(3)}, Threshold: ${(dynamicThreshRef.current * 100).toFixed(1)}`);
+          // Mark as speech after MIN_SPEECH_MS
+          if (!speechDetectedRef.current && 
+              speechFramesRef.current * FRAME_MS >= MIN_SPEECH_MS) {
             speechDetectedRef.current = true;
+            console.log(`Speech detected! RMS: ${(smoothRMS * 100).toFixed(1)}, Threshold: ${(thresh * 100).toFixed(1)}`);
           }
         } else {
-          // We're in silence
+          // Silence detected
+          silenceFramesRef.current++;
+          speechFramesRef.current = 0;
           setIsSilent(true);
+          setSilenceDuration(silenceFramesRef.current * FRAME_MS);
           
-          // Only start a pause timer if:
-          // 1. We don't already have one running
-          // 2. We're currently recording
-          // 3. We've detected speech during this segment
-          if (
-            !pauseTimerRef.current &&
-            mediaRecorderRef.current?.state === 'recording' &&
-            speechDetectedRef.current
-          ) {
-            // Start a 500ms timer - this will only fire if silence is continuous
-            pauseTimerRef.current = setTimeout(() => {
-              console.log('500ms of continuous silence detected - sending chunk');
-              try {
-                mediaRecorderRef.current.stop();
-                
-                // Create new recorder after a small delay
-                setTimeout(() => {
-                  if (isRecording) {
-                    try {
-                      const newRecorder = new MediaRecorder(streamRef.current);
-                      mediaRecorderRef.current = newRecorder;
-                      audioChunksRef.current = [];
-                      
-                      // Reset speech detection for new segment
-                      speechDetectedRef.current = false;
-                      
-                      newRecorder.ondataavailable = (e) => {
-                        if (e.data.size > 0) {
-                          audioChunksRef.current.push(e.data);
-                        }
-                      };
-                      
-                      newRecorder.onstop = () => {
-                        if (audioChunksRef.current.length > 0) {
-                          const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-                          console.log('Sending audio chunk, size:', blob.size, 'bytes, speech detected:', speechDetectedRef.current);
-                          sendMessage(blob);
-                          if (onAudioSent) onAudioSent();
-                        }
-                      };
-                      
-                      newRecorder.start();
-                      console.log('Started new recorder after pause');
-                    } catch (e) {
-                      console.error('Error creating new recorder:', e);
-                    }
+          // Check if we've had enough silence to send chunk
+          if (speechDetectedRef.current && 
+              silenceFramesRef.current * FRAME_MS >= GAP_MS &&
+              mediaRecorderRef.current.state === 'recording') {
+            
+            console.log(`Pause ≥ ${GAP_MS}ms detected - flushing chunk`);
+            
+            try {
+              // Stop current recorder
+              mediaRecorderRef.current.stop();
+              
+              // Reset for next segment
+              speechDetectedRef.current = false;
+              silenceFramesRef.current = 0;
+              
+              // Create new recorder after a small delay
+              setTimeout(() => {
+                if (isRecording) {
+                  try {
+                    const newRecorder = new MediaRecorder(streamRef.current);
+                    mediaRecorderRef.current = newRecorder;
+                    audioChunksRef.current = [];
+                    
+                    newRecorder.ondataavailable = (e) => {
+                      if (e.data.size > 0) {
+                        audioChunksRef.current.push(e.data);
+                      }
+                    };
+                    
+                    newRecorder.onstop = () => {
+                      if (audioChunksRef.current.length > 0) {
+                        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                        console.log('Sending audio chunk, size:', blob.size, 'bytes, speech detected:', speechDetectedRef.current);
+                        sendMessage(blob);
+                        if (onAudioSent) onAudioSent();
+                      }
+                    };
+                    
+                    newRecorder.start();
+                    console.log('Started new recorder after pause');
+                  } catch (e) {
+                    console.error('Error creating new recorder:', e);
                   }
-                }, 50);
-              } catch (e) {
-                console.error('Error stopping recorder:', e);
-              }
-              pauseTimerRef.current = null; // Reset for next chunk
-            }, 500);
+                }
+              }, 50);
+            } catch (e) {
+              console.error('Error stopping recorder:', e);
+            }
           }
-          
-          // For display purposes only, approximate the silence duration
-          setSilenceDuration(pauseTimerRef.current ? Date.now() - (Date.now() - 500) : 0);
         }
-      }, 100);
+      }, FRAME_MS);
       
     } else {
       // Stop recording if user releases key
@@ -285,7 +315,9 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
         }}>
           <div>Level: {audioLevel.toFixed(1)}</div>
           <div>ZCR: {zeroCrossings}</div>
-          <div>Floor: {noiseFloorRef.current ? (noiseFloorRef.current * 100).toFixed(1) : 'Learning...'}</div>
+          <div>Threshold: {threshold.toFixed(1)}</div>
+          <div>Speech frames: {speechFramesRef.current}</div>
+          <div>Silence frames: {silenceFramesRef.current}</div>
           <div style={{ 
             height: '10px', 
             width: '100%', 
@@ -297,6 +329,14 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
               width: `${Math.min(100, audioLevel)}%`, 
               background: isSilent ? '#f55' : '#5f5',
               transition: 'width 0.1s'
+            }}></div>
+            <div style={{
+              position: 'absolute',
+              height: '10px',
+              width: '2px',
+              background: '#fff',
+              left: `calc(${Math.min(100, threshold)}% + 10px)`,
+              marginTop: '-10px'
             }}></div>
           </div>
           <div style={{ marginTop: '5px' }}>
