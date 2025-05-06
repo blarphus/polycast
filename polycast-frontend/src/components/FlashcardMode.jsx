@@ -121,6 +121,16 @@ const FlashcardMode = ({ selectedWords, wordDefinitions, englishSegments }) => {
     if (availableCards.length === 0 || showStats) return;
     
     availableCards.forEach(word => {
+      const definition = wordDefinitions[word.toLowerCase()];
+      
+      // If we already have the image URL in the wordDefinitions, use that
+      if (definition && definition.imageUrl) {
+        // Image was already generated when the word was clicked
+        console.log(`Using already generated image for word: ${word}`);
+        setWordImages(prev => ({...prev, [word]: definition.imageUrl}));
+        return;
+      }
+      
       // Only fetch if we don't already have this image loading or loaded
       if (!wordImages[word] && !imageLoading[word]) {
         console.log(`Fetching image for word: ${word}`);

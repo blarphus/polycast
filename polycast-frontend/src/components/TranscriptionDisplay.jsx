@@ -178,6 +178,33 @@ const TranscriptionDisplay = ({
         .catch(err => {
           console.error(`Error preloading definition for ${word}:`, err);
         });
+        
+      // Generate image for the flashcard at the same time
+      const imagePrompt = `Create a visually engaging, wordless flashcard image in the style of Charley Harper. Use bold shapes, minimal detail, and mid-century modern aesthetics to depict the concept in a memorable and metaphorical way. Avoid text or labels. Again, use no text. The word to illustrate is: "${word}". Use the following context sentence to determine the correct meaning and visual depiction: "${contextSentence}"`;
+      
+      console.log(`Generating image for word: ${word}`);
+      
+      fetch(`https://polycast-server.onrender.com/api/generate-image?prompt=${encodeURIComponent(imagePrompt)}`, {
+        mode: 'cors'
+      })
+        .then(res => {
+          if (!res.ok) throw new Error(`Failed with status: ${res.status}`);
+          return res.json();
+        })
+        .then(data => {
+          console.log(`Image generated for: ${word}`);
+          // We need to update wordDefinitions to include the image URL
+          setWordDefinitions(prev => ({
+            ...prev,
+            [word.toLowerCase()]: {
+              ...prev[word.toLowerCase()],
+              imageUrl: data.url
+            }
+          }));
+        })
+        .catch(err => {
+          console.error(`Error generating image for ${word}:`, err);
+        });
     }
   };
 
