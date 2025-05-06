@@ -7,22 +7,33 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
   const streamRef = useRef(null); 
   const [micError, setMicError] = useState(null);
   
-  // Simple audio detection
+  // Audio processing refs
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
   const silenceDetectorRef = useRef(null);
   const lastSoundTimeRef = useRef(0);
   const speechDetectedRef = useRef(false); // Track if real speech was detected
   
-  // Speech duration tracking
-  const speechStartTimeRef = useRef(0);
-  const minSpeechDurationRef = useRef(200); // Require at least 200ms of speech
+  // Adaptive noise floor tracking
+  const noiseFloorRef = useRef(null);  // running average of silence energy
+  const dynamicThreshRef = useRef(0);  // noise + margin
   
   // Audio visualization state
   const [audioLevel, setAudioLevel] = useState(0);
   const [isSilent, setIsSilent] = useState(true);
   const [silenceDuration, setSilenceDuration] = useState(0);
-  const [speechDuration, setSpeechDuration] = useState(0);
+  const [zeroCrossings, setZeroCrossings] = useState(0);
+  
+  // Zero crossing rate calculation function
+  function zeroCrossingRate(array) {
+    let crossings = 0;
+    for (let i = 1; i < array.length; i++) {
+      const v1 = array[i - 1] - 128;
+      const v2 = array[i] - 128;
+      if ((v1 >= 0 && v2 < 0) || (v1 < 0 && v2 >= 0)) crossings++;
+    }
+    return crossings / array.length; // 0...0.5
+  }
   
   // Get microphone access on mount
   useEffect(() => {
@@ -33,10 +44,23 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
         // Set up audio analyzer for detecting volume
         audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
         analyserRef.current = audioContextRef.current.createAnalyser();
-        analyserRef.current.fftSize = 256;
+        analyserRef.current.fftSize = 1024; // Increased for better resolution
         
         const source = audioContextRef.current.createMediaStreamSource(streamRef.current);
-        source.connect(analyserRef.current);
+        
+        // Create band-pass: 300 Hz – 3400 Hz (speech frequencies)
+        const hp = audioContextRef.current.createBiquadFilter();
+        hp.type = 'highpass';
+        hp.frequency.value = 300;
+        
+        const lp = audioContextRef.current.createBiquadFilter();
+        lp.type = 'lowpass';
+        lp.frequency.value = 3400;
+        
+        // wire: mic → HP → LP → analyser
+        source.connect(hp);
+        hp.connect(lp);
+        lp.connect(analyserRef.current);
         
         setMicError(null);
       } catch (err) {
@@ -76,7 +100,6 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
       // Reset speech detection for this segment
       speechDetectedRef.current = false;
       lastSoundTimeRef.current = Date.now();
-      speechStartTimeRef.current = 0;
       
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
@@ -105,55 +128,50 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
       silenceDetectorRef.current = setInterval(() => {
         if (!analyserRef.current || !mediaRecorderRef.current) return;
         
-        // Get audio data
-        const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-        analyserRef.current.getByteFrequencyData(dataArray);
+        // Get time-domain audio data
+        const dataArray = new Uint8Array(analyserRef.current.fftSize);
+        analyserRef.current.getByteTimeDomainData(dataArray);
         
-        // Calculate average volume
-        const avg = dataArray.reduce((sum, val) => sum + val, 0) / dataArray.length;
+        // Calculate RMS (root mean square) for better energy representation
+        const rms = Math.sqrt(dataArray.reduce((sum, val) => {
+          const n = (val - 128) / 128;  // convert to -1...1
+          return sum + n * n;
+        }, 0) / dataArray.length);
         
-        // Update UI for debugging
-        setAudioLevel(avg);
+        // Calculate zero crossing rate
+        const zcr = zeroCrossingRate(dataArray);
+        setZeroCrossings(zcr.toFixed(3));
         
-        // Thresholds adjusted based on observed audio levels
-        const SILENCE_THRESHOLD = 27;   // Anything below this is silence
-        const SPEECH_THRESHOLD = 35;    // Anything above this is definite speech
+        // Scale for UI (0-100)
+        setAudioLevel(rms * 100);
         
-        if (avg > SILENCE_THRESHOLD) {
+        // Update noise floor whenever the mic has been silent for a while
+        if (isSilent) {
+          const α = 0.05;  // smoothing factor
+          noiseFloorRef.current = noiseFloorRef.current === null
+            ? rms
+            : (1 - α) * noiseFloorRef.current + α * rms;
+        }
+        
+        // Dynamic threshold: noise floor + 6 dB (×2 in power)
+        if (noiseFloorRef.current !== null) {
+          dynamicThreshRef.current = noiseFloorRef.current * 2;
+        }
+        
+        // Require BOTH: energy > threshold AND zcr > 0.05
+        // This checks for both volume AND the modulation characteristic of speech
+        if (rms > dynamicThreshRef.current && zcr > 0.05) {
           // Sound detected, update timestamp
           lastSoundTimeRef.current = Date.now();
           setIsSilent(false);
           setSilenceDuration(0);
           
-          // If we detect significant volume, track speech duration
-          if (avg > SPEECH_THRESHOLD) {
-            // If this is the start of speech, note the time
-            if (speechStartTimeRef.current === 0) {
-              speechStartTimeRef.current = Date.now();
-            }
-            
-            // Calculate how long we've been above speech threshold
-            const currentSpeechDuration = Date.now() - speechStartTimeRef.current;
-            setSpeechDuration(currentSpeechDuration);
-            
-            // Only mark as speech if the duration exceeds minimum
-            if (currentSpeechDuration >= minSpeechDurationRef.current) {
-              if (!speechDetectedRef.current) {
-                console.log(`Sustained speech detected for ${currentSpeechDuration}ms! Level: ${avg.toFixed(1)}`);
-                speechDetectedRef.current = true;
-              }
-            }
-          } else {
-            // Reset speech start time if we drop below speech threshold
-            // but are still above silence threshold
-            speechStartTimeRef.current = 0;
-            setSpeechDuration(0);
+          // Mark as speech
+          if (!speechDetectedRef.current) {
+            console.log(`Speech detected! RMS: ${(rms * 100).toFixed(1)}, ZCR: ${zcr.toFixed(3)}, Threshold: ${(dynamicThreshRef.current * 100).toFixed(1)}`);
+            speechDetectedRef.current = true;
           }
         } else {
-          // We're in silence - reset speech tracking
-          speechStartTimeRef.current = 0;
-          setSpeechDuration(0);
-          
           // We're in silence
           setIsSilent(true);
           
@@ -188,7 +206,6 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
                     
                     // Reset speech detection for new segment
                     speechDetectedRef.current = false;
-                    speechStartTimeRef.current = 0;
                     
                     newRecorder.ondataavailable = (e) => {
                       if (e.data.size > 0) {
@@ -238,7 +255,6 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
       setAudioLevel(0);
       setIsSilent(true);
       setSilenceDuration(0);
-      setSpeechDuration(0);
     }
   }, [isRecording, sendMessage, onAudioSent, micError]);
   
@@ -261,6 +277,8 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
           width: '180px'
         }}>
           <div>Level: {audioLevel.toFixed(1)}</div>
+          <div>ZCR: {zeroCrossings}</div>
+          <div>Floor: {noiseFloorRef.current ? (noiseFloorRef.current * 100).toFixed(1) : 'Learning...'}</div>
           <div style={{ 
             height: '10px', 
             width: '100%', 
@@ -269,13 +287,13 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
           }}>
             <div style={{ 
               height: '100%', 
-              width: `${Math.min(100, audioLevel * 2)}%`, 
+              width: `${Math.min(100, audioLevel)}%`, 
               background: isSilent ? '#f55' : '#5f5',
               transition: 'width 0.1s'
             }}></div>
           </div>
           <div style={{ marginTop: '5px' }}>
-            {isSilent ? `Silent: ${silenceDuration}ms` : `Sound: ${speechDuration}ms`}
+            {isSilent ? `Silent: ${silenceDuration}ms` : 'Speech detected'}
           </div>
           <div>
             Speech: {speechDetectedRef.current ? 'YES' : 'NO'}
