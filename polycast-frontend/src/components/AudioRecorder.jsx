@@ -14,6 +14,11 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
   const lastSoundTimeRef = useRef(0);
   const speechDetectedRef = useRef(false); // Track if real speech was detected
   
+  // Audio visualization state
+  const [audioLevel, setAudioLevel] = useState(0);
+  const [isSilent, setIsSilent] = useState(true);
+  const [silenceDuration, setSilenceDuration] = useState(0);
+  
   // Get microphone access on mount
   useEffect(() => {
     async function getStream() {
@@ -65,6 +70,7 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
       
       // Reset speech detection for this segment
       speechDetectedRef.current = false;
+      lastSoundTimeRef.current = Date.now();
       
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
@@ -76,7 +82,7 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
         // Send the audio data when recorder stops
         if (audioChunksRef.current.length > 0) {
           const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-          console.log('Sending audio chunk, size:', blob.size, 'speech detected:', speechDetectedRef.current);
+          console.log('Sending audio chunk, size:', blob.size, 'bytes, speech detected:', speechDetectedRef.current);
           sendMessage(blob);
           if (onAudioSent) onAudioSent();
         }
@@ -84,7 +90,6 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
       
       // Start recording
       recorder.start();
-      lastSoundTimeRef.current = Date.now();
       
       // Start silence detection
       if (silenceDetectorRef.current) {
@@ -101,61 +106,83 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
         // Calculate average volume
         const avg = dataArray.reduce((sum, val) => sum + val, 0) / dataArray.length;
         
-        if (avg > 15) { // Slightly higher threshold to avoid background noise
+        // Update UI for debugging
+        setAudioLevel(avg);
+        
+        // VERY low thresholds to ensure detection works
+        const SILENCE_THRESHOLD = 5;
+        const SPEECH_THRESHOLD = 8;
+        
+        if (avg > SILENCE_THRESHOLD) {
           // Sound detected, update timestamp
           lastSoundTimeRef.current = Date.now();
+          setIsSilent(false);
+          setSilenceDuration(0);
           
           // If we detect significant volume, mark as speech
-          if (avg > 25) {
+          if (avg > SPEECH_THRESHOLD) {
+            if (!speechDetectedRef.current) {
+              console.log(`Speech detected! Level: ${avg.toFixed(1)}`);
+            }
             speechDetectedRef.current = true;
           }
         } else {
-          // Check if we've had silence for >500ms
-          const silenceDuration = Date.now() - lastSoundTimeRef.current;
+          // We're in silence
+          setIsSilent(true);
           
-          // Only send if:
-          // 1. We've been silent for >= 500ms
-          // 2. The recorder is still recording
-          // 3. We detected real speech in this segment
-          if (silenceDuration >= 500 && 
+          // Check how long we've been silent
+          const duration = Date.now() - lastSoundTimeRef.current;
+          setSilenceDuration(duration);
+          
+          // Only send if speech was detected and we've been silent for 500ms
+          if (duration >= 500 && 
               mediaRecorderRef.current.state === 'recording' && 
               speechDetectedRef.current) {
             
-            console.log(`Pause detected after speech (${silenceDuration}ms), sending chunk`);
+            console.log(`PAUSE DETECTED after speech (${duration}ms), sending chunk`);
             const currentRecorder = mediaRecorderRef.current;
             
-            // Stop current recorder
-            currentRecorder.stop();
-            
-            // Create new recorder after a small delay
-            setTimeout(() => {
-              if (isRecording) {
-                const newRecorder = new MediaRecorder(streamRef.current);
-                mediaRecorderRef.current = newRecorder;
-                audioChunksRef.current = [];
-                
-                // Reset speech detection for new segment
-                speechDetectedRef.current = false;
-                
-                newRecorder.ondataavailable = (e) => {
-                  if (e.data.size > 0) {
-                    audioChunksRef.current.push(e.data);
+            try {
+              // Stop current recorder
+              currentRecorder.stop();
+              
+              // Create new recorder after a small delay
+              setTimeout(() => {
+                if (isRecording) {
+                  try {
+                    const newRecorder = new MediaRecorder(streamRef.current);
+                    mediaRecorderRef.current = newRecorder;
+                    audioChunksRef.current = [];
+                    
+                    // Reset speech detection for new segment
+                    speechDetectedRef.current = false;
+                    
+                    newRecorder.ondataavailable = (e) => {
+                      if (e.data.size > 0) {
+                        audioChunksRef.current.push(e.data);
+                      }
+                    };
+                    
+                    newRecorder.onstop = () => {
+                      if (audioChunksRef.current.length > 0) {
+                        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                        console.log('Sending audio chunk, size:', blob.size, 'bytes, speech detected:', speechDetectedRef.current);
+                        sendMessage(blob);
+                        if (onAudioSent) onAudioSent();
+                      }
+                    };
+                    
+                    newRecorder.start();
+                    console.log('Started new recorder after pause');
+                    lastSoundTimeRef.current = Date.now();
+                  } catch (e) {
+                    console.error('Error creating new recorder:', e);
                   }
-                };
-                
-                newRecorder.onstop = () => {
-                  if (audioChunksRef.current.length > 0) {
-                    const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-                    console.log('Sending audio chunk, size:', blob.size, 'speech detected:', speechDetectedRef.current);
-                    sendMessage(blob);
-                    if (onAudioSent) onAudioSent();
-                  }
-                };
-                
-                newRecorder.start();
-                lastSoundTimeRef.current = Date.now();
-              }
-            }, 50);
+                }
+              }, 50);
+            } catch (e) {
+              console.error('Error stopping recorder:', e);
+            }
           }
         }
       }, 100);
@@ -173,12 +200,53 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
         clearInterval(silenceDetectorRef.current);
         silenceDetectorRef.current = null;
       }
+      
+      // Reset UI
+      setAudioLevel(0);
+      setIsSilent(true);
+      setSilenceDuration(0);
     }
   }, [isRecording, sendMessage, onAudioSent, micError]);
   
   return (
     <div className="audio-recorder">
       {micError && <div style={{ color: 'red' }}>{micError}</div>}
+      
+      {/* Audio level meter for debugging */}
+      {isRecording && (
+        <div style={{ 
+          position: 'fixed', 
+          bottom: '20px', 
+          right: '20px', 
+          padding: '10px', 
+          background: 'rgba(0,0,0,0.8)',
+          color: 'white',
+          borderRadius: '5px',
+          zIndex: 9999,
+          fontSize: '12px'
+        }}>
+          <div>Level: {audioLevel.toFixed(1)}</div>
+          <div style={{ 
+            height: '10px', 
+            width: '100%', 
+            background: '#333',
+            marginTop: '5px'
+          }}>
+            <div style={{ 
+              height: '100%', 
+              width: `${Math.min(100, audioLevel * 2)}%`, 
+              background: isSilent ? '#f55' : '#5f5',
+              transition: 'width 0.1s'
+            }}></div>
+          </div>
+          <div style={{ marginTop: '5px' }}>
+            {isSilent ? `Silent: ${silenceDuration}ms` : 'Sound detected'}
+          </div>
+          <div>
+            Speech: {speechDetectedRef.current ? 'YES' : 'NO'}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
