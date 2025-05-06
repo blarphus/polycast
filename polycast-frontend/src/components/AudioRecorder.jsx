@@ -1,227 +1,165 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 
 function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const streamRef = useRef(null); 
-  const [segmentActive, setSegmentActive] = useState(false);
-  const doNotSendRef = useRef(false); 
   const [micError, setMicError] = useState(null);
   
-  // Refs for audio processing
+  // Simple audio detection
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
-  const silenceTimeoutRef = useRef(null);
-  
-  // State machine: 'idle' -> 'recording' -> 'paused'
-  const recorderStateRef = useRef('idle');
-  const speechDetectedRef = useRef(false);
+  const silenceDetectorRef = useRef(null);
   const lastSoundTimeRef = useRef(0);
   
-  // Debug logger that doesn't spam the console
-  const debugLog = useCallback((message) => {
-    // Only log state transitions and important events
-    if (message.includes('State') || message.includes('speech') || message.includes('silence')) {
-      console.log(message);
-    }
-  }, []);
-
-  // Acquire microphone stream on mount
+  // Get microphone access on mount
   useEffect(() => {
     async function getStream() {
       try {
-        if (!streamRef.current) {
-          streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
-          setMicError(null);
-          
-          // Set up audio context and analyzer for silence detection
-          audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-          analyserRef.current = audioContextRef.current.createAnalyser();
-          analyserRef.current.fftSize = 256;
-          
-          const source = audioContextRef.current.createMediaStreamSource(streamRef.current);
-          source.connect(analyserRef.current);
-        }
+        streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
+        
+        // Set up audio analyzer for detecting volume
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+        analyserRef.current = audioContextRef.current.createAnalyser();
+        analyserRef.current.fftSize = 256;
+        
+        const source = audioContextRef.current.createMediaStreamSource(streamRef.current);
+        source.connect(analyserRef.current);
+        
+        setMicError(null);
       } catch (err) {
-        setMicError('Microphone access denied or unavailable. Please allow microphone access.');
-        streamRef.current = null;
+        setMicError('Microphone access denied or unavailable');
+        console.error('Mic error:', err);
       }
     }
+    
     getStream();
     
-    // Cleanup on unmount
     return () => {
+      // Clean up on unmount
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
-        streamRef.current = null;
+      }
+      if (silenceDetectorRef.current) {
+        clearInterval(silenceDetectorRef.current);
       }
       if (audioContextRef.current) {
         audioContextRef.current.close();
       }
-      if (silenceTimeoutRef.current) {
-        clearInterval(silenceTimeoutRef.current);
-      }
     };
   }, []);
-
-  // Start a new MediaRecorder
-  const startRecording = useCallback(() => {
-    if (!streamRef.current || mediaRecorderRef.current) return;
-    
-    const SUPPORTED_MIME_TYPE = 'audio/webm;codecs=opus';
-    let mimeType = SUPPORTED_MIME_TYPE;
-    if (!MediaRecorder.isTypeSupported(mimeType)) {
-      mimeType = 'audio/webm';
-      if (!MediaRecorder.isTypeSupported(mimeType)) {
-        console.error('AUDIO_RECORDER: Browser does not support audio/webm recording.');
-        return;
-      }
-    }
-    
-    mediaRecorderRef.current = new MediaRecorder(streamRef.current, { mimeType });
-    audioChunksRef.current = [];
-    
-    mediaRecorderRef.current.ondataavailable = (event) => {
-      if (event.data && event.data.size > 0) {
-        audioChunksRef.current.push(event.data);
-      }
-    };
-    
-    mediaRecorderRef.current.onstop = () => {
-      // Only send if there's meaningful content (min 1KB) and this wasn't manually stopped
-      const hasContent = audioChunksRef.current.length > 0 && 
-                         audioChunksRef.current.some(chunk => chunk.size > 1024);
-      
-      if (!doNotSendRef.current && hasContent && speechDetectedRef.current) {
-        const audioBlob = new Blob(audioChunksRef.current, { type: SUPPORTED_MIME_TYPE });
-        debugLog(`Sending audio blob: ${audioBlob.size} bytes`);
-        
-        // File debug info
-        if (audioBlob.size > 0) {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const arr = new Uint8Array(reader.result);
-            const hex = Array.from(arr.slice(0, 16)).map(b => b.toString(16).padStart(2, '0')).join(' ');
-            debugLog(`Audio blob type: ${audioBlob.type}, size: ${audioBlob.size}, first 16 bytes: ${hex}`);
-          };
-          reader.readAsArrayBuffer(audioBlob);
-          
-          sendMessage(audioBlob);
-          if (onAudioSent) {
-            onAudioSent();
-          }
-        }
-      } else {
-        debugLog('Not sending audio: ' + 
-          (!hasContent ? 'insufficient content' : 
-           doNotSendRef.current ? 'manually stopped' : 
-           !speechDetectedRef.current ? 'no speech detected' : 'unknown reason'));
-      }
-      
-      // Clear state
-      audioChunksRef.current = [];
-      mediaRecorderRef.current = null;
-      recorderStateRef.current = 'idle';
-      speechDetectedRef.current = false;
-      setSegmentActive(false);
-    };
-    
-    mediaRecorderRef.current.start();
-    recorderStateRef.current = 'recording';
-    debugLog('State transition: idle -> recording (MediaRecorder started)');
-    setSegmentActive(true);
-  }, [sendMessage, onAudioSent, debugLog]);
-
-  // Process audio data to detect speech and silence
-  const processAudio = useCallback(() => {
-    if (!analyserRef.current || !isRecording) return;
-    
-    const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-    analyserRef.current.getByteFrequencyData(dataArray);
-    
-    // Calculate average volume
-    const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
-    const THRESHOLD = 10; // Volume threshold (1-255)
-    const isSpeaking = average >= THRESHOLD;
-    
-    const now = Date.now();
-    
-    // State machine logic
-    switch (recorderStateRef.current) {
-      case 'idle':
-        // When in idle state and speech detected, start recording
-        if (isSpeaking) {
-          debugLog('Speech detected while idle, starting recorder');
-          speechDetectedRef.current = true;
-          lastSoundTimeRef.current = now;
-          startRecording();
-        }
-        break;
-        
-      case 'recording':
-        // In recording state
-        if (isSpeaking) {
-          // Reset last sound time whenever we hear something
-          lastSoundTimeRef.current = now;
-          // Mark that real speech was detected (not just background noise)
-          speechDetectedRef.current = true;
-        } else {
-          // Check for silence duration
-          const silenceDuration = now - lastSoundTimeRef.current;
-          
-          // If silent for >500ms and we had detected speech before, stop recording
-          if (silenceDuration > 500 && speechDetectedRef.current) {
-            debugLog(`Silence detected for ${silenceDuration}ms after speech, stopping recorder`);
-            
-            if (mediaRecorderRef.current) {
-              mediaRecorderRef.current.stop();
-            }
-          }
-        }
-        break;
-    }
-  }, [isRecording, startRecording, debugLog]);
-
-  // Main effect: manage recording state based on user starting/stopping
+  
+  // Handle recording state changes
   useEffect(() => {
-    if (micError) return;
+    if (!streamRef.current || micError) return;
     
     if (isRecording) {
-      // Start the audio processing interval
-      if (silenceTimeoutRef.current) {
-        clearInterval(silenceTimeoutRef.current);
+      // Start recording
+      console.log('Starting recorder');
+      
+      const recorder = new MediaRecorder(streamRef.current);
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
+      
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+      
+      recorder.onstop = () => {
+        // Send the audio data when recorder stops
+        if (audioChunksRef.current.length > 0) {
+          const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          console.log('Sending audio chunk, size:', blob.size);
+          sendMessage(blob);
+          if (onAudioSent) onAudioSent();
+        }
+      };
+      
+      // Start recording
+      recorder.start();
+      lastSoundTimeRef.current = Date.now();
+      
+      // Start silence detection
+      if (silenceDetectorRef.current) {
+        clearInterval(silenceDetectorRef.current);
       }
       
-      // Set initial state to idle but ready to detect speech
-      if (recorderStateRef.current === 'idle' && !mediaRecorderRef.current) {
-        debugLog('Ready to detect speech');
-      }
+      silenceDetectorRef.current = setInterval(() => {
+        if (!analyserRef.current || !mediaRecorderRef.current) return;
+        
+        // Get audio data
+        const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+        analyserRef.current.getByteFrequencyData(dataArray);
+        
+        // Calculate average volume
+        const avg = dataArray.reduce((sum, val) => sum + val, 0) / dataArray.length;
+        
+        if (avg > 10) {
+          // Sound detected, update timestamp
+          lastSoundTimeRef.current = Date.now();
+        } else {
+          // Check if we've had silence for >500ms
+          const silenceDuration = Date.now() - lastSoundTimeRef.current;
+          
+          if (silenceDuration >= 500 && mediaRecorderRef.current.state === 'recording') {
+            // Stop current recorder to send chunk
+            console.log(`Pause detected (${silenceDuration}ms), sending chunk`);
+            const currentRecorder = mediaRecorderRef.current;
+            
+            // Stop current recorder
+            currentRecorder.stop();
+            
+            // Create new recorder after a small delay
+            setTimeout(() => {
+              if (isRecording) {
+                const newRecorder = new MediaRecorder(streamRef.current);
+                mediaRecorderRef.current = newRecorder;
+                audioChunksRef.current = [];
+                
+                newRecorder.ondataavailable = (e) => {
+                  if (e.data.size > 0) {
+                    audioChunksRef.current.push(e.data);
+                  }
+                };
+                
+                newRecorder.onstop = () => {
+                  if (audioChunksRef.current.length > 0) {
+                    const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                    console.log('Sending audio chunk, size:', blob.size);
+                    sendMessage(blob);
+                    if (onAudioSent) onAudioSent();
+                  }
+                };
+                
+                newRecorder.start();
+                lastSoundTimeRef.current = Date.now();
+              }
+            }, 50);
+          }
+        }
+      }, 100);
       
-      silenceTimeoutRef.current = setInterval(processAudio, 100);
     } else {
-      // User stopped recording - clean up
-      if (silenceTimeoutRef.current) {
-        clearInterval(silenceTimeoutRef.current);
-        silenceTimeoutRef.current = null;
-      }
-      
-      if (mediaRecorderRef.current) {
-        debugLog('User stopped recording, closing recorder');
+      // Stop recording
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        console.log('Stopping recorder (user released key)');
         mediaRecorderRef.current.stop();
       }
       
-      // Reset state
-      recorderStateRef.current = 'idle';
+      // Clear silence detector
+      if (silenceDetectorRef.current) {
+        clearInterval(silenceDetectorRef.current);
+        silenceDetectorRef.current = null;
+      }
     }
-  }, [isRecording, processAudio, micError, debugLog]);
-
-  if (micError) {
-    return <div style={{ color: 'red', marginTop: 20, textAlign: 'center', fontWeight: 'bold' }}>{micError}</div>;
-  }
+  }, [isRecording, sendMessage, onAudioSent, micError]);
   
   return (
     <div className="audio-recorder">
+      {micError && <div style={{ color: 'red' }}>{micError}</div>}
     </div>
   );
 }
