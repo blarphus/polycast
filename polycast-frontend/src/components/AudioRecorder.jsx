@@ -109,9 +109,9 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
         // Update UI for debugging
         setAudioLevel(avg);
         
-        // VERY low thresholds to ensure detection works
-        const SILENCE_THRESHOLD = 5;
-        const SPEECH_THRESHOLD = 8;
+        // Increased silence threshold to better detect true silence vs speech
+        const SILENCE_THRESHOLD = 15;   // Anything below this is silence
+        const SPEECH_THRESHOLD = 30;    // Anything above this is definite speech
         
         if (avg > SILENCE_THRESHOLD) {
           // Sound detected, update timestamp
@@ -133,6 +133,11 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
           // Check how long we've been silent
           const duration = Date.now() - lastSoundTimeRef.current;
           setSilenceDuration(duration);
+          
+          // Add explicit debug logging for silence
+          if (duration > 400) {
+            console.log(`In silence for ${duration}ms, speech detected: ${speechDetectedRef.current}`);
+          }
           
           // Only send if speech was detected and we've been silent for 500ms
           if (duration >= 500 && 
