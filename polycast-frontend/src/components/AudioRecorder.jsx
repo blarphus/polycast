@@ -109,9 +109,9 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
         // Update UI for debugging
         setAudioLevel(avg);
         
-        // Increased silence threshold to better detect true silence vs speech
-        const SILENCE_THRESHOLD = 15;   // Anything below this is silence
-        const SPEECH_THRESHOLD = 30;    // Anything above this is definite speech
+        // Thresholds adjusted based on observed audio levels
+        const SILENCE_THRESHOLD = 27;   // Anything below this is silence
+        const SPEECH_THRESHOLD = 35;    // Anything above this is definite speech
         
         if (avg > SILENCE_THRESHOLD) {
           // Sound detected, update timestamp
