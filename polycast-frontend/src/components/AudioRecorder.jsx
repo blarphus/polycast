@@ -83,13 +83,19 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
       
       // Check if we've had enough speech to consider this a "real" sentence
       const MIN_SPEECH_DURATION = 700; // 0.7 seconds of actual speech required
-      if (speechDurationRef.current >= MIN_SPEECH_DURATION) {
+      if (speechDurationRef.current >= MIN_SPEECH_DURATION && !significantSpeechDetectedRef.current) {
+        console.log('Significant speech detected, duration:', speechDurationRef.current);
         significantSpeechDetectedRef.current = true;
       }
     } else {
       // Check if silence duration exceeds threshold AND we've detected significant speech
       const silenceDuration = currentTime - lastSoundDetectedTimeRef.current;
       const SILENCE_DURATION_THRESHOLD = 500; // 0.5 seconds in milliseconds
+      
+      // Debug the current state
+      if (silenceDuration > 200) {
+        console.log(`Silence: ${silenceDuration}ms, Speech significant: ${significantSpeechDetectedRef.current}, Speech duration: ${speechDurationRef.current}ms`);
+      }
       
       if (silenceDuration >= SILENCE_DURATION_THRESHOLD && 
           significantSpeechDetectedRef.current && 
@@ -103,7 +109,8 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
         mediaRecorderRef.current = null; // Prevent onstop from triggering a recursive call
         currentMediaRecorder.stop();
         
-        // Reset speech detection flags
+        // Reset speech detection flags - this doesn't take effect immediately due to the 
+        // async nature of the MediaRecorder.stop(), so we reset again in startNewSegment
         significantSpeechDetectedRef.current = false;
         speechDurationRef.current = 0;
         
@@ -115,7 +122,7 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
         }, 50);
       }
     }
-  }, [isRecording]);
+  }, [isRecording, startNewSegment]);
 
   // Helper to start a new segment (reuse stream)
   const startNewSegment = useCallback(() => {
@@ -169,6 +176,7 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
     lastVolumeCheckTimeRef.current = Date.now();
     significantSpeechDetectedRef.current = false;
     speechDurationRef.current = 0;
+    console.log('Started new recording segment, reset speech detection');
     setSegmentActive(true);
   }, [sendMessage, onAudioSent]);
 
