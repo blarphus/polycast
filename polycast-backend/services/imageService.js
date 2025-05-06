@@ -18,20 +18,35 @@ const openai = new OpenAI({
 async function generateImage(prompt, size = '1024x1024', moderation = 'auto') {
     console.log(`Generating image with prompt: "${prompt}", size: ${size}, moderation: ${moderation}`);
     try {
-        // Use the images.generations endpoint with gpt-image-1 model
-        const response = await openai.images.generate({
-            model: "gpt-image-1", // GPT-4o image generation model
-            prompt,
-            n: 1,
-            size,
-            moderation, // Content filtering sensitivity
-            response_format: 'url',
+        // Use direct HTTP request to avoid unsupported parameters
+        let fetchFn = global.fetch;
+        if (!fetchFn) {
+            fetchFn = (await import('node-fetch')).default;
+        }
+        const apiUrl = 'https://api.openai.com/v1/images/generations';
+        const response = await fetchFn(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                model: 'gpt-image-1',
+                prompt,
+                n: 1,
+                size,
+                moderation,
+            }),
         });
-
-        console.log('Image generated successfully');
-        return response.data[0].url;
+        const json = await response.json();
+        if (!response.ok) {
+            console.error('OpenAI image API error:', json);
+            throw new Error(json.error?.message || 'Failed to generate image (HTTP)');
+        }
+        console.log('Image generated successfully via HTTP');
+        return json.data[0].url;
     } catch (error) {
-        console.error('Error generating image:', error.response ? error.response.data : error.message);
+        console.error('Error generating image:', error.message || error);
         throw new Error('Failed to generate image');
     }
 }
