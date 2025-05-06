@@ -116,47 +116,48 @@ const FlashcardMode = ({ selectedWords, wordDefinitions, englishSegments }) => {
     );
   };
   
-  // Load image for current card if not already loaded
+  // Preload all images for all available cards
   useEffect(() => {
     if (availableCards.length === 0 || showStats) return;
     
-    const currentWord = availableCards[currentIndex];
-    // Only fetch if we don't already have this image loading or loaded
-    if (!wordImages[currentWord] && !imageLoading[currentWord]) {
-      console.log(`Fetching image for word: ${currentWord}`);
-      
-      // Mark as loading
-      setImageLoading(prev => ({...prev, [currentWord]: true}));
-      
-      // Find the original context for this word
-      const contextSentence = englishSegments && englishSegments.length > 0
-        ? englishSegments.find(segment => 
-            segment.text.toLowerCase().includes(currentWord.toLowerCase())
-          )?.text || ""
-        : "";
-      
-      // Generate using Charley Harper style as requested
-      const prompt = `Create a visually engaging, wordless flashcard image in the style of Charley Harper. Use bold shapes, minimal detail, and mid-century modern aesthetics to depict the concept in a memorable and metaphorical way. Avoid text or labels. Again, use no text. The word to illustrate is: "${currentWord}". Use the following context sentence to determine the correct meaning and visual depiction: "${contextSentence}"`;
-      
-      fetch(`https://polycast-server.onrender.com/api/generate-image?prompt=${encodeURIComponent(prompt)}`, {
-        mode: 'cors'
-      })
-        .then(res => {
-          if (!res.ok) throw new Error(`Failed with status: ${res.status}`);
-          return res.json();
+    availableCards.forEach(word => {
+      // Only fetch if we don't already have this image loading or loaded
+      if (!wordImages[word] && !imageLoading[word]) {
+        console.log(`Fetching image for word: ${word}`);
+        
+        // Mark as loading
+        setImageLoading(prev => ({...prev, [word]: true}));
+        
+        // Find the original context for this word
+        const contextSentence = englishSegments && englishSegments.length > 0
+          ? englishSegments.find(segment => 
+              segment.text.toLowerCase().includes(word.toLowerCase())
+            )?.text || ""
+          : "";
+        
+        // Generate using Charley Harper style as requested
+        const prompt = `Create a visually engaging, wordless flashcard image in the style of Charley Harper. Use bold shapes, minimal detail, and mid-century modern aesthetics to depict the concept in a memorable and metaphorical way. Avoid text or labels. Again, use no text. The word to illustrate is: "${word}". Use the following context sentence to determine the correct meaning and visual depiction: "${contextSentence}"`;
+        
+        fetch(`https://polycast-server.onrender.com/api/generate-image?prompt=${encodeURIComponent(prompt)}`, {
+          mode: 'cors'
         })
-        .then(data => {
-          console.log(`Image loaded for: ${currentWord}`);
-          setWordImages(prev => ({...prev, [currentWord]: data.url}));
-        })
-        .catch(err => {
-          console.error(`Error fetching image for ${currentWord}:`, err);
-        })
-        .finally(() => {
-          setImageLoading(prev => ({...prev, [currentWord]: false}));
-        });
-    }
-  }, [currentIndex, availableCards, showStats, wordImages, imageLoading, englishSegments]);
+          .then(res => {
+            if (!res.ok) throw new Error(`Failed with status: ${res.status}`);
+            return res.json();
+          })
+          .then(data => {
+            console.log(`Image loaded for: ${word}`);
+            setWordImages(prev => ({...prev, [word]: data.url}));
+          })
+          .catch(err => {
+            console.error(`Error fetching image for ${word}:`, err);
+          })
+          .finally(() => {
+            setImageLoading(prev => ({...prev, [word]: false}));
+          });
+      }
+    });
+  }, [availableCards, showStats, wordImages, imageLoading, englishSegments]);
   
   // Calculate stats for the visualization
   const calculatedStats = {

@@ -155,9 +155,14 @@ const TranscriptionDisplay = ({
       // Add the word to selected words
       setSelectedWords(prev => [...prev, word]);
       
-      // Preload the definition immediately
-      const apiUrl = `https://polycast-server.onrender.com/api/dictionary/${encodeURIComponent(word)}`;
-      console.log(`Preloading definition for "${word}" from: ${apiUrl}`);
+      // Find the sentence context where this word appears
+      const contextSentence = englishSegments.find(segment => 
+        segment.text.toLowerCase().includes(wordLower)
+      )?.text || "";
+      
+      // Preload the definition immediately with context
+      const apiUrl = `https://polycast-server.onrender.com/api/dictionary/${encodeURIComponent(word)}?context=${encodeURIComponent(contextSentence)}`;
+      console.log(`Preloading definition for "${word}" with context, from: ${apiUrl}`);
       
       fetch(apiUrl)
         .then(res => res.json())

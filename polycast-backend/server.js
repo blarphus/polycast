@@ -270,8 +270,9 @@ app.get('/api/translate/:language/:text', async (req, res) => {
 app.get('/api/dictionary/:word', async (req, res) => {
     try {
         const { word } = req.params;
-        console.log(`[Dictionary API] Getting definition for: ${word}`);
-        const definition = await llmService.getWordDefinition(word);
+        const context = req.query.context || '';
+        console.log(`[Dictionary API] Getting definition for: ${word}${context ? ' with context' : ''}`);
+        const definition = await llmService.getWordDefinition(word, context);
         res.json(definition);
     } catch (error) {
         console.error("Dictionary API error:", error);

@@ -124,10 +124,11 @@ async function translateTextBatch(text, targetLanguages) {
 /**
  * Gets a Spanish dictionary-style definition for the given English word.
  * @param {string} word The English word to define.
+ * @param {string} [context] Optional context sentence to help identify the correct meaning.
  * @returns {Promise<Object>} The definition object with Spanish definition and example.
  * @throws {Error} If initialization fails or API call fails.
  */
-async function getWordDefinition(word) {
+async function getWordDefinition(word, context = '') {
     initializeLLM(); // Ensure LLM is initialized
 
     if (!word || word.trim().length === 0) {
@@ -135,9 +136,15 @@ async function getWordDefinition(word) {
         return { definition: '', example: '' };
     }
 
+    const contextInfo = context ? 
+        `The word appears in this context: "${context}". Your definition and examples should be specific to how the word is used in this context.` : 
+        '';
+
     const prompt = `You are creating dictionary entries for non-native English speakers who are learning English. 
     
 Your job is to explain the English word "${word}" in a simple, clear way that helps beginners understand it.
+
+${contextInfo}
 
 Your response must be in JSON format with exactly these fields:
 {
@@ -150,7 +157,7 @@ Your response must be in JSON format with exactly these fields:
 
 Only return the JSON object, nothing else.`;
 
-    console.log(`[LLM Service] Getting Spanish definition for: "${word}"`);
+    console.log(`[LLM Service] Getting Spanish definition for: "${word}" ${context ? 'with context' : ''}`);
     console.log(`--- LLM Definition Prompt ---`);
     console.log(prompt);
     console.log(`--- End LLM Definition Prompt ---`);
