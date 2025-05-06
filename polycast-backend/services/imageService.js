@@ -25,7 +25,7 @@ async function generateImage(prompt, size = '1024x1024', moderation = 'auto') {
             n: 1,
             size,
             moderation, // Content filtering sensitivity
-            response_format: 'url',
+            // response_format parameter removed as it's not supported
         });
 
         console.log('Image generated successfully');
