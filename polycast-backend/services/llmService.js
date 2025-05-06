@@ -146,14 +146,28 @@ Your job is to explain the English word "${word}" in a simple, clear way that he
 
 ${contextInfo}
 
-Your response must be in JSON format with exactly these fields:
+Your response must be in JSON format with these fields:
 {
   "translation": "Spanish translation of the word",
-  "definition": "VERY SIMPLE and SHORT explanation in simple English (1-2 short sentences max). Use basic vocabulary a beginner would understand.",
-  "example": "A simple example sentence in English that uses this word. Make the context very obvious.",
   "partOfSpeech": "The part of speech (noun, verb, adjective, etc.)",
-  "frequencyRating": "A number from 1 to 5 representing how common this word is in everyday English, where 1 = extremely common (basic vocabulary), 2 = very common, 3 = moderately common, 4 = somewhat uncommon, 5 = rare or specialized"
+  "frequencyRating": "A number from 1 to 5 representing how common this word is in everyday English, where 1 = extremely common (basic vocabulary), 2 = very common, 3 = moderately common, 4 = somewhat uncommon, 5 = rare or specialized",
+  "definitions": [
+    {
+      "text": "VERY SIMPLE and SHORT explanation in simple English (1-2 short sentences max). Use basic vocabulary a beginner would understand.",
+      "example": "A simple example sentence in English that uses this word. Make the context very obvious."
+    },
+    {
+      "text": "If the word has another common meaning, provide a second SIMPLE and SHORT definition here.",
+      "example": "An example sentence for this second meaning."
+    },
+    {
+      "text": "If the word has a third common meaning, provide a third SIMPLE and SHORT definition here.",
+      "example": "An example sentence for this third meaning."
+    }
+  ]
 }
+
+If the word only has one common meaning, just include one item in the definitions array. If it has two common meanings, include two items. Only include definitions that would be useful for a language learner to know.
 
 Only return the JSON object, nothing else.`;
 
@@ -169,51 +183,77 @@ Only return the JSON object, nothing else.`;
         console.log(`[LLM Service] Received definition response: "${text.substring(0, 100)}..."`);
         
         // Extract JSON from response
-        try {
-            // Find JSON in the response (it might be wrapped in code blocks or not)
-            let jsonMatch = text.match(/```(?:json)?([^`]*?)```/s);
-            let jsonStr = jsonMatch ? jsonMatch[1].trim() : text;
-            
-            // If still not JSON object, try to find anything that looks like JSON
-            if (!jsonStr.startsWith('{') && !jsonStr.startsWith('[')) {
-                jsonMatch = text.match(/(\{.*\})/s);
-                jsonStr = jsonMatch ? jsonMatch[0] : text;
-            }
-            
-            // Try to parse the JSON
-            try {
-                return JSON.parse(jsonStr);
-            } catch (e) {
-                console.error('[LLM Service] Failed to parse JSON first attempt:', e);
-                console.error('[LLM Service] JSON string was:', jsonStr);
-                
-                // Last resort - try to extract just the JSON object
-                const lastMatch = text.match(/\{[^]*\}/);
-                if (lastMatch) {
-                    try {
-                        return JSON.parse(lastMatch[0]);
-                    } catch (e2) {
-                        console.error('[LLM Service] Failed final JSON parse attempt:', e2);
-                        throw e2;
-                    }
-                } else {
-                    throw e;
-                }
-            }
-        } catch (jsonError) {
-            console.error('[LLM Service] Error parsing definition JSON:', jsonError);
-            console.error('[LLM Service] Raw response was:', text);
-            // Return a formatted error as the definition
-            return {
-                translation: word,
-                definition: "Error obteniendo definición",
-                example: "N/A",
-                partOfSpeech: "unknown"
-            };
-        }
+        let parsedResponse = extractJsonFromText(text);
+        
+        // Normalize the response format for backward compatibility
+        parsedResponse = normalizeDefinitionFormat(parsedResponse);
+        
+        return parsedResponse;
     } catch (error) {
         console.error('[LLM Service] Error during definition API call:', error);
         throw new Error(`LLM API Error: ${error.message}`);
+    }
+}
+
+// Helper to extract JSON from LLM response text
+function extractJsonFromText(text) {
+    try {
+        // Find JSON in the response (it might be wrapped in code blocks or not)
+        let jsonMatch = text.match(/```(?:json)?([^`]*?)```/s);
+        let jsonStr = jsonMatch ? jsonMatch[1].trim() : text;
+        
+        // If still not JSON object, try to find anything that looks like JSON
+        if (!jsonStr.startsWith('{') && !jsonStr.startsWith('[')) {
+            jsonMatch = text.match(/(\{.*\})/s);
+            jsonStr = jsonMatch ? jsonMatch[0] : text;
+        }
+        
+        // Try to parse the JSON
+        return JSON.parse(jsonStr);
+    } catch (e) {
+        console.error('[LLM Service] Failed to parse JSON:', e);
+        
+        // Last resort - try to extract just the JSON object
+        const lastMatch = text.match(/\{[^]*\}/);
+        if (lastMatch) {
+            try {
+                return JSON.parse(lastMatch[0]);
+            } catch (e2) {
+                console.error('[LLM Service] Failed final JSON parse attempt:', e2);
+                throw e2;
+            }
+        } else {
+            throw e;
+        }
+    }
+}
+
+// Helper to normalize the definition format for backward compatibility
+function normalizeDefinitionFormat(response) {
+    try {
+        // If we have the new format with definitions array
+        if (response.definitions && Array.isArray(response.definitions) && response.definitions.length > 0) {
+            // Copy the first definition to the root level for backward compatibility
+            if (!response.definition && response.definitions[0].text) {
+                response.definition = response.definitions[0].text;
+            }
+            if (!response.example && response.definitions[0].example) {
+                response.example = response.definitions[0].example;
+            }
+        } 
+        // If we have the old format without definitions array, create one
+        else if (response.definition && !response.definitions) {
+            response.definitions = [{
+                text: response.definition,
+                example: response.example || ''
+            }];
+        }
+        
+        return response;
+    } catch (e) {
+        console.error('[LLM Service] Error normalizing definition format:', e);
+        // Return whatever we had before the normalization attempt
+        return response;
     }
 }
 

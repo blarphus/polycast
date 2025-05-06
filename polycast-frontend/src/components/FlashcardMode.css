@@ -199,8 +199,39 @@
   font-size: 16px;
   line-height: 1.6;
   color: #d4d4e8;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   text-align: left;
+  width: 100%;
+}
+
+.flashcard-definitions-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.flashcard-definition-item {
+  padding: 10px;
+  border-radius: 8px;
+  background-color: rgba(124, 98, 255, 0.08);
+  border-left: 3px solid #7c62ff;
+}
+
+.flashcard-definition-item .flashcard-definition {
+  margin-bottom: 8px;
+  font-size: 15px;
+}
+
+.flashcard-definition-item:nth-child(2) {
+  border-left-color: #4ad991;
+  background-color: rgba(74, 217, 145, 0.08);
+}
+
+.flashcard-definition-item:nth-child(3) {
+  border-left-color: #ff7c62;
+  background-color: rgba(255, 124, 98, 0.08);
 }
 
 .flashcard-example {

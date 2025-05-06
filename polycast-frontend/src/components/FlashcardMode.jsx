@@ -138,15 +138,8 @@ const FlashcardMode = ({ selectedWords, wordDefinitions, englishSegments }) => {
         // Mark as loading
         setImageLoading(prev => ({...prev, [word]: true}));
         
-        // Find the original context for this word
-        const contextSentence = englishSegments && englishSegments.length > 0
-          ? englishSegments.find(segment => 
-              segment.text.toLowerCase().includes(word.toLowerCase())
-            )?.text || ""
-          : "";
-        
-        // Generate using Charley Harper style as requested
-        const prompt = `Create a visually engaging, wordless flashcard image in the style of Charley Harper. Use bold shapes, minimal detail, and mid-century modern aesthetics to depict the concept in a memorable and metaphorical way. Avoid text or labels. Again, use no text. The word to illustrate is: "${word}". Use the following context sentence to determine the correct meaning and visual depiction: "${contextSentence}"`;
+        // Remove contextual awareness - generate image based solely on the word
+        const prompt = `Create a visually engaging, wordless flashcard image in the style of Charley Harper. Use bold shapes, minimal detail, and mid-century modern aesthetics to depict the concept in a memorable and metaphorical way. Avoid text or labels. Again, use no text. The word to illustrate is: "${word}"`;
         
         fetch(`https://polycast-server.onrender.com/api/generate-image?prompt=${encodeURIComponent(prompt)}`, {
           mode: 'cors'
@@ -301,25 +294,60 @@ const FlashcardMode = ({ selectedWords, wordDefinitions, englishSegments }) => {
               <div className="flashcard-back">
                 <div className="flashcard-content">
                   <div className="flashcard-translation">{definition?.translation || ''}</div>
-                  <div className="flashcard-definition">{definition?.definition || ''}</div>
-                  <div className="flashcard-example">
-                    {definition?.example ? (
-                      <span>
-                        {(() => {
-                          const wordRegex = new RegExp(`\\b${currentWord.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\b`, 'gi');
-                          return definition.example.split(wordRegex).reduce((acc, part, idx, arr) => {
-                            acc.push(part);
-                            if (idx < arr.length - 1) {
-                              acc.push(<strong key={idx} style={{ color: '#ffe066', fontWeight: 700 }}>{currentWord}</strong>);
-                            }
-                            return acc;
-                          }, []);
-                        })()}
-                      </span>
-                    ) : (
-                      <span>No example available</span>
-                    )}
-                  </div>
+                  
+                  {/* Handle multiple definitions */}
+                  {definition?.definitions ? (
+                    // If we have an array of definitions
+                    <div className="flashcard-definitions-container">
+                      {definition.definitions.slice(0, 3).map((def, index) => (
+                        <div key={index} className="flashcard-definition-item">
+                          <div className="flashcard-definition">{def.text || ''}</div>
+                          <div className="flashcard-example">
+                            {def.example ? (
+                              <span>
+                                {(() => {
+                                  const wordRegex = new RegExp(`\\b${currentWord.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\b`, 'gi');
+                                  return def.example.split(wordRegex).reduce((acc, part, idx, arr) => {
+                                    acc.push(part);
+                                    if (idx < arr.length - 1) {
+                                      acc.push(<strong key={idx} style={{ color: '#ffe066', fontWeight: 700 }}>{currentWord}</strong>);
+                                    }
+                                    return acc;
+                                  }, []);
+                                })()}
+                              </span>
+                            ) : (
+                              <span>No example available</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    // Fallback for legacy format with single definition
+                    <>
+                      <div className="flashcard-definition">{definition?.definition || ''}</div>
+                      <div className="flashcard-example">
+                        {definition?.example ? (
+                          <span>
+                            {(() => {
+                              const wordRegex = new RegExp(`\\b${currentWord.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\b`, 'gi');
+                              return definition.example.split(wordRegex).reduce((acc, part, idx, arr) => {
+                                acc.push(part);
+                                if (idx < arr.length - 1) {
+                                  acc.push(<strong key={idx} style={{ color: '#ffe066', fontWeight: 700 }}>{currentWord}</strong>);
+                                }
+                                return acc;
+                              }, []);
+                            })()}
+                          </span>
+                        ) : (
+                          <span>No example available</span>
+                        )}
+                      </div>
+                    </>
+                  )}
+                  
                   <div className="flashcard-rating">
                     <button 
                       className="incorrect-btn"
