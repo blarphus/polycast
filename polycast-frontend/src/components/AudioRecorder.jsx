@@ -15,9 +15,10 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
   const analyserRef = useRef(null);
   const silenceTimeoutRef = useRef(null);
   const lastSoundDetectedTimeRef = useRef(Date.now());
-  const silenceDetectionEnabledRef = useRef(false);
-  const hasSpeechRef = useRef(false);  // Track if speech occurred in current segment
-  const inSilencePeriodRef = useRef(false);  // Track if we're in an extended silence
+  
+  // Simpler refs for tracking state
+  const isSilentRef = useRef(true);
+  const pauseDurationRef = useRef(0);
 
   // Acquire microphone stream on mount
   useEffect(() => {
@@ -57,9 +58,9 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
     };
   }, []);
 
-  // Silence detection function
+  // Simpler silence detection function that works with running averages
   const detectSilence = useCallback(() => {
-    if (!analyserRef.current || !silenceDetectionEnabledRef.current) return;
+    if (!analyserRef.current || !isRecording || !mediaRecorderRef.current) return;
     
     const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
     analyserRef.current.getByteFrequencyData(dataArray);
@@ -67,49 +68,41 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
     // Calculate volume level (average of frequency data)
     const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
     
-    const SILENCE_THRESHOLD = 15; // Adjust this value as needed
-    const isSilent = average < SILENCE_THRESHOLD;
+    // More forgiving silence threshold
+    const SILENCE_THRESHOLD = 10;
+    const currentlySilent = average < SILENCE_THRESHOLD;
     
-    if (!isSilent) {
-      // Sound detected, update timestamp
+    if (!currentlySilent) {
+      // Reset silence duration when sound is detected
+      pauseDurationRef.current = 0;
+      isSilentRef.current = false;
       lastSoundDetectedTimeRef.current = Date.now();
-      
-      // If we were in a silence period and now detect speech, start a new segment
-      if (inSilencePeriodRef.current) {
-        console.log('Speech detected after silence period');
-        inSilencePeriodRef.current = false;
-        hasSpeechRef.current = true;
+    } else {
+      // If we're currently silent, increment the pause duration
+      if (!isSilentRef.current) {
+        // We just transitioned from speech to silence
+        pauseDurationRef.current = Date.now() - lastSoundDetectedTimeRef.current;
+      } else {
+        // We're continuing to be silent
+        pauseDurationRef.current = Date.now() - lastSoundDetectedTimeRef.current;
       }
       
-      // Mark that we've detected speech in this segment
-      hasSpeechRef.current = true;
-    } else {
-      // Check if silence duration exceeds threshold
-      const silenceDuration = Date.now() - lastSoundDetectedTimeRef.current;
-      const SILENCE_DURATION_THRESHOLD = 500; // 0.5 seconds in milliseconds
+      isSilentRef.current = true;
       
-      // Only send audio chunk if:
-      // 1. We've been silent for 0.5 seconds
-      // 2. We're not already in a silence period
-      // 3. We're recording
-      // 4. We've detected speech in this segment
-      if (silenceDuration >= SILENCE_DURATION_THRESHOLD && 
-          !inSilencePeriodRef.current && 
+      // If we've been silent for 0.5 seconds and we're still recording, send the chunk
+      if (pauseDurationRef.current >= 500 && 
           mediaRecorderRef.current && 
-          mediaRecorderRef.current.state === 'recording' &&
-          hasSpeechRef.current) {
+          mediaRecorderRef.current.state === 'recording') {
         
-        console.log('Silence detected after speech, sending audio chunk');
-        // Stop current recording to trigger the onstop event which sends the data
+        console.log(`Silence detected for ${pauseDurationRef.current}ms - sending audio chunk`);
+        
+        // Stop current recording to trigger onstop event
         const currentMediaRecorder = mediaRecorderRef.current;
-        mediaRecorderRef.current = null; // Prevent onstop from triggering a recursive call
+        mediaRecorderRef.current = null;
         currentMediaRecorder.stop();
         
-        // Mark that we're in a silence period now
-        inSilencePeriodRef.current = true;
-        hasSpeechRef.current = false;
-        
-        // Don't automatically start a new segment - wait for speech to resume
+        // After stopping, don't immediately start a new segment
+        // The next speech will trigger a new segment in the isRecording useEffect
       }
     }
   }, [isRecording]);
@@ -134,15 +127,11 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
       }
     };
     mediaRecorderRef.current.onstop = () => {
-      // Only send if:
-      // 1. Not stopping from Stop Recording 
-      // 2. There are audio chunks
-      // 3. At least one chunk has meaningful size
-      // 4. We detected speech in this segment
+      // Only send if there's some meaningful content (just a very small threshold)
       const hasContent = audioChunksRef.current.length > 0 && 
-                         audioChunksRef.current.some(chunk => chunk.size > 500);
+                         audioChunksRef.current.some(chunk => chunk.size > 100);
       
-      if (!doNotSendRef.current && hasContent && hasSpeechRef.current) {
+      if (!doNotSendRef.current && hasContent) {
         const audioBlob = new Blob(audioChunksRef.current, { type: SUPPORTED_MIME_TYPE });
         // Debug info
         const reader = new FileReader();
@@ -153,37 +142,50 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
           console.log('[Polycast Debug] Final first 16 bytes:', hex);
         };
         reader.readAsArrayBuffer(audioBlob);
-        console.log('Sending final audio blob:', audioBlob);
+        console.log('Sending audio blob:', audioBlob);
         sendMessage(audioBlob);
         if (onAudioSent) {
           onAudioSent();
         }
-        audioChunksRef.current = [];
-      } else {
-        console.log('Not sending audio blob - insufficient content or no speech detected');
-        // Always clear chunks
-        audioChunksRef.current = [];
+      } else if (!hasContent) {
+        console.log('Not sending audio blob - insufficient content');
       }
+      
+      // Always clear chunks
+      audioChunksRef.current = [];
       setSegmentActive(false);
+      
+      // Reset silence detection state
+      lastSoundDetectedTimeRef.current = Date.now();
+      pauseDurationRef.current = 0;
+      
+      // If still recording but no mediaRecorder, start a new one
+      if (isRecording && !mediaRecorderRef.current) {
+        setTimeout(() => {
+          if (isRecording) {
+            startNewSegment();
+          }
+        }, 50); // Small delay to avoid rapid starting/stopping
+      }
     };
+    
     mediaRecorderRef.current.start();
     console.log('MediaRecorder started');
     
     // Reset silence detection
     lastSoundDetectedTimeRef.current = Date.now();
-    inSilencePeriodRef.current = false;
-    hasSpeechRef.current = false;
+    pauseDurationRef.current = 0;
+    isSilentRef.current = true;
     setSegmentActive(true);
-  }, [sendMessage, onAudioSent]);
+  }, [isRecording, sendMessage, onAudioSent]);
 
   // Start/stop MediaRecorder on isRecording change
   useEffect(() => {
     if (micError) return;
     
     if (isRecording) {
-      if (streamRef.current) {
+      if (streamRef.current && !mediaRecorderRef.current) {
         startNewSegment();
-        silenceDetectionEnabledRef.current = true;
         
         // Start silence detection interval
         if (silenceTimeoutRef.current) {
@@ -192,8 +194,6 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
         silenceTimeoutRef.current = setInterval(detectSilence, 100); // Check every 100ms
       }
     } else {
-      silenceDetectionEnabledRef.current = false;
-      
       // Clear silence detection interval
       if (silenceTimeoutRef.current) {
         clearInterval(silenceTimeoutRef.current);
@@ -201,10 +201,11 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
       }
       
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        // If we're stopping recording entirely, set this flag so onstop doesn't try to restart
+        doNotSendRef.current = false; // Always send the final chunk when stopping manually
         mediaRecorderRef.current.stop();
       }
     }
-    // Don't clean up stream here
   }, [isRecording, startNewSegment, detectSilence, micError]);
 
   if (micError) {
