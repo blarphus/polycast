@@ -283,9 +283,12 @@ app.get('/api/dictionary/:word', async (req, res) => {
 app.get('/api/generate-image', async (req, res) => {
     const prompt = req.query.prompt || 'A photo of an iguana';
     const size = req.query.size || '1024x1024';
-    console.log(`[Image Generation] Request received. Prompt: "${prompt.substring(0, 30)}...", Size: ${size}`);
+    const moderation = req.query.moderation || 'auto';
+    
+    console.log(`[Image Generation] Request received. Prompt: "${prompt.substring(0, 30)}...", Size: ${size}, Moderation: ${moderation}`);
+    
     try {
-        const url = await generateImage(prompt, size);
+        const url = await generateImage(prompt, size, moderation);
         console.log(`[Image Generation] Success! Generated image URL: ${url.substring(0, 60)}...`);
         res.json({ url });
     } catch (error) {

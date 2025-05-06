@@ -11,24 +11,24 @@ const openai = new OpenAI({
 /**
  * Generates an image based on a prompt using OpenAI's image generation API.
  * @param {string} prompt - The text prompt to generate the image from.
- * @param {string} [size='1024x1024'] - The desired size of the image.
- * @param {string} [quality='standard'] - The quality of the image ('standard' or 'hd').
+ * @param {string} [size='1024x1024'] - The desired size of the image (1024x1024, 1792x1024, 1024x1792).
+ * @param {string} [moderation='auto'] - Content filtering sensitivity ('auto' or 'low').
  * @returns {Promise<string>} - The URL of the generated image.
  */
-async function generateImage(prompt, size = '1024x1024', quality = 'standard') {
-    console.log(`Generating image with prompt: "${prompt}", size: ${size}, quality: ${quality}`);
+async function generateImage(prompt, size = '1024x1024', moderation = 'auto') {
+    console.log(`Generating image with prompt: "${prompt}", size: ${size}, moderation: ${moderation}`);
     try {
-        // Use the modern images.generate endpoint with gpt-image-1 model
+        // Use the images.generations endpoint with gpt-image-1 model
         const response = await openai.images.generate({
-            model: "gpt-image-1", // Specify the newer GPT-based image model
+            model: "gpt-image-1", // GPT-4o image generation model
             prompt,
             n: 1,
             size,
-            quality, // Only include quality if supported
+            moderation, // Content filtering sensitivity
             response_format: 'url',
         });
 
-        console.log('Image generated successfully:', response.data[0].url);
+        console.log('Image generated successfully');
         return response.data[0].url;
     } catch (error) {
         console.error('Error generating image:', error.response ? error.response.data : error.message);
