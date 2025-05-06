@@ -23,7 +23,7 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent, autoSend }) {
   const FRAME_MS = 100;
   const GAP_MS = 900;            // flush after 900ms silence
   const MIN_SPEECH_MS = 250;     // need 250ms > thresh to mark as speech
-  const MARGIN_DB = 6;           // threshold = noise + 6dB
+  const DEFAULT_MARGIN_DB = 6;   // default threshold = noise + 6dB
   
   // Audio visualization state
   const [audioLevel, setAudioLevel] = useState(0);
@@ -31,6 +31,8 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent, autoSend }) {
   const [silenceDuration, setSilenceDuration] = useState(0);
   const [zeroCrossings, setZeroCrossings] = useState(0);
   const [threshold, setThreshold] = useState(0);
+  const [marginDb, setMarginDb] = useState(DEFAULT_MARGIN_DB); // User-adjustable margin
+  const [isDragging, setIsDragging] = useState(false);
   
   // Helper functions
   function rawRMS(arr) {
@@ -197,7 +199,7 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent, autoSend }) {
         setAudioLevel(smoothRMS * 100);
         
         // Threshold: baseline × 10^(marginDB/20)
-        const thresh = baselineRMSRef.current * Math.pow(10, MARGIN_DB / 20);
+        const thresh = baselineRMSRef.current * Math.pow(10, marginDb / 20);
         setThreshold(thresh * 100); // For display
         
         // Check if current level is above threshold
@@ -278,9 +280,23 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent, autoSend }) {
     } else {
       // Stop recording if user releases key
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-        // Always send the final chunk when user stops recording
+        // Only send the final chunk when user stops recording if NOT in auto-send mode
         console.log('Stopping recorder (user released key)');
-        mediaRecorderRef.current.stop();
+        
+        if (!autoSend) {
+          // In manual mode, send the audio when recording stops
+          mediaRecorderRef.current.stop();
+        } else {
+          // In auto-send mode, just discard any unsent audio
+          mediaRecorderRef.current.stop();
+          // Override the onstop handler temporarily to prevent sending
+          const originalOnStop = mediaRecorderRef.current.onstop;
+          mediaRecorderRef.current.onstop = () => {
+            console.log('Auto-send mode: Discarding final audio chunk on recording stop');
+            // Reset the chunks without sending
+            audioChunksRef.current = [];
+          };
+        }
       }
       
       // Clear silence detector
@@ -323,7 +339,8 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent, autoSend }) {
             height: '10px', 
             width: '100%', 
             background: '#333',
-            marginTop: '5px'
+            marginTop: '5px',
+            position: 'relative',
           }}>
             <div style={{ 
               height: '100%', 
@@ -331,14 +348,52 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent, autoSend }) {
               background: isSilent ? '#f55' : '#5f5',
               transition: 'width 0.1s'
             }}></div>
-            <div style={{
-              position: 'absolute',
-              height: '10px',
-              width: '2px',
-              background: '#fff',
-              left: `calc(${Math.min(100, threshold)}% + 10px)`,
-              marginTop: '-10px'
-            }}></div>
+            {/* Make the threshold marker draggable */}
+            <div 
+              style={{
+                position: 'absolute',
+                height: '20px',
+                width: '8px',
+                background: '#fff',
+                left: `${Math.min(100, threshold)}%`,
+                top: '-5px',
+                cursor: 'col-resize',
+                borderRadius: '2px'
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+                
+                // Add event listeners for dragging
+                const handleMouseMove = (moveEvent) => {
+                  if (isDragging && baselineRMSRef.current) {
+                    const rect = e.currentTarget.parentElement.getBoundingClientRect();
+                    const percentage = Math.max(0, Math.min(100, 
+                      ((moveEvent.clientX - rect.left) / rect.width) * 100
+                    ));
+                    
+                    // Convert percentage back to dB
+                    // Since threshold = baseline * 10^(margin/20)
+                    // and percentage = threshold * 100
+                    // margin = 20 * log10(percentage / (baseline * 100))
+                    const newMargin = Math.max(0, Math.min(20, 
+                      20 * Math.log10(percentage / (baselineRMSRef.current * 100))
+                    ));
+                    
+                    setMarginDb(Number.isFinite(newMargin) ? newMargin : DEFAULT_MARGIN_DB);
+                  }
+                };
+                
+                const handleMouseUp = () => {
+                  setIsDragging(false);
+                  window.removeEventListener('mousemove', handleMouseMove);
+                  window.removeEventListener('mouseup', handleMouseUp);
+                };
+                
+                window.addEventListener('mousemove', handleMouseMove);
+                window.addEventListener('mouseup', handleMouseUp);
+              }}
+            ></div>
           </div>
           <div style={{ marginTop: '5px' }}>
             {isSilent ? `Silent: ${silenceDuration}ms` : 'Speech detected'}
