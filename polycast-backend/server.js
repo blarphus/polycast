@@ -289,7 +289,11 @@ app.get('/api/generate-image', async (req, res) => {
     
     try {
         const url = await generateImage(prompt, size, moderation);
-        console.log(`[Image Generation] Success! Generated image URL: ${url.substring(0, 60)}...`);
+        if (url) {
+            console.log(`[Image Generation] Success! Generated image URL: ${url.substring(0, 60)}...`);
+        } else {
+            console.warn('[Image Generation] Warning: No image URL returned from generateImage');
+        }
         res.json({ url });
     } catch (error) {
         console.error('[Image Generation] Error:', error.message, error.stack);
