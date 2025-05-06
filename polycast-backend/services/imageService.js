@@ -1,49 +1,44 @@
 // imageService.js
-// Service for generating images using OpenAI's DALL·E API
+// Service for generating images using OpenAI's image generation API
 
-const OpenAI = require('openai');
-const config = require('../config/config');
+const { OpenAI } = require('openai');
+require('dotenv').config();
 
-if (!config.openaiApiKey) {
-  throw new Error('OpenAI API key is not configured.');
-}
-
-const openai = new OpenAI({ apiKey: config.openaiApiKey });
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+});
 
 /**
- * Generate an image using OpenAI's image generation API
- * @param {string} basePrompt - The core concept for the image (e.g., the word)
- * @param {string} size - One of '1024x1024', '1024x1792', '1792x1024' (default '1024x1024')
- * @returns {Promise<string>} - The image URL
+ * Generates an image based on a prompt using OpenAI's image generation API.
+ * @param {string} prompt - The text prompt to generate the image from.
+ * @param {string} [size='1024x1024'] - The desired size of the image.
+ * @param {string} [quality='standard'] - The quality of the image ('standard' or 'hd').
+ * @param {string} [style='vivid'] - The style of the generated images ('vivid' or 'natural').
+ * @returns {Promise<string>} - The URL of the generated image.
  */
-async function generateImage(basePrompt, size = '1024x1024') {
-  // Construct the full prompt with style and constraints
-  const fullPrompt = `A Charley Harper style illustration depicting ${basePrompt}. Focus on bold shapes and minimal detail. IMPORTANT: The image must contain absolutely no text, letters, or numbers whatsoever.`;
+async function generateImage(prompt, size = '1024x1024', quality = 'standard', style = 'vivid') {
+    console.log(`Generating image with prompt: "${prompt}", size: ${size}, quality: ${quality}, style: ${style}`);
+    try {
+        // Use the modern images.generate endpoint with gpt-image-1 model
+        const response = await openai.images.generate({
+            model: "gpt-image-1", // Specify the newer GPT-based image model
+            prompt,
+            n: 1,
+            size,
+            quality, // Added quality parameter
+            style,   // Added style parameter
+            response_format: 'url',
+        });
 
-  console.log(`Generating image with prompt: "${fullPrompt}" and size: ${size}`); // Added logging
-
-  try {
-    const response = await openai.images.generate({
-      model: "gpt-image-1", // Specify the newer model
-      prompt: fullPrompt, // Use the enhanced prompt
-      n: 1,
-      size,
-      response_format: 'url',
-      // quality: "hd", // Optional: uncomment for higher definition if supported and desired
-      // style: "vivid" // Optional: uncomment for potentially more vibrant images
-    });
-
-    if (response.data && response.data.length > 0 && response.data[0].url) {
-        console.log("Image generated successfully:", response.data[0].url); // Added logging
+        console.log('Image generated successfully:', response.data[0].url);
+        // The response structure for images.generate is slightly different
         return response.data[0].url;
-    } else {
-        console.error("Invalid response format from OpenAI API:", response);
-        throw new Error('Invalid response format from OpenAI API.');
+    } catch (error) {
+        console.error('Error generating image:', error.response ? error.response.data : error.message);
+        throw new Error('Failed to generate image');
     }
-  } catch (error) {
-    console.error('Error generating image:', error.response ? error.response.data : error.message);
-    throw new Error(`Failed to generate image: ${error.message}`);
-  }
 }
 
-module.exports = { generateImage };
+module.exports = {
+    generateImage,
+};

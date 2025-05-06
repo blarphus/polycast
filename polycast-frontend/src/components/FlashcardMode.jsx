@@ -136,7 +136,7 @@ const FlashcardMode = ({ selectedWords, wordDefinitions, englishSegments }) => {
         : "";
       
       // Generate using Charley Harper style as requested
-      const prompt = `Create a visually engaging, wordless flashcard image in the style of Charley Harper. Use bold shapes, minimal detail, and mid-century modern aesthetics to depict the concept in a memorable and metaphorical way. Avoid text or labels. Your word is: ${currentWord}`;
+      const prompt = `Create a visually engaging, wordless flashcard image in the style of Charley Harper. Use bold shapes, minimal detail, and mid-century modern aesthetics to depict the concept in a memorable and metaphorical way. Avoid text or labels. Again, use no text. The word to illustrate is: "${currentWord}". Use the following context sentence to determine the correct meaning and visual depiction: "${contextSentence}"`;
       
       fetch(`https://polycast-server.onrender.com/api/generate-image?prompt=${encodeURIComponent(prompt)}`, {
         mode: 'cors'
