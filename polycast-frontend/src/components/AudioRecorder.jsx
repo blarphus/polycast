@@ -32,6 +32,9 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent, autoSend, showNo
   const [zeroCrossings, setZeroCrossings] = useState(0);
   const [threshold, setThreshold] = useState(0);
   
+  // Track why the recorder was stopped
+  const stopReasonRef = useRef('user'); // 'user' or 'auto'
+  
   // Helper functions
   function rawRMS(arr) {
     const sum = arr.reduce((s, v) => {
@@ -155,16 +158,23 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent, autoSend, showNo
       };
       
       recorder.onstop = () => {
-        // Send the audio data when recorder stops, but only if not in auto-send mode
-        if (audioChunksRef.current.length > 0 && !autoSend) {
+        // Only send if:
+        // - Manual mode (autoSend is false)
+        // - Or autoSend is true AND stopped by silence (not user)
+        if (
+          (!autoSend && audioChunksRef.current.length > 0) ||
+          (autoSend && stopReasonRef.current === 'auto' && audioChunksRef.current.length > 0)
+        ) {
           const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
           console.log('Sending audio chunk, size:', blob.size, 'bytes, speech detected:', speechDetectedRef.current);
           sendMessage(blob);
           if (onAudioSent) onAudioSent();
+        } else {
+          // Discard chunk in auto-send mode if stopped by user
+          audioChunksRef.current = [];
         }
       };
       
-      // Start recording
       recorder.start();
       
       // Start audio processing loop
@@ -229,7 +239,7 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent, autoSend, showNo
               autoSend) { // Only auto-send if enabled
             
             console.log(`Pause ≥ ${GAP_MS}ms detected - flushing chunk`);
-            
+            stopReasonRef.current = 'auto';
             try {
               // Stop current recorder
               mediaRecorderRef.current.stop();
@@ -253,8 +263,7 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent, autoSend, showNo
                     };
                     
                     newRecorder.onstop = () => {
-                      // Send the audio data when recorder stops, but only if not in auto-send mode
-                      if (audioChunksRef.current.length > 0 && !autoSend) {
+                      if (audioChunksRef.current.length > 0) {
                         const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
                         console.log('Sending audio chunk, size:', blob.size, 'bytes, speech detected:', speechDetectedRef.current);
                         sendMessage(blob);
@@ -283,9 +292,11 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent, autoSend, showNo
         console.log('Stopping recorder (user released key)');
         if (!autoSend) {
           // In manual mode, we send when recording stops
+          stopReasonRef.current = 'user';
           mediaRecorderRef.current.stop();
         } else {
           // In auto-send mode, we just discard any remaining audio instead of sending it
+          stopReasonRef.current = 'user';
           mediaRecorderRef.current.stop();
           // Clear the chunks to prevent sending
           audioChunksRef.current = [];
