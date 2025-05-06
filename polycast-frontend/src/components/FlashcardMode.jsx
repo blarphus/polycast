@@ -135,8 +135,8 @@ const FlashcardMode = ({ selectedWords, wordDefinitions, englishSegments }) => {
           )?.text || ""
         : "";
       
-      // Generate a word-specific prompt that creates consistent, animated-style images
-      const prompt = `A digital illustration of the concept "${currentWord}" in a colorful, animated style with clean outlines and vibrant colors. Context: "${contextSentence}". The image should be simple, iconic, and educational, suitable for language learning. Use bright colors, flat design elements, and make it centered with good margins to avoid cropping.`;
+      // Generate using Charley Harper style as requested
+      const prompt = `Create a visually engaging, wordless flashcard image in the style of Charley Harper. Use bold shapes, minimal detail, and mid-century modern aesthetics to depict the concept in a memorable and metaphorical way. Avoid text or labels. Your word is: ${currentWord}`;
       
       fetch(`https://polycast-server.onrender.com/api/generate-image?prompt=${encodeURIComponent(prompt)}`, {
         mode: 'cors'

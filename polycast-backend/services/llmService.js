@@ -135,15 +135,15 @@ async function getWordDefinition(word) {
         return { definition: '', example: '' };
     }
 
-    const prompt = `You are acting as a bilingual dictionary for Spanish speakers who are learning English. Your job is to help a Spanish-speaking learner understand what the English word "${word}" means.
-
-Explain the meaning of the English word in clear and simple Spanish, focusing on what the word means and how it is used. Do NOT just translate it—give a brief explanation that would help a Spanish learner truly understand the concept behind the word in English.
+    const prompt = `You are creating dictionary entries for non-native English speakers who are learning English. 
+    
+Your job is to explain the English word "${word}" in a simple, clear way that helps beginners understand it.
 
 Your response must be in JSON format with exactly these fields:
 {
   "translation": "Spanish translation of the word",
-  "definition": "Clear, concise explanation in Spanish of what the word means and how it is used (2-3 sentences max, focus on meaning for a Spanish learner)",
-  "example": "A simple example sentence in English that uses this word. Do NOT translate the example—keep it in English. The word itself should appear in the sentence.",
+  "definition": "VERY SIMPLE and SHORT explanation in simple English (1-2 short sentences max). Use basic vocabulary a beginner would understand.",
+  "example": "A simple example sentence in English that uses this word. Make the context very obvious.",
   "partOfSpeech": "The part of speech (noun, verb, adjective, etc.)",
   "frequencyRating": "A number from 1 to 5 representing how common this word is in everyday English, where 1 = extremely common (basic vocabulary), 2 = very common, 3 = moderately common, 4 = somewhat uncommon, 5 = rare or specialized"
 }
