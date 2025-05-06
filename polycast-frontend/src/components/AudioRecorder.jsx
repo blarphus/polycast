@@ -16,6 +16,9 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
   const silenceTimeoutRef = useRef(null);
   const lastSoundDetectedTimeRef = useRef(Date.now());
   const silenceDetectionEnabledRef = useRef(false);
+  const significantSpeechDetectedRef = useRef(false);
+  const speechDurationRef = useRef(0);
+  const lastVolumeCheckTimeRef = useRef(Date.now());
 
   // Acquire microphone stream on mount
   useEffect(() => {
@@ -67,21 +70,42 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
     
     const SILENCE_THRESHOLD = 15; // Adjust this value as needed
     const isSilent = average < SILENCE_THRESHOLD;
+    const currentTime = Date.now();
+    const timeSinceLastCheck = currentTime - lastVolumeCheckTimeRef.current;
+    lastVolumeCheckTimeRef.current = currentTime;
     
     if (!isSilent) {
       // Sound detected, update timestamp
-      lastSoundDetectedTimeRef.current = Date.now();
+      lastSoundDetectedTimeRef.current = currentTime;
+      
+      // Accumulate speech duration
+      speechDurationRef.current += timeSinceLastCheck;
+      
+      // Check if we've had enough speech to consider this a "real" sentence
+      const MIN_SPEECH_DURATION = 700; // 0.7 seconds of actual speech required
+      if (speechDurationRef.current >= MIN_SPEECH_DURATION) {
+        significantSpeechDetectedRef.current = true;
+      }
     } else {
-      // Check if silence duration exceeds threshold
-      const silenceDuration = Date.now() - lastSoundDetectedTimeRef.current;
+      // Check if silence duration exceeds threshold AND we've detected significant speech
+      const silenceDuration = currentTime - lastSoundDetectedTimeRef.current;
       const SILENCE_DURATION_THRESHOLD = 500; // 0.5 seconds in milliseconds
       
-      if (silenceDuration >= SILENCE_DURATION_THRESHOLD && mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-        console.log('Silence detected for 0.5 seconds, sending audio chunk');
+      if (silenceDuration >= SILENCE_DURATION_THRESHOLD && 
+          significantSpeechDetectedRef.current && 
+          mediaRecorderRef.current && 
+          mediaRecorderRef.current.state === 'recording') {
+        
+        console.log('Silence detected after significant speech, sending audio chunk');
+        
         // Stop current recording to trigger the onstop event which sends the data
         const currentMediaRecorder = mediaRecorderRef.current;
         mediaRecorderRef.current = null; // Prevent onstop from triggering a recursive call
         currentMediaRecorder.stop();
+        
+        // Reset speech detection flags
+        significantSpeechDetectedRef.current = false;
+        speechDurationRef.current = 0;
         
         // Start a new recording segment after a brief delay
         setTimeout(() => {
@@ -142,6 +166,9 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
     
     // Reset silence detection
     lastSoundDetectedTimeRef.current = Date.now();
+    lastVolumeCheckTimeRef.current = Date.now();
+    significantSpeechDetectedRef.current = false;
+    speechDurationRef.current = 0;
     setSegmentActive(true);
   }, [sendMessage, onAudioSent]);
 
