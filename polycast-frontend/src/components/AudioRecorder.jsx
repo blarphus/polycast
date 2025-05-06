@@ -21,9 +21,9 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
   
   // Constants
   const FRAME_MS = 100;
-  const GAP_MS = 700;            // flush after 700ms silence
+  const GAP_MS = 900;            // flush after 900ms silence
   const MIN_SPEECH_MS = 250;     // need 250ms > thresh to mark as speech
-  const MARGIN_DB = 10;          // threshold = noise + 10dB
+  const MARGIN_DB = 6;           // threshold = noise + 6dB
   
   // Audio visualization state
   const [audioLevel, setAudioLevel] = useState(0);
@@ -206,7 +206,7 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
         if (isSound) {
           // Sound detected
           speechFramesRef.current++;
-          silenceFramesRef.current = 0;
+          if (silenceFramesRef.current !== 0) silenceFramesRef.current = 0;
           setIsSilent(false);
           
           // Mark as speech after MIN_SPEECH_MS
