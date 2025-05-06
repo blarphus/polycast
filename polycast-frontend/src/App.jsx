@@ -33,6 +33,7 @@ function App({ targetLanguages, onReset }) {
   const [showNotification, setShowNotification] = useState(false);
   const [notificationOpacity, setNotificationOpacity] = useState(1);
   const [autoSend, setAutoSend] = useState(true); // Controls auto-sending of audio chunks
+  const [showNoiseLevel, setShowNoiseLevel] = useState(false); // Controls visibility of noise level display
   const notificationTimeoutRef = useRef(null);
   const modeRef = useRef(appMode === 'text');
   const isRecordingRef = useRef(isRecording); // Ref to track recording state in handlers
@@ -511,6 +512,7 @@ function App({ targetLanguages, onReset }) {
                 isRecording={isRecording}
                 onAudioSent={onAudioSent}
                 autoSend={autoSend}
+                showNoiseLevel={showNoiseLevel}
               />
             )}
             <Controls
@@ -524,6 +526,8 @@ function App({ targetLanguages, onReset }) {
               setAppMode={handleAppModeChange}
               autoSend={autoSend}
               setAutoSend={setAutoSend}
+              showNoiseLevel={showNoiseLevel}
+              setShowNoiseLevel={setShowNoiseLevel}
             />
           </div>
           {/* Audio mode note below tools row */}

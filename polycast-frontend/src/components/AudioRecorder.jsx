@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 
-function AudioRecorder({ sendMessage, isRecording, onAudioSent, autoSend }) {
+function AudioRecorder({ sendMessage, isRecording, onAudioSent, autoSend, showNoiseLevel }) {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const streamRef = useRef(null); 
@@ -23,7 +23,7 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent, autoSend }) {
   const FRAME_MS = 100;
   const GAP_MS = 900;            // flush after 900ms silence
   const MIN_SPEECH_MS = 250;     // need 250ms > thresh to mark as speech
-  const DEFAULT_MARGIN_DB = 6;   // default threshold = noise + 6dB
+  const MARGIN_DB = 6;           // threshold = noise + 6dB
   
   // Audio visualization state
   const [audioLevel, setAudioLevel] = useState(0);
@@ -31,8 +31,6 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent, autoSend }) {
   const [silenceDuration, setSilenceDuration] = useState(0);
   const [zeroCrossings, setZeroCrossings] = useState(0);
   const [threshold, setThreshold] = useState(0);
-  const [marginDb, setMarginDb] = useState(DEFAULT_MARGIN_DB); // User-adjustable margin
-  const [isDragging, setIsDragging] = useState(false);
   
   // Helper functions
   function rawRMS(arr) {
@@ -132,47 +130,84 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent, autoSend }) {
     };
   }, []);
   
-  // Start audio processing on mount (regardless of recording state)
+  // Handle recording state changes
   useEffect(() => {
-    if (!analyserRef.current || !baselineRMSRef.current) return;
+    if (!streamRef.current || micError) return;
     
-    // Set up continuous audio monitoring
-    const audioProcessingInterval = setInterval(() => {
-      // Get time-domain audio data
-      const dataArray = new Uint8Array(analyserRef.current.fftSize);
-      analyserRef.current.getByteTimeDomainData(dataArray);
+    if (isRecording) {
+      // Start recording
+      console.log('Starting recorder');
       
-      // Calculate raw RMS
-      const rms = rawRMS(dataArray);
+      const recorder = new MediaRecorder(streamRef.current);
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
       
-      // Calculate zero crossing rate
-      const zcr = zeroCrossingRate(dataArray);
-      setZeroCrossings(zcr.toFixed(3));
+      // Reset speech detection for this segment
+      speechDetectedRef.current = false;
+      speechFramesRef.current = 0;
+      silenceFramesRef.current = 0;
+      rmsHistoryRef.current = [];
       
-      // Add to history for smoothing
-      rmsHistoryRef.current.push(rms);
-      if (rmsHistoryRef.current.length > 3) rmsHistoryRef.current.shift();
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
       
-      // Get smoothed RMS (3-frame average)
-      const smoothRMS = average(rmsHistoryRef.current);
+      recorder.onstop = () => {
+        // Send the audio data when recorder stops
+        if (audioChunksRef.current.length > 0) {
+          const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+          console.log('Sending audio chunk, size:', blob.size, 'bytes, speech detected:', speechDetectedRef.current);
+          sendMessage(blob);
+          if (onAudioSent) onAudioSent();
+        }
+      };
       
-      // Scale for UI (0-100)
-      setAudioLevel(smoothRMS * 100);
+      // Start recording
+      recorder.start();
       
-      // Threshold: baseline × 10^(marginDB/20)
-      const thresh = baselineRMSRef.current * Math.pow(10, marginDb / 20);
-      setThreshold(thresh * 100); // For display
+      // Start audio processing loop
+      if (silenceDetectorRef.current) {
+        clearInterval(silenceDetectorRef.current);
+      }
       
-      // Check if current level is above threshold
-      const isSound = smoothRMS > thresh;
-      setIsSilent(!isSound);
-
-      // Only track silence duration during recording
-      if (isRecording) {
+      silenceDetectorRef.current = setInterval(() => {
+        if (!analyserRef.current || !mediaRecorderRef.current || !baselineRMSRef.current) return;
+        
+        // Get time-domain audio data
+        const dataArray = new Uint8Array(analyserRef.current.fftSize);
+        analyserRef.current.getByteTimeDomainData(dataArray);
+        
+        // Calculate raw RMS
+        const rms = rawRMS(dataArray);
+        
+        // Calculate zero crossing rate (still useful for visualization)
+        const zcr = zeroCrossingRate(dataArray);
+        setZeroCrossings(zcr.toFixed(3));
+        
+        // Add to history for smoothing
+        rmsHistoryRef.current.push(rms);
+        if (rmsHistoryRef.current.length > 3) rmsHistoryRef.current.shift();
+        
+        // Get smoothed RMS (3-frame average)
+        const smoothRMS = average(rmsHistoryRef.current);
+        
+        // Scale for UI (0-100)
+        setAudioLevel(smoothRMS * 100);
+        
+        // Threshold: baseline × 10^(marginDB/20)
+        const thresh = baselineRMSRef.current * Math.pow(10, MARGIN_DB / 20);
+        setThreshold(thresh * 100); // For display
+        
+        // Check if current level is above threshold
+        const isSound = smoothRMS > thresh;
+        
         if (isSound) {
           // Sound detected
           speechFramesRef.current++;
           if (silenceFramesRef.current !== 0) silenceFramesRef.current = 0;
+          setIsSilent(false);
           
           // Mark as speech after MIN_SPEECH_MS
           if (!speechDetectedRef.current && 
@@ -184,6 +219,7 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent, autoSend }) {
           // Silence detected
           silenceFramesRef.current++;
           speechFramesRef.current = 0;
+          setIsSilent(true);
           setSilenceDuration(silenceFramesRef.current * FRAME_MS);
           
           // Check if we've had enough silence to send chunk
@@ -237,71 +273,34 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent, autoSend }) {
             }
           }
         }
-      }
-    }, FRAME_MS);
-    
-    return () => {
-      clearInterval(audioProcessingInterval);
-    };
-  }, [isRecording, sendMessage, onAudioSent, autoSend, marginDb]);
-
-  // Handle recording state changes
-  useEffect(() => {
-    if (!streamRef.current || micError) return;
-    
-    if (isRecording) {
-      // Start recording
-      console.log('Starting recorder');
-      
-      const recorder = new MediaRecorder(streamRef.current);
-      mediaRecorderRef.current = recorder;
-      audioChunksRef.current = [];
-      
-      // Reset speech detection for this segment
-      speechDetectedRef.current = false;
-      speechFramesRef.current = 0;
-      silenceFramesRef.current = 0;
-      
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          audioChunksRef.current.push(e.data);
-        }
-      };
-      
-      recorder.onstop = () => {
-        // Send the audio data when recorder stops
-        if (audioChunksRef.current.length > 0) {
-          const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-          console.log('Sending audio chunk, size:', blob.size, 'bytes, speech detected:', speechDetectedRef.current);
-          sendMessage(blob);
-          if (onAudioSent) onAudioSent();
-        }
-      };
-      
-      // Start recording
-      recorder.start();
+      }, FRAME_MS);
       
     } else {
       // Stop recording if user releases key
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
         // Only send the final chunk when user stops recording if NOT in auto-send mode
         console.log('Stopping recorder (user released key)');
-        
         if (!autoSend) {
-          // In manual mode, send the audio when recording stops
+          // In manual mode, we send when recording stops
           mediaRecorderRef.current.stop();
         } else {
-          // In auto-send mode, just discard any unsent audio
+          // In auto-send mode, we just discard any remaining audio instead of sending it
           mediaRecorderRef.current.stop();
-          // Override the onstop handler temporarily to prevent sending
-          const originalOnStop = mediaRecorderRef.current.onstop;
-          mediaRecorderRef.current.onstop = () => {
-            console.log('Auto-send mode: Discarding final audio chunk on recording stop');
-            // Reset the chunks without sending
-            audioChunksRef.current = [];
-          };
+          // Clear the chunks to prevent sending
+          audioChunksRef.current = [];
         }
       }
+      
+      // Clear silence detector
+      if (silenceDetectorRef.current) {
+        clearInterval(silenceDetectorRef.current);
+        silenceDetectorRef.current = null;
+      }
+      
+      // Reset UI
+      setAudioLevel(0);
+      setIsSilent(true);
+      setSilenceDuration(0);
     }
   }, [isRecording, sendMessage, onAudioSent, micError, autoSend]);
   
@@ -309,96 +308,54 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent, autoSend }) {
     <div className="audio-recorder">
       {micError && <div style={{ color: 'red' }}>{micError}</div>}
       
-      {/* Audio level meter - always visible in audio mode */}
-      <div style={{ 
-        position: 'fixed', 
-        bottom: '20px', 
-        right: '20px', 
-        padding: '10px', 
-        background: 'rgba(0,0,0,0.8)',
-        color: 'white',
-        borderRadius: '5px',
-        zIndex: 9999,
-        fontSize: '12px',
-        width: '180px'
-      }}>
-        <div>Level: {audioLevel.toFixed(1)}</div>
-        <div>Threshold: {threshold.toFixed(1)}</div>
-        <div>ZCR: {zeroCrossings}</div>
-        <div>Margin (dB): {marginDb.toFixed(1)}</div>
+      {/* Audio level meter for debugging */}
+      {showNoiseLevel && (
         <div style={{ 
-          height: '10px', 
-          width: '100%', 
-          background: '#333',
-          marginTop: '5px',
-          position: 'relative',
+          position: 'fixed', 
+          bottom: '20px', 
+          right: '20px', 
+          padding: '10px', 
+          background: 'rgba(0,0,0,0.8)',
+          color: 'white',
+          borderRadius: '5px',
+          zIndex: 9999,
+          fontSize: '12px',
+          width: '180px'
         }}>
+          <div>Level: {audioLevel.toFixed(1)}</div>
+          <div>ZCR: {zeroCrossings}</div>
+          <div>Threshold: {threshold.toFixed(1)}</div>
+          <div>Speech frames: {speechFramesRef.current}</div>
+          <div>Silence frames: {silenceFramesRef.current}</div>
           <div style={{ 
-            height: '100%', 
-            width: `${Math.min(100, audioLevel)}%`, 
-            background: isSilent ? '#f55' : '#5f5',
-            transition: 'width 0.1s'
-          }}></div>
-          {/* Make the threshold marker draggable */}
-          <div 
-            style={{
+            height: '10px', 
+            width: '100%', 
+            background: '#333',
+            marginTop: '5px'
+          }}>
+            <div style={{ 
+              height: '100%', 
+              width: `${Math.min(100, audioLevel)}%`, 
+              background: isSilent ? '#f55' : '#5f5',
+              transition: 'width 0.1s'
+            }}></div>
+            <div style={{
               position: 'absolute',
-              height: '20px',
-              width: '8px',
+              height: '10px',
+              width: '2px',
               background: '#fff',
-              left: `${Math.min(100, threshold)}%`,
-              top: '-5px',
-              cursor: 'col-resize',
-              borderRadius: '2px',
-              transform: 'translateX(-4px)' // Center the marker
-            }}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              
-              // Calculate threshold directly based on click position
-              const handleMouseMove = (moveEvent) => {
-                const rect = e.currentTarget.parentElement.getBoundingClientRect();
-                const percentage = Math.max(0, Math.min(100, 
-                  ((moveEvent.clientX - rect.left) / rect.width) * 100
-                ));
-                
-                if (baselineRMSRef.current) {
-                  // Convert percentage to dB
-                  // We need to solve for marginDb where: 
-                  // threshold = baselineRMS * 10^(marginDb/20)
-                  // So: marginDb = 20 * log10(threshold / baselineRMS)
-                  // And threshold = percentage / 100
-                  const targetThreshold = percentage / 100;
-                  const newMarginDb = 20 * Math.log10(targetThreshold / baselineRMSRef.current);
-                  
-                  // Clamp to reasonable range and set
-                  if (isFinite(newMarginDb)) {
-                    setMarginDb(Math.max(0, Math.min(20, newMarginDb)));
-                  }
-                }
-              };
-              
-              // Handle initial click position
-              handleMouseMove(e);
-              
-              // Setup move and release handlers
-              const handleMouseUp = () => {
-                window.removeEventListener('mousemove', handleMouseMove);
-                window.removeEventListener('mouseup', handleMouseUp);
-              };
-              
-              window.addEventListener('mousemove', handleMouseMove);
-              window.addEventListener('mouseup', handleMouseUp);
-            }}
-          ></div>
+              left: `calc(${Math.min(100, threshold)}% + 10px)`,
+              marginTop: '-10px'
+            }}></div>
+          </div>
+          <div style={{ marginTop: '5px' }}>
+            {isSilent ? `Silent: ${silenceDuration}ms` : 'Speech detected'}
+          </div>
+          <div>
+            Speech: {speechDetectedRef.current ? 'YES' : 'NO'}
+          </div>
         </div>
-        <div style={{ marginTop: '5px' }}>
-          {isSilent ? `Silent: ${silenceDuration}ms` : 'Speech detected'}
-        </div>
-        <div>
-          Speech: {speechDetectedRef.current ? 'YES' : 'NO'}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -408,6 +365,7 @@ AudioRecorder.propTypes = {
   isRecording: PropTypes.bool.isRequired,
   onAudioSent: PropTypes.func,
   autoSend: PropTypes.bool,
+  showNoiseLevel: PropTypes.bool,
 };
 
 export default AudioRecorder;

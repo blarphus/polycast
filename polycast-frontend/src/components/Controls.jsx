@@ -14,6 +14,8 @@ function Controls({
     setAppMode,
     autoSend,
     setAutoSend,
+    showNoiseLevel,
+    setShowNoiseLevel,
 }) {
     const isConnected = readyState === ReadyState.OPEN;
 
@@ -54,6 +56,17 @@ function Controls({
                         disabled={isRecording} // Disable changing during recording
                     />
                     Auto-send
+                  </label>
+                )}
+                {/* Add show noise levels checkbox in audio mode */}
+                {appMode === 'audio' && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 14, fontSize: 15, fontWeight: 500, color: '#ccc' }}>
+                    <input
+                        type="checkbox"
+                        checked={showNoiseLevel}
+                        onChange={e => setShowNoiseLevel(e.target.checked)}
+                    />
+                    Show Noise Levels
                   </label>
                 )}
             </div>
@@ -115,6 +128,8 @@ Controls.propTypes = {
     setAppMode: PropTypes.func.isRequired,
     autoSend: PropTypes.bool.isRequired,
     setAutoSend: PropTypes.func.isRequired,
+    showNoiseLevel: PropTypes.bool.isRequired,
+    setShowNoiseLevel: PropTypes.func.isRequired,
 };
 
 export default Controls;
