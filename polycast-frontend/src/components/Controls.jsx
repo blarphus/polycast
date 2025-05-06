@@ -12,6 +12,8 @@ function Controls({
     setIsTextMode,
     appMode,
     setAppMode,
+    autoSend,
+    setAutoSend,
 }) {
     const isConnected = readyState === ReadyState.OPEN;
 
@@ -31,7 +33,7 @@ function Controls({
                     <option value="dictionary">dictionary mode</option>
                     <option value="flashcard">flashcard mode</option>
                 </select>
-                {/* Only show the button in audio mode */}
+                {/* Only show the live transcript checkbox in audio mode */}
                 {appMode === 'audio' && (
                   <label style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 14, fontSize: 15, fontWeight: 500, color: '#ccc' }}>
                     <input
@@ -40,6 +42,18 @@ function Controls({
                         onChange={e => window.dispatchEvent(new CustomEvent('toggleLiveEnglish', { detail: e.target.checked }))}
                     />
                     Show Live Transcript
+                  </label>
+                )}
+                {/* Add auto-send checkbox in audio mode */}
+                {appMode === 'audio' && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 14, fontSize: 15, fontWeight: 500, color: '#ccc' }}>
+                    <input
+                        type="checkbox"
+                        checked={autoSend}
+                        onChange={e => setAutoSend(e.target.checked)}
+                        disabled={isRecording} // Disable changing during recording
+                    />
+                    Auto-send
                   </label>
                 )}
             </div>
@@ -99,6 +113,8 @@ Controls.propTypes = {
     setIsTextMode: PropTypes.func.isRequired, // For backward compatibility
     appMode: PropTypes.string.isRequired,
     setAppMode: PropTypes.func.isRequired,
+    autoSend: PropTypes.bool.isRequired,
+    setAutoSend: PropTypes.func.isRequired,
 };
 
 export default Controls;

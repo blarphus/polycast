@@ -32,6 +32,7 @@ function App({ targetLanguages, onReset }) {
   const [textInputs, setTextInputs] = useState({}); // Lifted state
   const [showNotification, setShowNotification] = useState(false);
   const [notificationOpacity, setNotificationOpacity] = useState(1);
+  const [autoSend, setAutoSend] = useState(true); // Controls auto-sending of audio chunks
   const notificationTimeoutRef = useRef(null);
   const modeRef = useRef(appMode === 'text');
   const isRecordingRef = useRef(isRecording); // Ref to track recording state in handlers
@@ -509,6 +510,7 @@ function App({ targetLanguages, onReset }) {
                 sendMessage={sendMessage}
                 isRecording={isRecording}
                 onAudioSent={onAudioSent}
+                autoSend={autoSend}
               />
             )}
             <Controls
@@ -520,6 +522,8 @@ function App({ targetLanguages, onReset }) {
               setIsTextMode={setIsTextMode}
               appMode={appMode}
               setAppMode={handleAppModeChange}
+              autoSend={autoSend}
+              setAutoSend={setAutoSend}
             />
           </div>
           {/* Audio mode note below tools row */}

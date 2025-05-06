@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 
-function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
+function AudioRecorder({ sendMessage, isRecording, onAudioSent, autoSend }) {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const streamRef = useRef(null); 
@@ -225,7 +225,8 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
           // Check if we've had enough silence to send chunk
           if (speechDetectedRef.current && 
               silenceFramesRef.current * FRAME_MS >= GAP_MS &&
-              mediaRecorderRef.current.state === 'recording') {
+              mediaRecorderRef.current.state === 'recording' &&
+              autoSend) { // Only auto-send if enabled
             
             console.log(`Pause ≥ ${GAP_MS}ms detected - flushing chunk`);
             
@@ -293,7 +294,7 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent }) {
       setIsSilent(true);
       setSilenceDuration(0);
     }
-  }, [isRecording, sendMessage, onAudioSent, micError]);
+  }, [isRecording, sendMessage, onAudioSent, micError, autoSend]);
   
   return (
     <div className="audio-recorder">
@@ -355,6 +356,7 @@ AudioRecorder.propTypes = {
   sendMessage: PropTypes.func.isRequired,
   isRecording: PropTypes.bool.isRequired,
   onAudioSent: PropTypes.func,
+  autoSend: PropTypes.bool,
 };
 
 export default AudioRecorder;
