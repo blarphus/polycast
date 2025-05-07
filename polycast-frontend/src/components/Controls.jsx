@@ -8,6 +8,8 @@ import { ReadyState } from 'react-use-websocket';
 function Controls({ 
     readyState,
     isRecording, 
+    onStartRecording,
+    onStopRecording,
     isTextMode,
     setIsTextMode,
     appMode,
@@ -21,6 +23,8 @@ function Controls({
     showTranslation,
     setShowTranslation,
 }) {
+    // Check if we're in host mode (all control functions available) or student mode (view-only)
+    const isHostMode = setIsTextMode !== null && onStartRecording !== null;
     const isConnected = readyState === ReadyState.OPEN;
 
     return (
@@ -30,9 +34,9 @@ function Controls({
                 <label style={{ color: '#ccc', fontSize: 15, fontWeight: 500 }}>Mode:</label>
                 <select 
                     value={appMode}
-                    onChange={e => setAppMode(e.target.value)}
+                    onChange={e => setAppMode && setAppMode(e.target.value)}
                     style={{ minWidth: 90, fontSize: 15, padding: '2px 6px', borderRadius: 6 }}
-                    disabled={isRecording} // Disable mode switch while recording
+                    disabled={isRecording || !isHostMode} // Disable for students or while recording
                 >
                     <option value="audio">audio mode</option>
                     <option value="text">text mode</option>
@@ -47,9 +51,9 @@ function Controls({
                         type="checkbox"
                         checked={showLiveTranscript}
                         onChange={e => {
-                          setShowLiveTranscript(e.target.checked);
+                          setShowLiveTranscript && setShowLiveTranscript(e.target.checked);
                         }}
-                        disabled={isRecording}
+                        disabled={!isHostMode || isRecording}
                       />
                       Show Transcript
                     </label>
@@ -58,9 +62,9 @@ function Controls({
                         type="checkbox"
                         checked={showTranslation}
                         onChange={e => {
-                          setShowTranslation(e.target.checked);
+                          setShowTranslation && setShowTranslation(e.target.checked);
                         }}
-                        disabled={isRecording}
+                        disabled={!isHostMode || isRecording}
                       />
                       Show Translation
                     </label>
@@ -70,10 +74,12 @@ function Controls({
                 {appMode === 'audio' && (
                   <label style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 14, fontSize: 15, fontWeight: 500, color: '#ccc' }}>
                     <input
-                        type="checkbox"
-                        checked={autoSend}
-                        onChange={e => setAutoSend(e.target.checked)}
-                        disabled={isRecording} // Disable changing during recording
+                      type="checkbox"
+                      checked={autoSend}
+                      onChange={e => {
+                        setAutoSend && setAutoSend(e.target.checked);
+                      }}
+                      disabled={!isHostMode || isRecording} // Disable for students or while recording
                     />
                     Auto-send
                   </label>
@@ -82,10 +88,12 @@ function Controls({
                 {appMode === 'audio' && (
                   <label style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 14, fontSize: 15, fontWeight: 500, color: '#ccc' }}>
                     <input
-                        type="checkbox"
-                        checked={showNoiseLevel}
-                        onChange={e => setShowNoiseLevel(e.target.checked)}
-                    />
+                      type="checkbox"
+                      checked={showNoiseLevel}
+                      onChange={e => {
+                        setShowNoiseLevel && setShowNoiseLevel(e.target.checked);
+                      }}
+                      disabled={!isHostMode}/>
                     Show Noise Levels
                   </label>
                 )}

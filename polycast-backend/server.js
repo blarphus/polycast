@@ -79,20 +79,37 @@ const wss = new WebSocket.Server({ server });
 
 console.log(`WebSocket server created.`);
 
-// === WebSocket Handling ===
+// === Room Management & WebSocket Handling ===
 
+// Room management system
+const activeRooms = new Map(); // Map of roomCode -> {hostWs, students, transcript}
+
+// Generate a unique 5-digit room code
+function generateRoomCode() {
+    let code;
+    do {
+        code = Math.floor(10000 + Math.random() * 90000).toString(); // 5-digit number
+    } while (activeRooms.has(code));
+    return code;
+}
+
+// Client tracking
 const clientTextBuffers = new Map();
 const clientTargetLanguages = new Map(); // Keep for language from URL, will store an array now
+const clientRooms = new Map(); // Track which room each client belongs to
 
 // Modify connection handler to accept request object (req) and make it async
 wss.on('connection', (ws, req) => {
-    // 1. Parse target languages from connection URL query param
+    // Parse URL parameters
+    const parsedUrl = url.parse(req.url, true); // true parses query string
+    const query = parsedUrl.query;
+    
+    // 1. Parse target languages
     let targetLangsArray = ['Spanish']; // Default
     try {
-        const parsedUrl = url.parse(req.url, true); // true parses query string
-        if (parsedUrl.query && parsedUrl.query.targetLangs) {
+        if (query && query.targetLangs) {
             // Split comma-separated string, decode, trim, filter empty
-            targetLangsArray = parsedUrl.query.targetLangs
+            targetLangsArray = query.targetLangs
                 .split(',')
                 .map(lang => decodeURIComponent(lang.trim()))
                 .filter(lang => lang.length > 0);
@@ -110,6 +127,80 @@ wss.on('connection', (ws, req) => {
         console.error('Error parsing connection URL for target languages:', e);
         // Proceed with default
     }
+    
+    // 2. Handle room functionality
+    let roomCode = null;
+    let isHost = false;
+    
+    try {
+        if (query && query.roomCode) {
+            roomCode = query.roomCode;
+            isHost = query.isHost === 'true';
+            
+            // Verify room exists
+            if (!activeRooms.has(roomCode)) {
+                if (isHost) {
+                    // Create room if host is connecting and room doesn't exist yet
+                    activeRooms.set(roomCode, {
+                        hostWs: ws,
+                        students: [],
+                        transcript: [],
+                        createdAt: Date.now()
+                    });
+                    console.log(`[Room] Host created room on connect: ${roomCode}`);
+                } else {
+                    // Reject connection if student tries to join non-existent room
+                    console.log(`[Room] Rejected student - room not found: ${roomCode}`);
+                    ws.send(JSON.stringify({ 
+                        type: 'room_error', 
+                        message: 'Room not found. Please check the code and try again.' 
+                    }));
+                    ws.close();
+                    return;
+                }
+            } else {
+                // Room exists
+                const room = activeRooms.get(roomCode);
+                
+                if (isHost) {
+                    // Update host connection
+                    room.hostWs = ws;
+                    console.log(`[Room] Host joined existing room: ${roomCode}`);
+                } else {
+                    // Add student to room
+                    room.students.push(ws);
+                    console.log(`[Room] Student joined room: ${roomCode} (total students: ${room.students.length})`);
+                    
+                    // Send current transcript to newly joined student
+                    if (room.transcript.length > 0) {
+                        ws.send(JSON.stringify({
+                            type: 'transcript_history',
+                            data: room.transcript
+                        }));
+                    }
+                }
+            }
+            
+            // Track which room this client belongs to
+            clientRooms.set(ws, {
+                roomCode,
+                isHost
+            });
+            
+            // Confirmation message
+            ws.send(JSON.stringify({
+                type: 'room_joined',
+                roomCode,
+                isHost,
+                message: isHost ? 
+                    `You are hosting room ${roomCode}` : 
+                    `You joined room ${roomCode} as a student`
+            }));
+        }
+    } catch (e) {
+        console.error('Error handling room connection:', e);
+    }
+    
     clientTargetLanguages.set(ws, targetLangsArray); // Store the array
     clientTextBuffers.set(ws, { text: '', lastEndTimeMs: 0 }); // Ensure this uses correct state
 
@@ -117,6 +208,22 @@ wss.on('connection', (ws, req) => {
         // Log the raw message and its type for debugging
         console.log('[WS DEBUG] Raw message:', message);
         console.log('[WS DEBUG] typeof message:', typeof message);
+        
+        // Check if client is in a room
+        const clientRoom = clientRooms.get(ws);
+        const isInRoom = !!clientRoom;
+        const isRoomHost = isInRoom && clientRoom.isHost;
+        
+        // Students aren't allowed to send audio/text for processing
+        if (isInRoom && !isRoomHost) {
+            console.log(`[Room] Rejected message from student in room ${clientRoom.roomCode}`);
+            ws.send(JSON.stringify({ 
+                type: 'error', 
+                message: 'Students cannot send audio or text for transcription' 
+            }));
+            return;
+        }
+        
         if (Buffer.isBuffer(message)) {
             // Try to parse as string first
             try {
@@ -131,27 +238,66 @@ wss.on('connection', (ws, req) => {
                         const targetLangs = clientTargetLanguages.get(ws) || ['Spanish'];
                         // Always include English as a possible translation target
                         const allLangs = Array.from(new Set(['English', ...targetLangs]));
-                        // Use textModeLLM for text mode, llmService for audio mode
-                        if (isTextMode) {
-                            // Use textModeLLM with sourceLang and targetLangs
-                            const textModeLLM = require('./services/textModeLLM');
-                            const translations = await textModeLLM.translateTextBatch(translateThis, sourceLang, allLangs);
-                            for (const lang of allLangs) {
-                                if (lang !== sourceLang) {
-                                    ws.send(JSON.stringify({ type: 'translation', lang, data: translations[lang] }));
+                        
+                        // Use textModeLLM with sourceLang and targetLangs
+                        const textModeLLM = require('./services/textModeLLM');
+                        const translations = await textModeLLM.translateTextBatch(translateThis, sourceLang, allLangs);
+                        
+                        // Prepare response for host
+                        const hostResponse = { 
+                            type: 'recognized', 
+                            lang: sourceLang, 
+                            data: translateThis 
+                        };
+                        
+                        // Send to host
+                        ws.send(JSON.stringify(hostResponse));
+                        
+                        // Broadcast to students if this is a host in a room
+                        if (isRoomHost) {
+                            const room = activeRooms.get(clientRoom.roomCode);
+                            if (room) {
+                                // Store the transcript and translations for late joiners
+                                room.transcript.push({
+                                    text: translateThis,
+                                    timestamp: Date.now()
+                                });
+                                
+                                // Keep only the most recent 50 items
+                                if (room.transcript.length > 50) {
+                                    room.transcript = room.transcript.slice(-50);
                                 }
-                            }
-                        } else {
-                            // Use llmService for audio mode (default prompt)
-                            const llmService = require('./services/llmService');
-                            for (const lang of allLangs) {
-                                if (lang !== sourceLang) {
-                                    const translation = await llmService.translateText(translateThis, lang);
-                                    ws.send(JSON.stringify({ type: 'translation', lang, data: translation }));
-                                }
+                                
+                                // Broadcast to all students in room
+                                room.students.forEach(student => {
+                                    if (student.readyState === WebSocket.OPEN) {
+                                        student.send(JSON.stringify(hostResponse));
+                                        
+                                        // Also send translations to students
+                                        for (const lang of allLangs) {
+                                            if (lang !== sourceLang) {
+                                                student.send(JSON.stringify({ 
+                                                    type: 'translation', 
+                                                    lang, 
+                                                    data: translations[lang] 
+                                                }));
+                                            }
+                                        }
+                                    }
+                                });
                             }
                         }
-                        ws.send(JSON.stringify({ type: 'recognized', lang: sourceLang, data: translateThis }));
+                        
+                        // Send translations to host
+                        for (const lang of allLangs) {
+                            if (lang !== sourceLang) {
+                                ws.send(JSON.stringify({ 
+                                    type: 'translation', 
+                                    lang, 
+                                    data: translations[lang] 
+                                }));
+                            }
+                        }
                     } else {
                         ws.send(JSON.stringify({ type: 'error', message: 'Text submissions are only allowed in text mode.' }));
                     }
@@ -163,31 +309,72 @@ wss.on('connection', (ws, req) => {
             }
             console.log(`[Server WS] Received audio buffer, size: ${message.length}`); // Log buffer reception
             try {
-                // Detect MIME type from the first few bytes if possible (future improvement)
-                // For now, always use 'audio.webm' as filename, but set contentType dynamically if possible
+                // Process audio and get transcription
                 const transcription = await transcribeAudio(message, 'audio.webm');
                 if (transcription && ws.readyState === ws.OPEN) {
                     // Translate to all target languages (batch)
                     const targetLangs = clientTargetLanguages.get(ws) || ['Spanish'];
-                    try {
-                        console.log(`[Polycast] Calling Gemini for batch translation: '${transcription}' -> ${targetLangs.join(', ')}`);
-                        const translations = await llmService.translateTextBatch(transcription, targetLangs);
-                        for (const lang of targetLangs) {
-                            ws.send(JSON.stringify({ type: 'translation', lang, data: translations[lang] }));
-                        }
-                    } catch (transErr) {
-                        console.error(`[Polycast] Gemini batch translation error:`, transErr);
-                        for (const lang of targetLangs) {
-                            ws.send(JSON.stringify({ type: 'translation_error', lang, message: transErr.message }));
+                    console.log(`[Polycast] Calling Gemini for batch translation: '${transcription}' -> ${targetLangs.join(', ')}`);
+                    const translations = await llmService.translateTextBatch(transcription, targetLangs);
+                    
+                    // Prepare recognized response
+                    const recognizedResponse = { 
+                        type: 'recognized', 
+                        data: transcription 
+                    };
+                    
+                    // Send to host
+                    ws.send(JSON.stringify(recognizedResponse));
+                    
+                    // Broadcast to students if this is a host in a room
+                    if (isRoomHost) {
+                        const room = activeRooms.get(clientRoom.roomCode);
+                        if (room) {
+                            // Store the transcript for late joiners
+                            room.transcript.push({
+                                text: transcription,
+                                timestamp: Date.now()
+                            });
+                            
+                            // Keep only the most recent 50 items
+                            if (room.transcript.length > 50) {
+                                room.transcript = room.transcript.slice(-50);
+                            }
+                            
+                            // Broadcast to all students in room
+                            room.students.forEach(student => {
+                                if (student.readyState === WebSocket.OPEN) {
+                                    student.send(JSON.stringify(recognizedResponse));
+                                    
+                                    // Also send translations to students
+                                    for (const lang of targetLangs) {
+                                        student.send(JSON.stringify({ 
+                                            type: 'translation', 
+                                            lang, 
+                                            data: translations[lang] 
+                                        }));
+                                    }
+                                }
+                            });
                         }
                     }
-                    // Always send recognized as well
-                    ws.send(JSON.stringify({ type: 'recognized', data: transcription }));
+                    
+                    // Send translations to host
+                    for (const lang of targetLangs) {
+                        ws.send(JSON.stringify({ 
+                            type: 'translation', 
+                            lang, 
+                            data: translations[lang] 
+                        }));
+                    }
                 }
             } catch (err) {
                 console.error('Whisper transcription error:', err);
                 if (ws.readyState === ws.OPEN) {
-                    ws.send(JSON.stringify({ type: 'error', message: 'Transcription failed: ' + err.message + ' (Try using Chrome or Edge)'}));
+                    ws.send(JSON.stringify({ 
+                        type: 'error', 
+                        message: 'Transcription failed: ' + err.message + ' (Try using Chrome or Edge)'
+                    }));
                 }
             }
         } else if (typeof message === 'string') {
@@ -236,6 +423,45 @@ wss.on('connection', (ws, req) => {
     });
 
     ws.on('close', () => {
+        // Check if the client was in a room
+        const clientRoom = clientRooms.get(ws);
+        if (clientRoom) {
+            const { roomCode, isHost } = clientRoom;
+            
+            // Get room data
+            const room = activeRooms.get(roomCode);
+            if (room) {
+                if (isHost) {
+                    // Host disconnected - notify all students and close room
+                    console.log(`[Room] Host disconnected from room: ${roomCode}, closing room`);
+                    
+                    // Notify all students that host has ended the session
+                    room.students.forEach(student => {
+                        if (student.readyState === WebSocket.OPEN) {
+                            student.send(JSON.stringify({
+                                type: 'host_disconnected',
+                                message: 'The host has ended the session.'
+                            }));
+                        }
+                    });
+                    
+                    // Delete room from active rooms
+                    activeRooms.delete(roomCode);
+                } else {
+                    // Student disconnected - remove from room's student list
+                    console.log(`[Room] Student disconnected from room: ${roomCode}`);
+                    
+                    // Remove student from room's student list
+                    room.students = room.students.filter(student => student !== ws);
+                    console.log(`[Room] Room ${roomCode} now has ${room.students.length} student(s)`);
+                }
+            }
+            
+            // Remove client's room tracking
+            clientRooms.delete(ws);
+        }
+        
+        // Clean up other client data
         clientTextBuffers.delete(ws);
         clientTargetLanguages.delete(ws);
         console.log('Client disconnected');
@@ -246,6 +472,37 @@ wss.on('connection', (ws, req) => {
         clientTargetLanguages.delete(ws);
     });
     ws.send(JSON.stringify({ type: 'info', message: `Connected to Polycast backend (Targets: ${targetLangsArray.join(', ')})` }));
+});
+
+// === Room Management API Endpoints ===
+
+// Create a new room (HOST endpoint)
+app.post('/api/create-room', (req, res) => {
+    const roomCode = generateRoomCode();
+    
+    // Initialize the room with empty values
+    activeRooms.set(roomCode, {
+        hostWs: null,  // Will be set when host connects via WebSocket
+        students: [],  // List of student WebSocket connections
+        transcript: [], // Current transcript data
+        createdAt: Date.now() // Timestamp for cleanup later
+    });
+    
+    console.log(`[Room] Created new room: ${roomCode}`);
+    res.status(201).json({ roomCode });
+});
+
+// Check if a room exists (STUDENT endpoint)
+app.get('/api/check-room/:roomCode', (req, res) => {
+    const { roomCode } = req.params;
+    
+    if (activeRooms.has(roomCode)) {
+        console.log(`[Room] Room check success: ${roomCode}`);
+        res.status(200).json({ exists: true });
+    } else {
+        console.log(`[Room] Room check failed - not found: ${roomCode}`);
+        res.status(404).json({ exists: false, message: 'Room not found' });
+    }
 });
 
 // === Polycast Mode State ===
@@ -282,7 +539,7 @@ app.get('/api/dictionary/:word', async (req, res) => {
 
 // === IMAGE GENERATION ENDPOINT ===
 app.get('/api/generate-image', async (req, res) => {
-    const prompt = req.query.prompt || 'A photo of an iguana';
+    const prompt = req.query.prompt || '';
     const size = req.query.size || '1024x1024';
     const moderation = req.query.moderation || 'auto';
     

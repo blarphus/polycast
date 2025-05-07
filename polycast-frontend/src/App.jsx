@@ -10,13 +10,13 @@ import TranscriptionDisplay from './components/TranscriptionDisplay';
 import DictionaryTable from './components/DictionaryTable';
 import FlashcardMode from './components/FlashcardMode';
 
-// App now receives an array of target languages as a prop
-function App({ targetLanguages, onReset }) {
+// App now receives an array of target languages and room setup as props
+function App({ targetLanguages, onReset, roomSetup }) {
   const languagesQueryParam = targetLanguages.map(encodeURIComponent).join(',');
 
-  // Construct the WebSocket URL for Render backend
+  // Construct the WebSocket URL for Render backend, including room information
   const wsBaseUrl = `wss://polycast-server.onrender.com`;
-  const socketUrl = `${wsBaseUrl}/?targetLangs=${languagesQueryParam}`;
+  const socketUrl = `${wsBaseUrl}/?targetLangs=${languagesQueryParam}&roomCode=${roomSetup.roomCode}&isHost=${roomSetup.isHost}`;
   console.log("Constructed WebSocket URL:", socketUrl);
 
   const [messageHistory, setMessageHistory] = useState([]);
@@ -513,8 +513,8 @@ function App({ targetLanguages, onReset }) {
             </div>
           )}
           <div style={{ display: 'flex', alignItems: 'center' }}>
-            {/* Pass sendMessage down to components that need to send audio */}
-            {appMode === 'audio' && (
+            {/* Pass sendMessage down to components that need to send audio - only for hosts */}
+            {appMode === 'audio' && roomSetup && roomSetup.isHost && (
               <AudioRecorder
                 sendMessage={sendMessage}
                 isRecording={isRecording}
@@ -526,46 +526,64 @@ function App({ targetLanguages, onReset }) {
             <Controls
               readyState={readyState}
               isRecording={isRecording}
-              onStartRecording={handleStartRecording}
-              onStopRecording={handleStopRecording}
+              onStartRecording={roomSetup && roomSetup.isHost ? handleStartRecording : null}
+              onStopRecording={roomSetup && roomSetup.isHost ? handleStopRecording : null}
               isTextMode={appMode === 'text'}
-              setIsTextMode={setIsTextMode}
+              setIsTextMode={roomSetup && roomSetup.isHost ? setIsTextMode : null}
               appMode={appMode}
-              setAppMode={handleAppModeChange}
+              setAppMode={roomSetup && roomSetup.isHost ? handleAppModeChange : null}
               autoSend={autoSend}
-              setAutoSend={setAutoSend}
+              setAutoSend={roomSetup && roomSetup.isHost ? setAutoSend : null}
               showNoiseLevel={showNoiseLevel}
-              setShowNoiseLevel={setShowNoiseLevel}
+              setShowNoiseLevel={roomSetup && roomSetup.isHost ? setShowNoiseLevel : null}
               showLiveTranscript={showLiveTranscript}
-              setShowLiveTranscript={checked => {
+              setShowLiveTranscript={roomSetup && roomSetup.isHost ? (checked) => {
                 setShowLiveTranscript(checked);
                 if (!checked && !showTranslation) setShowTranslation(true);
-              }}
+              } : null}
               showTranslation={showTranslation}
-              setShowTranslation={checked => {
+              setShowTranslation={roomSetup && roomSetup.isHost ? (checked) => {
                 setShowTranslation(checked);
                 if (!checked && !showLiveTranscript) setShowLiveTranscript(true);
-              }}
+              } : null}
             />
           </div>
-          {/* Audio mode note below tools row */}
-          {appMode === 'audio' && (
-            <div style={{
-              marginTop: -45,
-              marginBottom: 0,
-              width: '100%',
-              textAlign: 'center',
-              color: '#ffb84d',
-              fontWeight: 600,
-              fontSize: '1.05rem',
-              letterSpacing: 0.1,
-              textShadow: '0 1px 2px #2228',
-              opacity: 0.96,
-              userSelect: 'none',
-            }}>
-              Hold Spacebar to record.  Release Spacebar to send.
-            </div>
-          )}
+          <div className="user-instructions">
+            {appMode === 'audio' && roomSetup && roomSetup.isHost && (
+              <div style={{
+                position: 'absolute',
+                top: '-50px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                color: '#bdc3c7',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                letterSpacing: 0.1,
+                textShadow: '0 1px 2px #2228',
+                opacity: 0.96,
+                userSelect: 'none',
+              }}>
+                Hold Spacebar to record.  Release Spacebar to send.
+              </div>
+            )}
+            {appMode === 'audio' && roomSetup && !roomSetup.isHost && (
+              <div style={{
+                position: 'absolute',
+                top: '-50px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                color: '#bdc3c7',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                letterSpacing: 0.1,
+                textShadow: '0 1px 2px #2228',
+                opacity: 0.96,
+                userSelect: 'none',
+              }}>
+                Viewing host's transcription in real-time
+              </div>
+            )}
+          </div>
         </div>
       </div>
       {/* Remove the floating Recording indicator entirely */}
@@ -575,11 +593,21 @@ function App({ targetLanguages, onReset }) {
         </div>
       )}
       {errorMessages.length > 0 && (
-        <div className="error-display">
-          <h3>Errors:</h3>
-          <ul>
-            {errorMessages.map((err, index) => <li key={index}>{err}</li>)}
-          </ul>
+        <div className="app-container">
+          <div className="top-bar">
+            <div className="app-title">
+              <h1>PolyCast</h1>
+              {roomSetup && (
+                <div className="room-info">
+                  <span className="room-label">{roomSetup.isHost ? 'Host' : 'Student'}</span>
+                  <span className="room-code">Room: {roomSetup.roomCode}</span>
+                </div>
+              )}
+            </div>
+            <button onClick={onReset} className="reset-button">
+              Exit Room
+            </button>
+          </div>
         </div>
       )}
       {/* Notification Pop-up */} 
@@ -634,6 +662,10 @@ function App({ targetLanguages, onReset }) {
 App.propTypes = {
     targetLanguages: PropTypes.arrayOf(PropTypes.string).isRequired,
     onReset: PropTypes.func,
+    roomSetup: PropTypes.shape({
+        isHost: PropTypes.bool.isRequired,
+        roomCode: PropTypes.string.isRequired
+    }).isRequired
 };
 
 // Define backend port in a config object or hardcode if simple
