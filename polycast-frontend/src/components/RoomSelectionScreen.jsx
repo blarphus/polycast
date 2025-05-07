@@ -34,8 +34,11 @@ function RoomSelectionScreen({ onRoomSetup }) {
     e.preventDefault();
     setError('');
     
+    // Clean the room code (remove any whitespace and non-digit characters)
+    const cleanedRoomCode = roomCode.replace(/[^0-9]/g, '').trim();
+    
     // Basic validation for room code format (5 digits)
-    if (!/^\d{5}$/.test(roomCode)) {
+    if (cleanedRoomCode.length !== 5) {
       setError('Room code must be 5 digits');
       return;
     }
@@ -43,19 +46,24 @@ function RoomSelectionScreen({ onRoomSetup }) {
     setIsLoading(true);
     
     try {
-      // Check if room exists
-      const response = await fetch(`https://polycast-server.onrender.com/api/check-room/${roomCode}`);
+      console.log(`Attempting to join room: ${cleanedRoomCode}`);
       
-      if (!response.ok) {
-        throw new Error('Room not found');
+      // Check if room exists
+      const response = await fetch(`https://polycast-server.onrender.com/api/check-room/${cleanedRoomCode}`);
+      const data = await response.json();
+      
+      if (!response.ok || !data.exists) {
+        console.log('Room check response:', { status: response.status, data });
+        throw new Error(data.message || 'Room not found');
       }
       
       onRoomSetup({ 
         isHost: false, 
-        roomCode 
+        roomCode: cleanedRoomCode 
       });
     } catch (err) {
-      setError('Room not found. Please check the code and try again.');
+      console.error('Error joining room:', err);
+      setError(`Failed to join room: ${err.message || 'Room not found. Please check the code and try again.'}`);
       setIsLoading(false);
     }
   };

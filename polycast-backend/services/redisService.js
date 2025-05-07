@@ -1,11 +1,24 @@
 // Redis service for room persistence using Upstash Redis
 const { Redis } = require('@upstash/redis');
 
-// Create Redis client using environment variables
-const redis = new Redis({
-    url: process.env.UPSTASH_REDIS_REST_URL,
-    token: process.env.UPSTASH_REDIS_REST_TOKEN,
-});
+// Check if Redis environment variables are configured
+const hasRedisConfig = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN;
+let redis;
+
+// Create Redis client only if environment variables are available
+if (hasRedisConfig) {
+    try {
+        redis = new Redis({
+            url: process.env.UPSTASH_REDIS_REST_URL,
+            token: process.env.UPSTASH_REDIS_REST_TOKEN,
+        });
+        console.log('[Redis] Successfully initialized Redis client');
+    } catch (error) {
+        console.error('[Redis] Error initializing Redis client:', error);
+    }
+} else {
+    console.warn('[Redis] Environment variables for Redis are missing. Running in memory-only mode.');
+}
 
 // Room prefix to organize keys
 const ROOM_PREFIX = 'polycast:room:';
@@ -19,6 +32,11 @@ const ROOM_EXPIRY = 12 * 60 * 60;
  * @param {Object} roomData - Room data to save (without WebSocket connections)
  */
 async function saveRoom(roomCode, roomData) {
+    // Skip if Redis is not available
+    if (!redis) {
+        return true; // Silently succeed when running without Redis
+    }
+    
     try {
         // Create a serializable version of room data (remove WS objects)
         const serializableRoom = {
@@ -51,6 +69,11 @@ async function saveRoom(roomCode, roomData) {
  * @returns {Promise<boolean>} - Whether the room exists
  */
 async function roomExists(roomCode) {
+    // Skip if Redis is not available
+    if (!redis) {
+        return false; // Assume room doesn't exist in Redis when Redis is unavailable
+    }
+    
     try {
         const exists = await redis.exists(`${ROOM_PREFIX}${roomCode}`);
         return !!exists;
@@ -66,6 +89,11 @@ async function roomExists(roomCode) {
  * @returns {Promise<Object|null>} - Room data or null if not found
  */
 async function getRoom(roomCode) {
+    // Skip if Redis is not available
+    if (!redis) {
+        return null; // Return null when Redis is unavailable
+    }
+    
     try {
         const data = await redis.get(`${ROOM_PREFIX}${roomCode}`);
         if (!data) return null;
@@ -82,6 +110,11 @@ async function getRoom(roomCode) {
  * @param {string} roomCode - The room's unique code
  */
 async function deleteRoom(roomCode) {
+    // Skip if Redis is not available
+    if (!redis) {
+        return true; // Silently succeed when running without Redis
+    }
+    
     try {
         await redis.del(`${ROOM_PREFIX}${roomCode}`);
         console.log(`[Redis] Deleted room ${roomCode} from Redis`);
@@ -98,6 +131,11 @@ async function deleteRoom(roomCode) {
  * @param {Array} transcript - The updated transcript array
  */
 async function updateTranscript(roomCode, transcript) {
+    // Skip if Redis is not available
+    if (!redis) {
+        return true; // Silently succeed when running without Redis
+    }
+    
     try {
         const roomData = await getRoom(roomCode);
         if (!roomData) return false;
@@ -123,6 +161,11 @@ async function updateTranscript(roomCode, transcript) {
  * @returns {Promise<Array>} - Array of room codes
  */
 async function getAllRooms() {
+    // Skip if Redis is not available
+    if (!redis) {
+        return []; // Return empty array when Redis is unavailable
+    }
+    
     try {
         const keys = await redis.keys(`${ROOM_PREFIX}*`);
         return keys.map(key => key.replace(ROOM_PREFIX, ''));
