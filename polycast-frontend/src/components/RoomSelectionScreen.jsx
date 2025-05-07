@@ -119,7 +119,6 @@ function RoomSelectionScreen({ onRoomSetup }) {
                 value={roomCode}
                 onChange={(e) => setRoomCode(e.target.value)}
                 maxLength={5}
-                pattern="\\d{5}"
                 required
                 disabled={isLoading}
               />
