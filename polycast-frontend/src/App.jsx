@@ -490,6 +490,27 @@ function App({ targetLanguages, onReset, roomSetup }) {
       >
         Polycast
       </h1>
+      {roomSetup && (
+        <div 
+          className="room-info-display" 
+          style={{
+            color: '#fff',
+            textAlign: 'center',
+            marginBottom: '15px',
+            fontSize: '1rem',
+            fontWeight: 600,
+            padding: '4px 12px',
+            borderRadius: '6px',
+            background: roomSetup.isHost ? 'rgba(59, 130, 246, 0.6)' : 'rgba(16, 185, 129, 0.6)',
+            display: 'inline-block',
+            position: 'relative',
+            left: '50%',
+            transform: 'translateX(-50%)',
+          }}
+        >
+          {roomSetup.isHost ? 'Host' : 'Student'} • Room: {roomSetup.roomCode}
+        </div>
+      )}
       <div className="controls-container" style={{ marginBottom: 4 }}>
         {/* Main Toolbar */}
         <div className="main-toolbar" style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'stretch', marginBottom: 0 }}>
@@ -548,42 +569,41 @@ function App({ targetLanguages, onReset, roomSetup }) {
               } : null}
             />
           </div>
-          <div className="user-instructions">
-            {appMode === 'audio' && roomSetup && roomSetup.isHost && (
-              <div style={{
-                position: 'absolute',
-                top: '-50px',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                color: '#bdc3c7',
-                fontSize: '0.85rem',
-                fontWeight: 600,
-                letterSpacing: 0.1,
-                textShadow: '0 1px 2px #2228',
-                opacity: 0.96,
-                userSelect: 'none',
-              }}>
-                Hold Spacebar to record.  Release Spacebar to send.
-              </div>
-            )}
-            {appMode === 'audio' && roomSetup && !roomSetup.isHost && (
-              <div style={{
-                position: 'absolute',
-                top: '-50px',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                color: '#bdc3c7',
-                fontSize: '0.85rem',
-                fontWeight: 600,
-                letterSpacing: 0.1,
-                textShadow: '0 1px 2px #2228',
-                opacity: 0.96,
-                userSelect: 'none',
-              }}>
-                Viewing host's transcription in real-time
-              </div>
-            )}
-          </div>
+          {/* Audio mode user instructions at the bottom of the toolbar */}
+          {appMode === 'audio' && roomSetup && roomSetup.isHost && (
+            <div style={{
+              marginTop: -45,
+              marginBottom: 0,
+              width: '100%',
+              textAlign: 'center',
+              color: '#ffb84d',  /* Yellow color as per original */
+              fontWeight: 600,
+              fontSize: '1.05rem',
+              letterSpacing: 0.1,
+              textShadow: '0 1px 2px #2228',
+              opacity: 0.96,
+              userSelect: 'none',
+            }}>
+              Hold Spacebar to record.  Release Spacebar to send.
+            </div>
+          )}
+          {appMode === 'audio' && roomSetup && !roomSetup.isHost && (
+            <div style={{
+              marginTop: -45,
+              marginBottom: 0,
+              width: '100%',
+              textAlign: 'center',
+              color: '#10b981',  /* Green for student mode */
+              fontWeight: 600,
+              fontSize: '1.05rem',
+              letterSpacing: 0.1,
+              textShadow: '0 1px 2px #2228',
+              opacity: 0.96,
+              userSelect: 'none',
+            }}>
+              Viewing host's transcription in real-time
+            </div>
+          )}
         </div>
       </div>
       {/* Remove the floating Recording indicator entirely */}

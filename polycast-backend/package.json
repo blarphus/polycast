@@ -12,6 +12,7 @@
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@google/generative-ai": "^0.18.0",
+    "@upstash/redis": "^1.28.4",
     "assemblyai": "^4.9.0",
     "axios": "^1.8.4",
     "cors": "^2.8.5",

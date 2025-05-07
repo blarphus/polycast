@@ -49,6 +49,7 @@ const speechService = require('./services/speechService');
 const llmService = require('./services/llmService');
 const { transcribeAudio } = require('./services/whisperService');
 const { generateImage } = require('./services/imageService');
+const redisService = require('./services/redisService');
 
 // Initialize Express app
 const app = express();
@@ -85,12 +86,27 @@ console.log(`WebSocket server created.`);
 const activeRooms = new Map(); // Map of roomCode -> {hostWs, students, transcript}
 
 // Generate a unique 5-digit room code
-function generateRoomCode() {
-    let code;
-    do {
-        code = Math.floor(10000 + Math.random() * 90000).toString(); // 5-digit number
-    } while (activeRooms.has(code));
-    return code;
+async function generateRoomCode() {
+    // Try up to 5 times to generate a unique code
+    for (let attempts = 0; attempts < 5; attempts++) {
+        const code = Math.floor(10000 + Math.random() * 90000).toString(); // 5-digit number
+        
+        // Check both in-memory map and Redis
+        if (!activeRooms.has(code) && !(await redisService.roomExists(code))) {
+            return code;
+        }
+    }
+    
+    // If we couldn't generate a unique code after 5 attempts, try a more systematic approach
+    let code = 10000;
+    while (code < 100000) {
+        if (!activeRooms.has(code.toString()) && !(await redisService.roomExists(code.toString()))) {
+            return code.toString();
+        }
+        code++;
+    }
+    
+    throw new Error('Failed to generate a unique room code');
 }
 
 // Client tracking
@@ -356,6 +372,10 @@ wss.on('connection', (ws, req) => {
                                     }
                                 }
                             });
+                            
+                            // Persist transcript update to Redis
+                            redisService.updateTranscript(clientRoom.roomCode, room.transcript)
+                                .catch(err => console.error(`[Redis] Failed to update transcript for room ${clientRoom.roomCode}:`, err));
                         }
                     }
                     
@@ -422,7 +442,7 @@ wss.on('connection', (ws, req) => {
         }
     });
 
-    ws.on('close', () => {
+    ws.on('close', async () => {
         // Check if the client was in a room
         const clientRoom = clientRooms.get(ws);
         if (clientRoom) {
@@ -445,7 +465,15 @@ wss.on('connection', (ws, req) => {
                         }
                     });
                     
-                    // Delete room from active rooms
+                    // Delete room data from Redis
+                    try {
+                        await redisService.deleteRoom(roomCode);
+                        console.log(`[Room] Successfully deleted room ${roomCode} from Redis`);
+                    } catch (error) {
+                        console.error(`[Room] Failed to delete room ${roomCode} from Redis:`, error);
+                    }
+                    
+                    // Remove from in-memory room map
                     activeRooms.delete(roomCode);
                 } else {
                     // Student disconnected - remove from room's student list
@@ -454,6 +482,13 @@ wss.on('connection', (ws, req) => {
                     // Remove student from room's student list
                     room.students = room.students.filter(student => student !== ws);
                     console.log(`[Room] Room ${roomCode} now has ${room.students.length} student(s)`);
+                    
+                    // Update Redis with current room state (student count)
+                    try {
+                        await redisService.saveRoom(roomCode, room);
+                    } catch (error) {
+                        console.error(`[Room] Failed to update room ${roomCode} in Redis after student disconnect:`, error);
+                    }
                 }
             }
             
@@ -477,31 +512,67 @@ wss.on('connection', (ws, req) => {
 // === Room Management API Endpoints ===
 
 // Create a new room (HOST endpoint)
-app.post('/api/create-room', (req, res) => {
-    const roomCode = generateRoomCode();
-    
-    // Initialize the room with empty values
-    activeRooms.set(roomCode, {
-        hostWs: null,  // Will be set when host connects via WebSocket
-        students: [],  // List of student WebSocket connections
-        transcript: [], // Current transcript data
-        createdAt: Date.now() // Timestamp for cleanup later
-    });
-    
-    console.log(`[Room] Created new room: ${roomCode}`);
-    res.status(201).json({ roomCode });
+app.post('/api/create-room', async (req, res) => {
+    try {
+        const roomCode = await generateRoomCode();
+        
+        // Initialize the room with empty values
+        const roomData = {
+            hostWs: null,  // Will be set when host connects via WebSocket
+            students: [],  // List of student WebSocket connections
+            transcript: [], // Current transcript data
+            createdAt: Date.now() // Timestamp for cleanup later
+        };
+        
+        // Set in memory
+        activeRooms.set(roomCode, roomData);
+        
+        // Persist in Redis
+        await redisService.saveRoom(roomCode, roomData);
+        
+        console.log(`[Room] Created new room: ${roomCode}`);
+        res.status(201).json({ roomCode });
+    } catch (error) {
+        console.error('[Room] Error creating room:', error);
+        res.status(500).json({ error: 'Failed to create room' });
+    }
 });
 
 // Check if a room exists (STUDENT endpoint)
-app.get('/api/check-room/:roomCode', (req, res) => {
+app.get('/api/check-room/:roomCode', async (req, res) => {
     const { roomCode } = req.params;
     
+    // Check if room exists in memory
     if (activeRooms.has(roomCode)) {
-        console.log(`[Room] Room check success: ${roomCode}`);
+        console.log(`[Room] Room check success (memory): ${roomCode}`);
         res.status(200).json({ exists: true });
-    } else {
-        console.log(`[Room] Room check failed - not found: ${roomCode}`);
-        res.status(404).json({ exists: false, message: 'Room not found' });
+        return;
+    }
+    
+    // If not in memory, check Redis
+    try {
+        const exists = await redisService.roomExists(roomCode);
+        if (exists) {
+            // Room exists in Redis, get its data
+            const roomData = await redisService.getRoom(roomCode);
+            
+            // Initialize the room in memory
+            activeRooms.set(roomCode, {
+                hostWs: null,
+                students: [],
+                transcript: roomData.transcript || [],
+                createdAt: roomData.createdAt || Date.now()
+            });
+            
+            console.log(`[Room] Room check success (redis): ${roomCode}`);
+            res.status(200).json({ exists: true });
+        } else {
+            console.log(`[Room] Room check failed - not found: ${roomCode}`);
+            res.status(404).json({ exists: false, message: 'Room not found' });
+        }
+    } catch (error) {
+        console.error(`[Room] Error checking room ${roomCode}:`, error);
+        res.status(500).json({ error: 'Failed to check room' });
     }
 });
 
