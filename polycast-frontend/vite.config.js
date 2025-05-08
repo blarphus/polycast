@@ -17,7 +17,8 @@ export default defineConfig({
     host: true,
     allowedHosts: [
         'localhost', 
-        '*.ngrok-free.app' // Wildcard for any ngrok free tier host
+        '*.ngrok-free.app', // Wildcard for any ngrok free tier host
+        'polycast-frontend.onrender.com'
         // Add the specific current one just in case wildcard fails:
         // '5cb0-207-45-83-227.ngrok-free.app' 
     ],
