@@ -617,15 +617,19 @@ const TranscriptionDisplay = ({
       console.log(`Generating image for specific sense of word: ${word} (${partOfSpeech})`);
       
       try {
-        const imageResponse = await fetch(`https://polycast-server.onrender.com/api/generate-image?prompt=${encodeURIComponent(imagePrompt)}`, {
-          mode: 'cors'
-        })
-          .then(res => {
-            if (!res.ok) throw new Error(`Failed with status: ${res.status}`);
-            return res.json();
-          });
+        // TEMPORARILY DISABLED IMAGE GENERATION
+        // const imageResponse = await fetch(`https://polycast-server.onrender.com/api/generate-image?prompt=${encodeURIComponent(imagePrompt)}`, {
+        //   mode: 'cors'
+        // })
+        //   .then(res => {
+        //     if (!res.ok) throw new Error(`Failed with status: ${res.status}`);
+        //     return res.json();
+        //   });
         
-        console.log(`Image generated for: ${word} (sense ID: ${wordSenseId})`);
+        // Use placeholder image instead of generating one
+        const imageResponse = { url: 'https://placehold.co/300x200/1a1a2e/CCCCCC?text=Placeholder+Image' };
+        
+        console.log(`Using placeholder image for: ${word} (sense ID: ${wordSenseId})`);
         
         // Update the WordDefinitions state to include the flashcard data
         // We'll use the wordSenseId as a key to store different senses separately

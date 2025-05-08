@@ -147,26 +147,31 @@ const FlashcardMode = ({ selectedWords, wordDefinitions, englishSegments }) => {
         // Mark as loading
         setImageLoading(prev => ({...prev, [word]: true}));
         
-        // Remove contextual awareness - generate image based solely on the word
-        const prompt = `Create a visually engaging, wordless flashcard image in the style of Charley Harper. Use bold shapes, minimal detail, and mid-century modern aesthetics to depict the concept in a memorable and metaphorical way. Avoid text or labels. Again, use no text. The word to illustrate is: "${word}"`;
+        // TEMPORARILY DISABLED IMAGE GENERATION
+        // const prompt = `Create a visually engaging, wordless flashcard image in the style of Charley Harper. Use bold shapes, minimal detail, and mid-century modern aesthetics to depict the concept in a memorable and metaphorical way. Avoid text or labels. Again, use no text. The word to illustrate is: "${word}"`;
         
-        fetch(`https://polycast-server.onrender.com/api/generate-image?prompt=${encodeURIComponent(prompt)}`, {
-          mode: 'cors'
-        })
-          .then(res => {
-            if (!res.ok) throw new Error(`Failed with status: ${res.status}`);
-            return res.json();
-          })
-          .then(data => {
-            console.log(`Image loaded for: ${word}`);
-            setWordImages(prev => ({...prev, [word]: data.url}));
-          })
-          .catch(err => {
-            console.error(`Error fetching image for ${word}:`, err);
-          })
-          .finally(() => {
-            setImageLoading(prev => ({...prev, [word]: false}));
-          });
+        // fetch(`https://polycast-server.onrender.com/api/generate-image?prompt=${encodeURIComponent(prompt)}`, {
+        //   mode: 'cors'
+        // })
+        //   .then(res => {
+        //     if (!res.ok) throw new Error(`Failed with status: ${res.status}`);
+        //     return res.json();
+        //   })
+        //   .then(data => {
+        //     console.log(`Image loaded for: ${word}`);
+        //     setWordImages(prev => ({...prev, [word]: data.url}));
+        //   })
+        //   .catch(err => {
+        //     console.error(`Error fetching image for ${word}:`, err);
+        //   })
+        
+        // Use placeholder image instead
+        console.log(`Using placeholder image for: ${word}`);
+        const placeholderUrl = `https://placehold.co/300x200/1a1a2e/CCCCCC?text=${encodeURIComponent(word)}`;
+        setWordImages(prev => ({...prev, [word]: placeholderUrl}));
+        
+        // Mark as not loading anymore
+        setImageLoading(prev => ({...prev, [word]: false}));
       }
     });
   }, [availableCards, showStats, wordImages, imageLoading, englishSegments]);
