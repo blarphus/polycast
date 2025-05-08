@@ -59,13 +59,6 @@ const WordDefinitionPopup = ({ word, definition, dictDefinition, position, onClo
       {/* Close button */}
       <button className="popup-close-btn" onClick={onClose}>×</button>
       
-      <div className="dict-header">
-        <div className="dict-word-row">
-          <div className="dict-word">Word</div>
-          <div className="dict-spanish-label">Definition</div>
-        </div>
-      </div>
-      
       <div className="dict-content">
         <div className="dict-english-side">
           <div className="dict-word-row">
