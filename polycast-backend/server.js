@@ -985,15 +985,19 @@ app.post('/api/disambiguate-word', async (req, res) => {
         console.log(`\n[WORD SENSE DISAMBIGUATION] Processing '${word}' in context: "${contextSentence}"`);
         console.log(`[WORD SENSE DISAMBIGUATION] Found ${definitions.length} possible definitions in dictionary`);
         
-        // Create a prompt for Gemini to disambiguate the word sense
-        let prompt = `The word "${word}" appears in the following sentence:\n\n"${contextSentence}"\n\nHere are possible definitions of "${word}":\n\n`;
-        
-        // Add each definition to the prompt
-        definitions.forEach((def, index) => {
-            prompt += `${index + 1}. (${def.partOfSpeech}) ${def.definition}\n`;
-        });
-        
-        prompt += `\nWhich definition best fits the usage of "${word}" in this sentence? Return only the matching definition exactly as it appears.`;
+        // The context sentence may have the target word emphasized with asterisks
+        // Example: "I am going to *charge* my phone"
+        console.log(`Context received with emphasis: ${contextSentence}`);
+
+        // Create a prompt for the LLM to use context to disambiguate
+        const prompt = `You are an expert language teacher. I need you to determine the correct definition of the word "${word}" in this specific context: "${contextSentence}". 
+
+Possible definitions:
+${definitions.map((def, idx) => `${idx + 1}. (${def.partOfSpeech}) ${def.definition}`).join('\n')}
+
+The word is emphasized with asterisks (*) in the context. Analyze the context carefully to determine how the word is being used.
+
+Output ONLY a JSON object with these fields: {"partOfSpeech": the part of speech, "definition": the full exact definition text that best matches the word in this context}. Do NOT create new definitions.`;
         
         console.log(`[WORD SENSE DISAMBIGUATION] Sending prompt to Gemini for disambiguation`);
         
@@ -1053,13 +1057,67 @@ app.post('/api/disambiguate-word', async (req, res) => {
 // Helper function to find the best matching definition from the LLM response
 function findBestMatchingDefinition(llmResponse, definitions) {
     if (!llmResponse || !definitions || !definitions.length) {
+        console.log('[WORD SENSE DISAMBIGUATION] Empty response or definitions');
         return null;
     }
     
-    // Try to find exact matches first
+    console.log('[WORD SENSE DISAMBIGUATION] Parsing response:', llmResponse.substring(0, 200));
+    
+    // First try to parse JSON from the response
+    try {
+        // Extract JSON object if it's embedded in text
+        const jsonMatch = llmResponse.match(/\{[\s\S]*?\}/); // Find first JSON-like object
+        
+        if (jsonMatch) {
+            const jsonStr = jsonMatch[0];
+            console.log('[WORD SENSE DISAMBIGUATION] Found JSON:', jsonStr);
+            
+            const parsedResponse = JSON.parse(jsonStr);
+            
+            if (parsedResponse.partOfSpeech && parsedResponse.definition) {
+                // Find the definition that matches both part of speech and definition
+                const exactMatch = definitions.find(def => 
+                    def.partOfSpeech.toLowerCase() === parsedResponse.partOfSpeech.toLowerCase() && 
+                    def.definition.toLowerCase() === parsedResponse.definition.toLowerCase()
+                );
+                
+                if (exactMatch) {
+                    console.log('[WORD SENSE DISAMBIGUATION] Found exact match from JSON response');
+                    return exactMatch;
+                }
+                
+                // If no exact match, find the closest match
+                let bestMatch = null;
+                let highestSimilarity = 0;
+                
+                for (const def of definitions) {
+                    // Check part of speech first
+                    if (def.partOfSpeech.toLowerCase() === parsedResponse.partOfSpeech.toLowerCase()) {
+                        const similarity = calculateSimilarity(parsedResponse.definition, def.definition);
+                        
+                        if (similarity > highestSimilarity) {
+                            highestSimilarity = similarity;
+                            bestMatch = def;
+                        }
+                    }
+                }
+                
+                if (bestMatch) {
+                    console.log('[WORD SENSE DISAMBIGUATION] Found best match from JSON by similarity');
+                    return bestMatch;
+                }
+            }
+        }
+    } catch (e) {
+        console.log('[WORD SENSE DISAMBIGUATION] Error parsing JSON:', e.message);
+        // Fall back to the original method if JSON parsing fails
+    }
+    
+    // Fallback: Try to find exact text matches
     for (const def of definitions) {
         const fullDefinition = `(${def.partOfSpeech}) ${def.definition}`;
         if (llmResponse.includes(fullDefinition)) {
+            console.log('[WORD SENSE DISAMBIGUATION] Found match by exact text');
             return def;
         }
     }
@@ -1078,6 +1136,7 @@ function findBestMatchingDefinition(llmResponse, definitions) {
         }
     }
     
+    console.log('[WORD SENSE DISAMBIGUATION] Found match by text similarity');
     return bestMatch;
 }
 

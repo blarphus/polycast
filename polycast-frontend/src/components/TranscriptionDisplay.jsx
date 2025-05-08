@@ -178,9 +178,17 @@ const TranscriptionDisplay = ({
     const xPos = fitsOnRight ? rect.right + 5 : rect.left - popupWidth - 5;
     
     // Find the sentence context where this word appears
-    const contextSentence = englishSegments.find(segment => 
+    let contextSentence = englishSegments.find(segment => 
       segment.text.toLowerCase().includes(wordLower)
     )?.text || "";
+    
+    // Format the context with the target word emphasized with asterisks for Gemini
+    // (we'll use a case-insensitive replace to maintain the original casing of the word)
+    if (contextSentence) {
+      const regex = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+      contextSentence = contextSentence.replace(regex, (match) => `*${match}*`);
+      console.log(`Context with emphasis: ${contextSentence}`);
+    }
     
     setPopupInfo({
       visible: true,
