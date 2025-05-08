@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
+import WordDefinitionPopup from './WordDefinitionPopup';
 
 // Helper function to render segments
 const renderSegments = (segments, lastPersisted) => {
@@ -75,7 +76,10 @@ const renderSegmentsWithClickableWords = (segments, lastPersisted, selectedWords
           return (
             <span
               key={i}
-              onClick={isWord ? (e => { e.stopPropagation(); handleWordClick(token); }) : undefined}
+              onClick={isWord ? (e => { 
+                e.stopPropagation(); 
+                handleWordClick(token, e); // Pass the event to get the position
+              }) : undefined}
               style={{
                 cursor: isWord ? 'pointer' : 'default',
                 color: isWord && selectedWords.some(w => w.toLowerCase() === token.toLowerCase()) ? '#1976d2' : undefined,
@@ -145,12 +149,33 @@ const TranscriptionDisplay = ({
   const [containerSize, setContainerSize] = useState({ width: 1200, height: 600 });
   const [langBoxStates, setLangBoxStates] = useState([]);
   const lastPersistedTranslations = useRef({});
+  
+  // State for word definition popup
+  const [popupInfo, setPopupInfo] = useState({
+    visible: false,
+    word: '',
+    position: { x: 0, y: 0 }
+  });
 
   // Helper: add/remove word from list
-  const handleWordClick = (word) => {
+  const handleWordClick = (word, event) => {
     // Don't add duplicates (case insensitive)
     const wordLower = word.toLowerCase();
     const isSelected = selectedWords.some(w => w.toLowerCase() === wordLower);
+    
+    // Show popup with definition on click
+    if (event) {
+      // Calculate position for popup
+      const rect = event.currentTarget.getBoundingClientRect();
+      setPopupInfo({
+        visible: true,
+        word: word,
+        position: {
+          x: rect.left,
+          y: rect.top - 10 // Position slightly above the word
+        }
+      });
+    }
     
     if (isSelected) {
       // Remove the word if already selected
@@ -415,6 +440,15 @@ const TranscriptionDisplay = ({
         gap: 0,
       }}
     >
+      {/* Word Definition Popup */}
+      {popupInfo.visible && wordDefinitions[popupInfo.word.toLowerCase()] && (
+        <WordDefinitionPopup 
+          word={popupInfo.word}
+          definition={wordDefinitions[popupInfo.word.toLowerCase()]}
+          position={popupInfo.position}
+          onClose={() => setPopupInfo(prev => ({ ...prev, visible: false }))}
+        />
+      )}
       {/* Transcript/English box always renders and updates first */}
       {transcriptVisible && (
         <div style={{ width: translationVisible ? '100%' : '100%', flex: translationVisible ? '0 0 33.5%' : '1 1 100%', minHeight: 0, display: 'flex', flexDirection: 'column', transition: 'flex 0.3s, width 0.3s' }}>{renderEnglishBox()}</div>

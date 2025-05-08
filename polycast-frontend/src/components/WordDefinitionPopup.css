@@ -1,0 +1,139 @@
+.word-definition-popup {
+  position: absolute;
+  width: 280px;
+  max-height: 400px;
+  background-color: rgba(40, 40, 40, 0.92);
+  backdrop-filter: blur(5px);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+  padding: 16px;
+  z-index: 1000;
+  overflow-y: auto;
+  transform: translateY(-100%);
+  transition: opacity 0.2s;
+}
+
+.popup-close-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: transparent;
+  border: none;
+  color: #aaa;
+  font-size: 18px;
+  cursor: pointer;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.popup-close-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.popup-word-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.popup-word {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.popup-phonetic {
+  font-size: 12px;
+  color: #bbb;
+  margin-top: 2px;
+}
+
+.popup-audio-btn {
+  background: transparent;
+  border: none;
+  color: #4ad991;
+  cursor: pointer;
+  font-size: 18px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.popup-audio-btn:hover {
+  background-color: rgba(74, 217, 145, 0.1);
+}
+
+.popup-section {
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.popup-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.popup-section-title {
+  font-size: 12px;
+  color: #aaa;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.popup-synonyms {
+  font-size: 14px;
+  color: #4ad991;
+}
+
+.popup-examples {
+  font-size: 14px;
+  color: #ddd;
+}
+
+.popup-example {
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+
+.popup-example:last-child {
+  margin-bottom: 0;
+}
+
+.popup-meaning {
+  margin-bottom: 8px;
+}
+
+.popup-meaning:last-child {
+  margin-bottom: 0;
+}
+
+.popup-part-of-speech {
+  font-size: 13px;
+  color: #7c62ff;
+  font-style: italic;
+  margin-right: 5px;
+}
+
+.popup-definition {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #fff;
+}

@@ -232,6 +232,13 @@ function AudioRecorder({ sendMessage, isRecording, onAudioSent, autoSend, showNo
           setIsSilent(true);
           setSilenceDuration(silenceFramesRef.current * FRAME_MS);
           
+          // Reset speech detection status after 500ms of silence
+          // This ensures the Speech: YES/NO indicator accurately reflects current state
+          if (speechDetectedRef.current && silenceFramesRef.current * FRAME_MS >= 500) {
+            speechDetectedRef.current = false;
+            console.log('Speech detection reset after extended silence');
+          }
+          
           // Check if we've had enough silence to send chunk
           if (speechDetectedRef.current && 
               silenceFramesRef.current * FRAME_MS >= GAP_MS &&
