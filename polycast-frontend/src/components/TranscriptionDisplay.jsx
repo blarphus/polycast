@@ -319,6 +319,19 @@ const TranscriptionDisplay = ({
   // Function to add word to dictionary when the + button is clicked
   const handleAddWordToDictionary = async (word) => {
     const wordLower = word.toLowerCase();
+    console.log(`Adding "${word}" to dictionary...`);
+    
+    // First, add the word to the selectedWords right away to update UI
+    // This will make the checkmark appear immediately
+    setSelectedWords(prev => {
+      if (prev.some(w => w.toLowerCase() === wordLower)) {
+        console.log(`Word "${word}" is already in selected words list`);
+        return prev; // Already in the list
+      }
+      console.log(`Adding "${word}" to selected words list`);
+      return [...prev, word];
+    });
+    
     // Get the word data with definitions
     const wordData = wordDefinitions[wordLower];
     
@@ -364,6 +377,7 @@ const TranscriptionDisplay = ({
       // Check if this sense already exists in flashcards
       if (disambiguationResponse.existingFlashcard) {
         console.log(`This sense of "${word}" already exists in flashcards. No new card needed.`);
+        // The word is still added to selectedWords above for UI consistency
         return;
       }
       
@@ -376,14 +390,6 @@ const TranscriptionDisplay = ({
         return;
       }
       
-      // Add the word to selected words
-      setSelectedWords(prev => {
-        if (prev.some(w => w.toLowerCase() === wordLower)) {
-          return prev; // Already in the list
-        }
-        return [...prev, word];
-      });
-      
       // Generate the image prompt based on the specific definition
       const definition = disambiguatedDefinition.definition;
       const partOfSpeech = disambiguatedDefinition.partOfSpeech;
@@ -392,32 +398,59 @@ const TranscriptionDisplay = ({
       
       console.log(`Generating image for specific sense of word: ${word} (${partOfSpeech})`);
       
-      const imageResponse = await fetch(`https://polycast-server.onrender.com/api/generate-image?prompt=${encodeURIComponent(imagePrompt)}`, {
-        mode: 'cors'
-      })
-        .then(res => {
-          if (!res.ok) throw new Error(`Failed with status: ${res.status}`);
-          return res.json();
+      try {
+        const imageResponse = await fetch(`https://polycast-server.onrender.com/api/generate-image?prompt=${encodeURIComponent(imagePrompt)}`, {
+          mode: 'cors'
+        })
+          .then(res => {
+            if (!res.ok) throw new Error(`Failed with status: ${res.status}`);
+            return res.json();
+          });
+        
+        console.log(`Image generated for: ${word} (sense ID: ${wordSenseId})`);
+        
+        // Update the WordDefinitions state to include the flashcard data
+        setWordDefinitions(prev => {
+          const existingData = prev[wordLower] || {};
+          return {
+            ...prev,
+            [wordLower]: {
+              ...existingData,
+              imageUrl: imageResponse.url,
+              wordSenseId: wordSenseId,
+              contextSentence: contextSentence,
+              disambiguatedDefinition: disambiguatedDefinition,
+              inFlashcards: true, // Mark that this word is now in flashcards with this sense
+              cardCreatedAt: new Date().toISOString()
+            }
+          };
         });
-      
-      console.log(`Image generated for: ${word} (sense ID: ${wordSenseId})`);
-      
-      // Create the flashcard with the single best definition
-      setWordDefinitions(prev => {
-        const existingData = prev[wordLower] || {};
-        return {
+        
+        // Force popup to update with checkmark
+        setPopupInfo(prev => ({
           ...prev,
-          [wordLower]: {
-            ...existingData,
-            imageUrl: imageResponse.url,
-            wordSenseId: wordSenseId,
-            contextSentence: contextSentence,
-            disambiguatedDefinition: disambiguatedDefinition,
-            inFlashcards: true, // Mark that this word is now in flashcards with this sense
-            cardCreatedAt: new Date().toISOString()
-          }
-        };
-      });
+          wordAddedToDictionary: true
+        }));
+        
+        console.log(`Successfully added "${word}" to dictionary with definition: ${definition}`);
+      } catch (imageError) {
+        console.error(`Error generating image for ${word}:`, imageError);
+        // Still update state without image
+        setWordDefinitions(prev => {
+          const existingData = prev[wordLower] || {};
+          return {
+            ...prev,
+            [wordLower]: {
+              ...existingData,
+              wordSenseId: wordSenseId,
+              contextSentence: contextSentence,
+              disambiguatedDefinition: disambiguatedDefinition,
+              inFlashcards: true, // Mark that this word is now in flashcards with this sense
+              cardCreatedAt: new Date().toISOString()
+            }
+          };
+        });
+      }
     } catch (error) {
       console.error(`Error creating flashcard for ${word}:`, error);
     }
@@ -634,9 +667,11 @@ const TranscriptionDisplay = ({
           word={popupInfo.word}
           definition={wordDefinitions[popupInfo.word.toLowerCase()]}
           dictDefinition={wordDefinitions[popupInfo.word.toLowerCase()]?.dictionaryDefinition}
+          disambiguatedDefinition={wordDefinitions[popupInfo.word.toLowerCase()]?.disambiguatedDefinition}
           position={popupInfo.position}
           isInDictionary={selectedWords.some(w => w.toLowerCase() === popupInfo.word.toLowerCase())}
           onAddToDictionary={handleAddWordToDictionary}
+          loading={popupInfo.loading}
           onClose={() => setPopupInfo(prev => ({ ...prev, visible: false }))}
         />
       )}
