@@ -997,8 +997,9 @@ app.post('/api/disambiguate-word', async (req, res) => {
         
         console.log(`[WORD SENSE DISAMBIGUATION] Sending prompt to Gemini for disambiguation`);
         
-        // Call Gemini API (using the existing LLM service)
-        const response = await llmService.generateText(prompt, { temperature: 0.1 });
+        // Call Gemini API with a custom function since llmService doesn't have generateText
+        // We'll create our own direct call to the model
+        const response = await generateTextWithGemini(prompt, 0.1);
         
         // Find the most closely matching definition from the response
         const bestMatch = findBestMatchingDefinition(response, definitions);
@@ -1096,6 +1097,48 @@ function calculateSimilarity(text1, text2) {
     }
     
     return matches / words.length; // Return percentage of matching words
+}
+
+/**
+ * A simple function to generate text using Gemini
+ * Since llmService doesn't have a direct generateText function,
+ * we'll implement our own here using the same initialization pattern
+ * @param {string} prompt The prompt to send to Gemini
+ * @param {number} temperature The temperature setting (0-1)
+ * @returns {Promise<string>} The generated text response
+ */
+async function generateTextWithGemini(prompt, temperature = 0.7) {
+    try {
+        // Make sure we have initialized the Gemini model through llmService
+        // This calls the same initialization used in other llmService functions
+        if (!llmService._isInitialized) {
+            // See if we can call an existing function to make sure model is initialized
+            await llmService.translateText('test', 'Spanish'); // This will initialize if needed
+        }
+        
+        console.log(`[GEMINI] Generating text with prompt: ${prompt.substring(0, 50)}...`);
+        
+        // Use the raw Google API directly instead of going through llmService
+        // We're using require at this point to avoid needing to move this to llmService.js
+        const { GoogleGenerativeAI } = require('@google/generative-ai');
+        const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+        const model = genAI.getGenerativeModel({ model: "models/gemini-2.0-flash" });
+        
+        // Generate content with the provided temperature
+        const result = await model.generateContent({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            generationConfig: { temperature: temperature }
+        });
+        
+        const response = result.response;
+        const text = response.text();
+        
+        console.log(`[GEMINI] Generated ${text.length} chars of text`);
+        return text;
+    } catch (error) {
+        console.error('[GEMINI] Error generating text:', error);
+        throw error;
+    }
 }
 
 module.exports = { server, wss };
