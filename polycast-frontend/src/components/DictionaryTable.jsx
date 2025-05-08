@@ -1,106 +1,89 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import PropTypes from 'prop-types';
+import './DictionaryTable.css';
 
-/**
- * DictionaryTable
- * ----------------
- * Renders *every individual word sense* currently stored in `wordDefinitions`.
- * A word sense qualifies for display when:
- *   • `inFlashcards === true`   – it is an active entry the learner saved
- *   • `wordSenseId` exists      – guarantees uniqueness for React keys
- *   • `disambiguatedDefinition` – holds the English/Spanish definitions we want to show
- *
- * The table does **not** depend on `selectedWords`; it just trusts the canonical
- * `wordDefinitions` object delivered by the parent component (usually populated
- * in TranscriptionDisplay.jsx after sense‑disambiguation and flashcard creation).
- */
 const DictionaryTable = ({ wordDefinitions, onRemoveWord }) => {
-  // ────────────────────────────────────────────────────────────────────────────
-  // Build an ordered list of entries to show
-  // ────────────────────────────────────────────────────────────────────────────
-  const entriesToDisplay = useMemo(() => {
-    return Object.values(wordDefinitions || {})
-      .filter(
-        (e) =>
-          e &&
-          e.inFlashcards === true &&
-          Boolean(e.wordSenseId) &&
-          Boolean(e.disambiguatedDefinition)
-      )
-      .sort((a, b) => {
-        // 1️⃣ Alphabetical by word
-        const cmpWord = (a.word || '').localeCompare(b.word || '');
-        if (cmpWord !== 0) return cmpWord;
+  // Find all the individual sense entries that should be displayed
+  const entriesToDisplay = Object.values(wordDefinitions)
+    .filter(entry => entry && entry.inFlashcards && entry.wordSenseId)
+    .sort((a, b) => {
+      // Sort first by word, then by part of speech
+      const wordA = (a.word || '').toLowerCase();
+      const wordB = (b.word || '').toLowerCase();
+      if (wordA !== wordB) return wordA.localeCompare(wordB);
+      
+      // If same word, sort by part of speech
+      const posA = (a.partOfSpeech || '').toLowerCase();
+      const posB = (b.partOfSpeech || '').toLowerCase();
+      return posA.localeCompare(posB);
+    });
 
-        // 2️⃣ Then by part of speech
-        const cmpPos = (a.partOfSpeech || '').localeCompare(b.partOfSpeech || '');
-        if (cmpPos !== 0) return cmpPos;
-
-        // 3️⃣ Finally by creation timestamp (oldest first)
-        return (a.cardCreatedAt || '').localeCompare(b.cardCreatedAt || '');
-      });
-  }, [wordDefinitions]);
-
-  // ────────────────────────────────────────────────────────────────────────────
-  // Empty‑state UI
-  // ────────────────────────────────────────────────────────────────────────────
+  // Show a message if dictionary is empty
   if (entriesToDisplay.length === 0) {
     return (
-      <div
-        style={{
-          padding: '20px',
-          textAlign: 'center',
-          color: '#aaa',
-          fontStyle: 'italic',
-        }}
-      >
-        Your dictionary is empty. Click words in the transcript to add them here.
+      <div className="empty-dictionary-message">
+        Your dictionary is empty. Add words from the transcript by clicking on them!
       </div>
     );
   }
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // Main table UI
-  // ────────────────────────────────────────────────────────────────────────────
   return (
-    <div style={{ width: '100%', overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', color: '#fff' }}>
+    <div className="dictionary-table-container">
+      <table className="dictionary-table">
         <thead>
-          <tr style={{ backgroundColor: 'rgba(124, 98, 255, 0.2)' }}>
-            <th style={{ padding: 12, textAlign: 'left' }}>Word / Part of Speech</th>
-            <th style={{ padding: 12, textAlign: 'left' }}>Definition</th>
-            <th style={{ padding: 12, textAlign: 'left' }}>Example Sentence</th>
-            {onRemoveWord && <th style={{ padding: 12 }}>Action</th>}
+          <tr>
+            <th>Word</th>
+            <th>Definition</th>
+            <th>Example</th>
+            {onRemoveWord && <th>Action</th>}
           </tr>
         </thead>
         <tbody>
           {entriesToDisplay.map((entry) => {
-            const {
-              word,
-              partOfSpeech,
-              wordSenseId,
-              contextSentence,
-              disambiguatedDefinition,
-            } = entry;
-
-            const englishDef = disambiguatedDefinition?.definition ?? 'N/A';
+            // Get word info
+            const word = entry.word || '';
+            const partOfSpeech = entry.partOfSpeech || 
+                               (entry.disambiguatedDefinition?.partOfSpeech) || 
+                               '';
+            
+            // Format word with part of speech if available
+            const wordDisplay = partOfSpeech ? 
+                              `${word} (${partOfSpeech})` : 
+                              word;
+            
+            // Get definition, prefer Spanish translation when available
+            const definition = entry.disambiguatedDefinition?.spanish_equivalent || 
+                              entry.disambiguatedDefinition?.translation || 
+                              entry.disambiguatedDefinition?.definition || 
+                              'N/A';
+            
+            // Get example sentence - use context or Gemini-generated example
+            const example = entry.contextSentence || 
+                          entry.disambiguatedDefinition?.example || 
+                          'No example available';
+                          
+            // Get the unique ID for this sense
+            const wordSenseId = entry.wordSenseId;
 
             return (
-              <tr
-                key={wordSenseId}
-                style={{ borderBottom: '1px solid rgba(124, 98, 255, 0.15)' }}
-              >
-                {/* Word / Part of Speech */}
-                <td style={{ padding: 12, fontWeight: 600, color: '#4ad991' }}>
-                  {word} {partOfSpeech && `(${partOfSpeech})`}
+              <tr key={wordSenseId}>
+                {/* Word with part of speech */}
+                <td style={{ 
+                  padding: 12, 
+                  color: '#4ade80', 
+                  fontWeight: 'bold' 
+                }}>
+                  {wordDisplay}
                 </td>
 
-                {/* English Definition */}
-                <td style={{ padding: 12 }}>{englishDef}</td>
+                {/* Definition */}
+                <td style={{ padding: 12 }}>
+                  {definition}
+                </td>
 
-                {/* Context sentence (Example) */}
+                {/* Example sentence */}
                 <td style={{ padding: 12, fontStyle: 'italic' }}>
-                  {contextSentence ?? 'N/A'}
+                  {example}
                 </td>
 
                 {/* Remove button (optional) */}
