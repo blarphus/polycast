@@ -2,7 +2,7 @@
 // Handles dictionary lookups, word sense disambiguation, and flashcard management
 const fs = require('fs').promises;
 const path = require('path');
-const { google } = require('@google/generative-ai');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // Import config to use the same API key source as llmService
 const config = require('../config/config');
@@ -10,7 +10,7 @@ const config = require('../config/config');
 // Initialize Gemini API using the same config as the translation service
 let genAI;
 if (config.googleApiKey) {
-    genAI = new google.GenerativeAI(config.googleApiKey);
+    genAI = new GoogleGenerativeAI(config.googleApiKey);
     console.log('[FlashcardService] Gemini API initialized successfully using API key from config');
 } else {
     console.warn('[FlashcardService] Google API Key not found in config. Word sense disambiguation will be limited.');
