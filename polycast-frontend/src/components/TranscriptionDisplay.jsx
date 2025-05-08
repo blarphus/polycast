@@ -56,7 +56,11 @@ const renderHistoryStacked = (segments) => {
 };
 
 // Helper: render a segment with clickable words
-const renderSegmentsWithClickableWords = (segments, lastPersisted, selectedWords, handleWordClick) => {
+const renderSegmentsWithClickableWords = (segments, lastPersisted, selectedWords, handleWordClick, isWordInSelectedListFn) => {
+  // Default implementation if no function is provided
+  const checkWordInList = isWordInSelectedListFn || ((word) => {
+    return selectedWords.some(w => w.toLowerCase() === word.toLowerCase());
+  });
   if ((!segments || segments.length === 0) && lastPersisted) {
     return <span>{lastPersisted}</span>;
   }
@@ -82,9 +86,9 @@ const renderSegmentsWithClickableWords = (segments, lastPersisted, selectedWords
               }) : undefined}
               style={{
                 cursor: isWord ? 'pointer' : 'default',
-                color: isWord && isWordInSelectedList(token, segment.text) ? '#1976d2' : undefined,
-                background: isWord && isWordInSelectedList(token, segment.text) ? 'rgba(25,118,210,0.07)' : undefined,
-                borderRadius: isWord && isWordInSelectedList(token, segment.text) ? 3 : undefined,
+                color: isWord && checkWordInList(token, segment.text) ? '#1976d2' : undefined,
+                background: isWord && checkWordInList(token, segment.text) ? 'rgba(25,118,210,0.07)' : undefined,
+                borderRadius: isWord && checkWordInList(token, segment.text) ? 3 : undefined,
                 transition: 'color 0.2s',
                 userSelect: 'text',
               }}
@@ -684,7 +688,7 @@ const TranscriptionDisplay = ({
           ) : (
             <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
               <span style={{ fontWeight: 400, fontSize: fontSize }}>
-                {renderSegmentsWithClickableWords(englishSegments, null, selectedWords, handleWordClick)}
+                {renderSegmentsWithClickableWords(englishSegments, null, selectedWords, handleWordClick, isWordInSelectedList)}
               </span>
               <div className="scroll-end" />
             </div>
