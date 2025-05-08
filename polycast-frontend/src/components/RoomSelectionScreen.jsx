@@ -77,11 +77,11 @@ function RoomSelectionScreen({ onRoomSetup }) {
         {!mode ? (
           <div className="room-buttons">
             <button 
-              onClick={() => setMode('host')} 
+              onClick={handleHostClick}
               className="room-btn host-btn"
               disabled={isLoading}
             >
-              Host
+              {isLoading ? 'Creating Room...' : 'Host'}
             </button>
             <button 
               onClick={() => setMode('student')} 
