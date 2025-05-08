@@ -898,4 +898,42 @@ process.on('SIGTERM', () => {
 });
 
 // Export for testing purposes
+// === Dictionary API Endpoints ===
+
+// Endpoint to get definition from local JSON dictionary files
+app.get('/api/local-dictionary/:letter/:word', (req, res) => {
+    const { letter, word } = req.params;
+    
+    // Validate letter is a single character a-z
+    if (!/^[a-z]$/.test(letter)) {
+        return res.status(400).json({ error: 'Letter parameter must be a single letter a-z' });
+    }
+    
+    // Build the path to the dictionary file
+    const dictionaryFilePath = path.join(__dirname, 'dictionary-data', `${letter}.json`);
+    
+    // Check if the file exists
+    if (!fs.existsSync(dictionaryFilePath)) {
+        return res.status(404).json({ error: `Dictionary file for letter '${letter}' not found` });
+    }
+    
+    try {
+        // Read and parse the JSON file
+        const dictionaryData = JSON.parse(fs.readFileSync(dictionaryFilePath, 'utf8'));
+        
+        // Look up the word in the dictionary
+        // The word parameter should be uppercase to match the JSON format
+        if (dictionaryData[word]) {
+            // Return the definition
+            return res.json(dictionaryData[word]);
+        } else {
+            // Word not found in the dictionary
+            return res.status(404).json({ error: `Word '${word}' not found in the dictionary` });
+        }
+    } catch (error) {
+        console.error(`Error reading dictionary file for letter '${letter}':`, error);
+        return res.status(500).json({ error: 'Error reading dictionary data' });
+    }
+});
+
 module.exports = { server, wss };

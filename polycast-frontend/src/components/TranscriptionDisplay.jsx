@@ -201,7 +201,7 @@ const TranscriptionDisplay = ({
         segment.text.toLowerCase().includes(wordLower)
       )?.text || "";
       
-      // Preload the definition immediately with context
+      // 1. Fetch Gemini definition with context
       const apiUrl = `https://polycast-server.onrender.com/api/dictionary/${encodeURIComponent(word)}?context=${encodeURIComponent(contextSentence)}`;
       console.log(`Preloading definition for "${word}" with context, from: ${apiUrl}`);
       
@@ -216,6 +216,32 @@ const TranscriptionDisplay = ({
         })
         .catch(err => {
           console.error(`Error preloading definition for ${word}:`, err);
+        });
+      
+      // 2. Fetch dictionary definition from JSON files
+      const firstLetter = word.charAt(0).toLowerCase();
+      const dictUrl = `https://polycast-server.onrender.com/api/local-dictionary/${encodeURIComponent(firstLetter)}/${encodeURIComponent(word.toUpperCase())}`;
+      
+      console.log(`Fetching dictionary definition for "${word}" from: ${dictUrl}`);
+      
+      fetch(dictUrl)
+        .then(res => res.json())
+        .then(dictData => {
+          console.log(`Received dictionary definition for "${word}":`, dictData);
+          // Update the wordDefinitions to include the dictionary definition
+          setWordDefinitions(prev => {
+            const existingDefData = prev[word.toLowerCase()] || {};
+            return {
+              ...prev,
+              [word.toLowerCase()]: {
+                ...existingDefData,
+                dictionaryDefinition: dictData
+              }
+            };
+          });
+        })
+        .catch(err => {
+          console.error(`Error fetching dictionary definition for ${word}:`, err);
         });
         
       // Generate image for the flashcard at the same time
@@ -457,6 +483,7 @@ const TranscriptionDisplay = ({
         <WordDefinitionPopup 
           word={popupInfo.word}
           definition={wordDefinitions[popupInfo.word.toLowerCase()]}
+          dictDefinition={wordDefinitions[popupInfo.word.toLowerCase()]?.dictionaryDefinition}
           position={popupInfo.position}
           onClose={() => setPopupInfo(prev => ({ ...prev, visible: false }))}
         />

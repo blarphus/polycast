@@ -96,11 +96,34 @@
   margin-bottom: 8px;
 }
 
+.dict-section {
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #3f3969;
+}
+
+.dict-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.dict-section-title {
+  color: #9181e3;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
 .dict-full-definition {
   color: #ddd;
   font-size: 14px;
   margin-bottom: 8px;
   line-height: 1.4;
+}
+
+.dict-local {
+  color: #4ad991;
 }
 
 .dict-example {
