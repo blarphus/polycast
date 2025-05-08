@@ -964,7 +964,7 @@ app.get('/api/local-dictionary/:letter/:word', async (req, res) => {
         const prompt = `You are creating dictionary entries for non-native English speakers who are learning English. 
     
 Your job is to explain the English word "${word}" in a simple, clear way that helps beginners understand it.
-The word appears in this context: "${context}". Your definition and example should be specific to how the word is used in this context ONLY.
+The word appears in this context: "${contextSentence}". Your definition and example should be specific to how the word is used in this context ONLY.
 Your response must be in JSON format with these fields:
 {
   "translation": "Spanish translation of the word as used in this specific context",
