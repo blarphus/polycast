@@ -4,7 +4,12 @@ import './WordDefinitionPopup.css';
 
 const WordDefinitionPopup = ({ word, definition, dictDefinition, disambiguatedDefinition, position, onClose, onAddToDictionary, isInDictionary, loading }) => {
   const [showTooltip, setShowTooltip] = useState(false);
+  // Add local state to track when a word is added, so we can show checkmark immediately
+  const [localAdded, setLocalAdded] = useState(false);
   if (!word) return null;
+  
+  // Use either external or local state to determine if word is in dictionary
+  const isWordInDictionary = isInDictionary || localAdded;
   
   // Ensure definition data exists and handle all possible dictionary response formats
   const partOfSpeech = definition?.partOfSpeech || 
@@ -88,10 +93,15 @@ const WordDefinitionPopup = ({ word, definition, dictDefinition, disambiguatedDe
             <div className="dict-english-side">
               <div className="dict-word-row">
                 <div className="dict-word-display">{word}</div>
-                {!isInDictionary && (
+                {!isWordInDictionary && (
                   <div 
                     className="dict-add-btn"
-                    onClick={() => onAddToDictionary && onAddToDictionary(word)}
+                    onClick={() => {
+                      // Immediately update local state to show checkmark
+                      setLocalAdded(true);
+                      // Call the external handler
+                      onAddToDictionary && onAddToDictionary(word);
+                    }}
                     onMouseEnter={() => setShowTooltip(true)}
                     onMouseLeave={() => setShowTooltip(false)}
                   >
@@ -101,7 +111,7 @@ const WordDefinitionPopup = ({ word, definition, dictDefinition, disambiguatedDe
                     )}
                   </div>
                 )}
-                {isInDictionary && (
+                {isWordInDictionary && (
                   <div className="dict-added-indicator">✓</div>
                 )}
               </div>

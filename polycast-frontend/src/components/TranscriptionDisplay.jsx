@@ -208,6 +208,11 @@ const TranscriptionDisplay = ({
       console.log(`Context with emphasis: ${contextSentence}`);
     }
     
+    // Check if word exists in wordDefinitions
+    const existingWordData = wordDefinitions[wordLower];
+    const isAlreadyInDictionary = existingWordData ? doesWordSenseExist(word, contextSentence) : false;
+    
+    // Set initial popup state
     setPopupInfo({
       visible: true,
       word: word,
@@ -215,7 +220,9 @@ const TranscriptionDisplay = ({
         x: Math.max(5, Math.min(viewportWidth - popupWidth - 5, xPos)), // Keep on screen
         y: rect.top - 5 // Position slightly above the word
       },
-      loading: true // Set loading state while we fetch definitions
+      loading: true, // Set loading state while we fetch definitions
+      contextSentence: contextSentence, // Store context for reference
+      wordAddedToDictionary: isAlreadyInDictionary // Set to true if already in dictionary
     });
     
     try {
@@ -349,13 +356,54 @@ const TranscriptionDisplay = ({
     
     const wordLower = word.toLowerCase();
     
-    // Try to find a matching context sentence
+    // Get the current definition from wordDefinitions
+    const currentWordData = wordDefinitions[wordLower];
+    if (!currentWordData) return false;
+    
+    const currentDefinition = currentWordData.disambiguatedDefinition || 
+                             (currentWordData.dictionaryDefinition && 
+                              currentWordData.dictionaryDefinition.allDefinitions && 
+                              currentWordData.dictionaryDefinition.allDefinitions[0]) ||
+                             currentWordData.definition;
+
+    if (!currentDefinition) return false;
+    
+    // Try to find a matching context sentence or definition
     for (const entry of Object.values(wordDefinitions)) {
-      if (entry.wordSenseId && 
-          entry.contextSentence && 
-          entry.contextSentence.toLowerCase().includes(wordLower) &&
-          (contextSentence.includes(entry.contextSentence) || entry.contextSentence.includes(contextSentence)) &&
-          entry.inFlashcards === true) {
+      if (entry.inFlashcards !== true) continue;
+      
+      // First check context - if sentences are similar, likely same meaning
+      const contextMatch = entry.contextSentence && 
+                          entry.contextSentence.toLowerCase().includes(wordLower) &&
+                          (contextSentence.includes(entry.contextSentence) || 
+                           entry.contextSentence.includes(contextSentence));
+      
+      if (contextMatch) return true;
+      
+      // If context doesn't match, check if definitions are the same
+      const entryDefinition = entry.disambiguatedDefinition || 
+                             (entry.dictionaryDefinition && 
+                              entry.dictionaryDefinition.allDefinitions && 
+                              entry.dictionaryDefinition.allDefinitions[0]) ||
+                             entry.definition;
+      
+      if (!entryDefinition) continue;
+      
+      // Check if the part of speech matches
+      const posMatch = currentDefinition.partOfSpeech === entryDefinition.partOfSpeech;
+      
+      // Check if the definition text matches (with some similarity tolerance)
+      const defText1 = currentDefinition.definition || '';
+      const defText2 = entryDefinition.definition || '';
+      
+      // Very simple similarity check - this could be enhanced
+      const similarDefinition = (defText1 && defText2 && 
+                                (defText1.includes(defText2) || 
+                                 defText2.includes(defText1) ||
+                                 defText1.substring(0, 25) === defText2.substring(0, 25)));
+      
+      if (posMatch && similarDefinition) {
+        console.log(`Found matching definition for ${word}: ${defText1} matches ${defText2}`);
         return true;
       }
     }
