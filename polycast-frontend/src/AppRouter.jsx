@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import App from './App';
-import VideoPage from './components/VideoPage';
+import App from './App.jsx';
+import VideoPage from './components/VideoPage.jsx';
 
 // AppRouter is a wrapper component that handles routing
 function AppRouter(props) {
