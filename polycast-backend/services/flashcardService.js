@@ -4,13 +4,16 @@ const fs = require('fs').promises;
 const path = require('path');
 const { google } = require('@google/generative-ai');
 
-// Initialize Gemini API
-const API_KEY = process.env.GEMINI_API_KEY;
+// Import config to use the same API key source as llmService
+const config = require('../config/config');
+
+// Initialize Gemini API using the same config as the translation service
 let genAI;
-if (API_KEY) {
-    genAI = new google.GenerativeAI(API_KEY);
+if (config.googleApiKey) {
+    genAI = new google.GenerativeAI(config.googleApiKey);
+    console.log('[FlashcardService] Gemini API initialized successfully using API key from config');
 } else {
-    console.warn('[FlashcardService] Gemini API Key not found. Word sense disambiguation will be limited.');
+    console.warn('[FlashcardService] Google API Key not found in config. Word sense disambiguation will be limited.');
 }
 
 // In-memory storage for user flashcards (in production, this would be a database)
