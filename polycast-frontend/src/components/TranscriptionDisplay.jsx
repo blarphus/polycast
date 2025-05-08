@@ -66,9 +66,15 @@ const renderSegmentsWithClickableWords = (segments, lastPersisted, selectedWords
   }
   // Each segment on its own line
   return segments.map((segment, segIdx) => {
+    // Skip invalid segments
+    if (!segment || !segment.text) {
+      return null;
+    }
+    
     // Tokenize: words (with apostrophes/accents), punctuation, and spaces
     // This regex matches words, punctuation, and spaces
     const tokens = segment.text.match(/([\p{L}\p{M}\d']+|[.,!?;:]+|\s+)/gu) || [];
+    
     return (
       <div key={segIdx} className={segment.isNew ? 'new-text' : ''} style={{ display: 'block', marginBottom: 2 }}>
         {tokens.map((token, i) => {
@@ -76,16 +82,19 @@ const renderSegmentsWithClickableWords = (segments, lastPersisted, selectedWords
           const isWord = /^[\p{L}\p{M}\d']+$/u.test(token);
           
           if (isWord) {
-            // We're not tracking previously clicked words anymore
+            // Create a closure that captures THIS segment's text as context
+            const currentSegmentText = segment.text;
+            
             return (
               <ClickableWord
                 key={i}
                 word={token}
                 onClick={(word, position) => {
-                  // Pass the exact sentence context directly from this segment
+                  // Always use the exact context from THIS segment
+                  console.log(`Word clicked in segment: "${currentSegmentText}"`);
                   handleWordClick(word, {
                     ...position,
-                    exactContext: segment.text, // Pass the full sentence as context
+                    exactContext: currentSegmentText // Pass the captured context from this closure
                   });
                 }}
                 isStudent={isStudent}
@@ -158,7 +167,6 @@ const TranscriptionDisplay = ({
   // Helper: add/remove word from list
   const handleWordClick = (word, position) => {
     console.log('Word clicked:', word, 'at position:', position);
-    const wordLower = word.toLowerCase();
     
     // Make sure position is valid to prevent errors
     const safePosition = position && typeof position.x === 'number' && typeof position.y === 'number' 
@@ -173,20 +181,29 @@ const TranscriptionDisplay = ({
       definition: null
     });
     
-    // Find the sentence context where this word appears
-    let contextSentence = "That's it.";
-    
-    // If we have exactContext from the clicked position, use it
-    if (position && position.exactContext) {
-      contextSentence = position.exactContext;
-      console.log(`Using exact context from clicked segment: "${contextSentence}"`);
-    } else if (englishSegments && englishSegments.length > 0) {
-      // Fallback: find the first segment containing the word
-      contextSentence = englishSegments.find(segment => 
-        segment && segment.text && segment.text.toLowerCase().includes(wordLower)
-      )?.text || "That's it.";
-      console.log(`Using fallback context: "${contextSentence}"`);
+    // CRITICAL FIX: Always require an exact context from the clicked position
+    // This ensures we're using the precise sentence where the word was clicked
+    if (!position || !position.exactContext) {
+      console.error('ERROR: Missing exact context for clicked word. Word click will be ignored.');
+      setPopupInfo(prev => ({
+        ...prev,
+        isLoading: false,
+        error: 'Could not determine context for this word'
+      }));
+      return; // Exit early if we don't have the context
     }
+    
+    // Use the exact context that was captured and passed by the ClickableWord component
+    const contextSentence = position.exactContext;
+    console.log(`Creating flashcard with EXACT context: "${contextSentence}"`);
+    
+    // Log word highlight in context for debugging
+    const highlightedContext = contextSentence.replace(
+      new RegExp(`\\b${word}\\b`, 'gi'), 
+      match => `*${match}*`
+    );
+    console.log(`Context with word highlighted: "${highlightedContext}"`);
+
     
     // Log context info for debugging
     console.log(`Creating flashcard for "${word}" with context: "${contextSentence}"`);

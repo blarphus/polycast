@@ -21,11 +21,10 @@ const ClickableWord = ({ word, onClick, isStudent }) => {
   // Handle word click and pass the event for position information
   const handleWordClick = (e) => {
     e.stopPropagation();
-    // Pass the click event so we can position the popup and the segmentId for context
+    // Pass the click event so we can position the popup
     onClick(cleanWord, {
       x: e.clientX,
-      y: e.clientY,
-      segmentId: segmentId // Pass the segment ID to identify which sentence this word belongs to
+      y: e.clientY
     });
   };
   
