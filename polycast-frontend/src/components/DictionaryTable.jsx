@@ -117,10 +117,62 @@ const DictionaryTable = ({
     );
   }
 
-  // Get unique words (case-insensitive)
-  const uniqueWords = [...new Map(
-    selectedWords.map(word => [word.toLowerCase(), word])
-  ).values()];
+  // Get all word entries including different senses
+  // This collects all word senses that have inFlashcards=true
+  const getAllWordEntries = () => {
+    let wordEntries = [];
+    
+    // Process each word in the dictionary
+    Object.entries(wordDefinitions).forEach(([key, entry]) => {
+      // If this is a word with multiple senses
+      if (entry.hasMultipleSenses && entry.allSenses) {
+        // For each sense of this word, add it as a separate entry if it's in flashcards
+        entry.allSenses.forEach(senseKey => {
+          const senseEntry = wordDefinitions[senseKey];
+          if (senseEntry && senseEntry.inFlashcards) {
+            wordEntries.push({
+              word: senseEntry.word || key,
+              partOfSpeech: senseEntry.partOfSpeech,
+              key: senseKey,
+              detail: senseEntry
+            });
+          }
+        });
+      } 
+      // If this is a traditional entry or has inFlashcards flag
+      else if (entry.inFlashcards) {
+        // Check if it's in selectedWords to maintain backward compatibility
+        const wordInSelected = selectedWords.some(w => w.toLowerCase() === key.toLowerCase());
+        if (wordInSelected || entry.contextSentence) {
+          wordEntries.push({
+            word: key,
+            partOfSpeech: entry.partOfSpeech || 
+                         (entry.disambiguatedDefinition && entry.disambiguatedDefinition.partOfSpeech) || 
+                         (entry.dictionaryDefinition && entry.dictionaryDefinition.partOfSpeech) || 
+                         'unknown',
+            key: key,
+            detail: entry
+          });
+        }
+      }
+    });
+    
+    return wordEntries;
+  };
+  
+  // Get all word entries including different senses
+  const wordEntries = getAllWordEntries();
+  
+  // Fall back to using selectedWords if no entries are found
+  // (ensures backward compatibility)
+  const uniqueWords = wordEntries.length > 0 ? 
+    wordEntries : 
+    [...new Map(selectedWords.map(word => [word.toLowerCase(), word])).values()]
+      .map(word => ({ 
+        word, 
+        key: word.toLowerCase(), 
+        detail: wordDefinitions[word.toLowerCase()]
+      }));
 
   return (
     <div style={{
@@ -163,17 +215,46 @@ const DictionaryTable = ({
             </tr>
           </thead>
           <tbody>
-            {uniqueWords.map((word, index) => {
-              const detail = wordDefinitions[word.toLowerCase()];
-              const isLoading = loading[word.toLowerCase()];
+            {uniqueWords.map((entry, index) => {
+              // Extract values from the entry object
+              const { word, key, detail, partOfSpeech } = entry;
+              const isLoading = loading[key];
+              
+              // Get the context - first from the specific sense's context if available
+              const contextSentence = detail?.contextSentence || findContextSentence(word);
+              
+              // Extract definition data from the appropriate source
+              const disambiguatedDef = detail?.disambiguatedDefinition;
+              const dictDef = detail?.dictionaryDefinition;
+              
+              // Determine what to display
+              const displayPos = partOfSpeech || 
+                              disambiguatedDef?.partOfSpeech || 
+                              (dictDef && dictDef.partOfSpeech);
+                              
+              const displayTranslation = detail?.translation || 
+                                     (dictDef && dictDef.translation) || 
+                                     word;
+                                     
+              const displayDefinition = disambiguatedDef?.definition || 
+                                    (dictDef && dictDef.definitions && dictDef.definitions[0]?.definition) ||
+                                    (dictDef && dictDef.allDefinitions && dictDef.allDefinitions[0]?.definition) ||
+                                    detail?.definition || 
+                                    "No definition available";
+                                    
+              const displayExample = disambiguatedDef?.example || 
+                                 (dictDef && dictDef.definitions && dictDef.definitions[0]?.example) ||
+                                 (dictDef && dictDef.allDefinitions && dictDef.allDefinitions[0]?.example) ||
+                                 detail?.example || 
+                                 "";
               
               return (
-                <tr key={index} style={{ borderBottom: '1px solid rgba(124, 98, 255, 0.15)' }}>
+                <tr key={key} style={{ borderBottom: '1px solid rgba(124, 98, 255, 0.15)' }}>
                   <td style={{ padding: '16px', fontWeight: 'bold', color: '#4ad991' }}>
                     {word}
-                    {detail && detail.partOfSpeech && !detail.error && (
+                    {displayPos && !detail?.error && (
                       <div style={{ fontSize: '0.8em', color: '#aaa', fontWeight: 'normal', marginTop: '4px' }}>
-                        {detail.partOfSpeech}
+                        {displayPos}
                       </div>
                     )}
                   </td>
@@ -183,14 +264,16 @@ const DictionaryTable = ({
                     ) : detail ? (
                       <div>
                         <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#72aee0' }}>
-                          {detail.translation}
+                          {displayTranslation}
                         </div>
                         <div style={{ marginBottom: '5px' }}>
-                          {detail.definition}
+                          {displayDefinition}
                         </div>
-                        <div style={{ fontStyle: 'italic', fontSize: '0.9em', color: '#aaa', marginTop: '8px' }}>
-                          {detail.example}
-                        </div>
+                        {displayExample && (
+                          <div style={{ fontStyle: 'italic', fontSize: '0.9em', color: '#aaa', marginTop: '8px' }}>
+                            {displayExample}
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div style={{ color: '#ff6b6b' }}>No definition available</div>
@@ -198,11 +281,11 @@ const DictionaryTable = ({
                   </td>
                   <td style={{ padding: '16px', fontSize: '0.95em', color: '#ccc' }}>
                     <div style={{ fontStyle: 'italic', lineHeight: '1.4' }}>
-                      {findContextSentence(word) ? (
+                      {contextSentence ? (
                         <span style={{ color: '#fff', fontSize: 15 }}>
                           {(() => {
-                            const wordRegex = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\b`, 'gi');
-                            return findContextSentence(word).split(wordRegex).reduce((acc, part, idx, arr) => {
+                            const wordRegex = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+                            return contextSentence.split(wordRegex).reduce((acc, part, idx, arr) => {
                               acc.push(part);
                               if (idx < arr.length - 1) {
                                 acc.push(<strong key={idx} style={{ color: '#ffe066', fontWeight: 700 }}>{word}</strong>);
@@ -230,7 +313,7 @@ DictionaryTable.propTypes = {
   selectedWords: PropTypes.arrayOf(PropTypes.string).isRequired,
   englishSegments: PropTypes.arrayOf(PropTypes.shape({
     text: PropTypes.string.isRequired,
-    isNew: PropTypes.bool
+    isNew: PropTypes.bool,
   })),
   wordDefinitions: PropTypes.object.isRequired,
   setWordDefinitions: PropTypes.func.isRequired
