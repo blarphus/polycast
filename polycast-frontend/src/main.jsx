@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import LanguageSelectorScreen from './components/LanguageSelectorScreen.jsx';
-import RoomSelectionScreen from './components/RoomSelectionScreen.jsx';
+import './components/RoomSelectionScreen.css'; // Import styles
 import './index.css'
 
 function Main() {
@@ -41,7 +41,80 @@ function Main() {
             {isLoading ? 'Creating Room...' : 'Host'}
           </button>
           <div style={{ margin: '18px 0', color: '#b3b3e7', fontWeight: 600 }}>or</div>
-          <RoomSelectionScreen onRoomSetup={setRoomSetup} />
+          <div>
+            <p style={{ color: '#fff', marginBottom: '12px' }}>Enter a 5-digit room code to join as a student</p>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const input = e.target.elements.roomCode;
+              const roomCode = input.value;
+              
+              // Clean the room code
+              const cleanedRoomCode = roomCode.replace(/[^0-9]/g, '').trim();
+              
+              // Validation
+              if (cleanedRoomCode.length !== 5) {
+                setError('Room code must be 5 digits');
+                return;
+              }
+              
+              setIsLoading(true);
+              setError('');
+              
+              // Check if room exists
+              fetch(`https://polycast-server.onrender.com/api/check-room/${cleanedRoomCode}`)
+                .then(response => response.json())
+                .then(data => {
+                  if (!data.exists) {
+                    throw new Error(data.message || 'Room not found');
+                  }
+                  
+                  // Set room setup for student
+                  setRoomSetup({ 
+                    isHost: false, 
+                    roomCode: cleanedRoomCode 
+                  });
+                })
+                .catch(err => {
+                  console.error('Error joining room:', err);
+                  setError(`Failed to join room: ${err.message || 'Room not found. Please check the code and try again.'}`);
+                  setIsLoading(false);
+                });
+            }}>
+              <div className="student-join-row" style={{ display: 'flex', alignItems: 'center', gap: '20px', marginTop: '8px' }}>
+                <input
+                  name="roomCode"
+                  type="text"
+                  placeholder="5-digit room code"
+                  maxLength={5}
+                  required
+                  disabled={isLoading}
+                  style={{
+                    flex: '1 1 120px',
+                    fontSize: '1.1rem',
+                    padding: '0.6rem 1rem',
+                    borderRadius: '4px',
+                    border: '1px solid #444',
+                    background: '#fff'
+                  }}
+                />
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  style={{
+                    fontSize: '1.1rem',
+                    padding: '0.6rem 1.3rem',
+                    backgroundColor: '#10b981',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {isLoading ? 'Joining...' : 'Join Room'}
+                </button>
+              </div>
+            </form>
+          </div>
           {error && <div style={{ color: '#dc2626', marginTop: 12 }}>{error}</div>}
         </div>
       </div>
