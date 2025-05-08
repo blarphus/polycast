@@ -9,6 +9,21 @@ import Controls from './components/Controls';
 import TranscriptionDisplay from './components/TranscriptionDisplay';
 import DictionaryTable from './components/DictionaryTable';
 import FlashcardMode from './components/FlashcardMode';
+import Dictionary from './components/Dictionary';
+import FlashcardReview from './components/FlashcardReview';
+
+// Helper function to get or create a user ID
+function getUserId() {
+  let userId = localStorage.getItem('polycastUserId');
+  if (!userId) {
+    // Generate a random ID if crypto is available, or fallback to timestamp
+    userId = (window.crypto && window.crypto.randomUUID) ? 
+      window.crypto.randomUUID() : 
+      `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    localStorage.setItem('polycastUserId', userId);
+  }
+  return userId;
+}
 
 // App now receives an array of target languages and room setup as props
 function App({ targetLanguages, onReset, roomSetup }) {
@@ -643,17 +658,12 @@ function App({ targetLanguages, onReset, roomSetup }) {
       )}
       <div className="display-container">
         {appMode === 'dictionary' ? (
-          <DictionaryTable 
-            selectedWords={selectedWords}
-            englishSegments={englishSegments}
-            wordDefinitions={wordDefinitions}
-            setWordDefinitions={setWordDefinitions}
+          <Dictionary 
+            userId={getUserId()}
           />
         ) : appMode === 'flashcard' ? (
-          <FlashcardMode 
-            selectedWords={selectedWords}
-            wordDefinitions={wordDefinitions}
-            englishSegments={englishSegments}
+          <FlashcardReview 
+            userId={getUserId()}
           />
         ) : (
           <TranscriptionDisplay 
@@ -673,6 +683,7 @@ function App({ targetLanguages, onReset, roomSetup }) {
             setSelectedWords={setSelectedWords}
             wordDefinitions={wordDefinitions}
             setWordDefinitions={setWordDefinitions}
+            isStudent={roomSetup && !roomSetup.isHost}
           />
         )}
       </div>

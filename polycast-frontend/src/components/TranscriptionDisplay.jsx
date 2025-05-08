@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
+import ClickableWord from './ClickableWord';
 
 // Helper function to render segments
 const renderSegments = (segments, lastPersisted) => {
@@ -55,7 +56,7 @@ const renderHistoryStacked = (segments) => {
 };
 
 // Helper: render a segment with clickable words
-const renderSegmentsWithClickableWords = (segments, lastPersisted, selectedWords, handleWordClick) => {
+const renderSegmentsWithClickableWords = (segments, lastPersisted, selectedWords, handleWordClick, isStudent = false) => {
   if ((!segments || segments.length === 0) && lastPersisted) {
     return <span>{lastPersisted}</span>;
   }
@@ -72,22 +73,26 @@ const renderSegmentsWithClickableWords = (segments, lastPersisted, selectedWords
         {tokens.map((token, i) => {
           // Only words (letters, numbers, apostrophes, accents) are clickable
           const isWord = /^[\p{L}\p{M}\d']+$/u.test(token);
-          return (
-            <span
-              key={i}
-              onClick={isWord ? (e => { e.stopPropagation(); handleWordClick(token); }) : undefined}
-              style={{
-                cursor: isWord ? 'pointer' : 'default',
-                color: isWord && selectedWords.some(w => w.toLowerCase() === token.toLowerCase()) ? '#1976d2' : undefined,
-                background: isWord && selectedWords.some(w => w.toLowerCase() === token.toLowerCase()) ? 'rgba(25,118,210,0.07)' : undefined,
-                borderRadius: isWord && selectedWords.some(w => w.toLowerCase() === token.toLowerCase()) ? 3 : undefined,
-                transition: 'color 0.2s',
-                userSelect: 'text',
-              }}
-            >
-              {token}
-            </span>
-          );
+          
+          if (isWord) {
+            // Is this word in the selected words list?
+            const isSelected = selectedWords.some(w => w.toLowerCase() === token.toLowerCase());
+            
+            return (
+              <ClickableWord
+                key={i}
+                word={token}
+                onClick={(word) => {
+                  handleWordClick(word);
+                }}
+                isSelected={isSelected}
+                isStudent={isStudent}
+              />
+            );
+          } else {
+            // Return non-word tokens (punctuation, spaces) as regular spans
+            return <span key={i}>{token}</span>;
+          }
         })}
       </div>
     );
@@ -131,7 +136,8 @@ const TranscriptionDisplay = ({
   selectedWords,
   setSelectedWords,
   wordDefinitions,
-  setWordDefinitions
+  setWordDefinitions,
+  isStudent = false // Whether the current user is a student (for clickable words)
 }) => {
   const englishRef = useRef(null);
   const translationRefs = useRef({});
@@ -147,7 +153,7 @@ const TranscriptionDisplay = ({
 
   // Helper: add/remove word from list
   const handleWordClick = (word) => {
-    // Don't add duplicates (case insensitive)
+    console.log('Word clicked:', word);
     const wordLower = word.toLowerCase();
     const isSelected = selectedWords.some(w => w.toLowerCase() === wordLower);
     
@@ -163,24 +169,63 @@ const TranscriptionDisplay = ({
         segment.text.toLowerCase().includes(wordLower)
       )?.text || "";
       
-      // Preload the definition immediately with context
-      const apiUrl = `https://polycast-server.onrender.com/api/dictionary/${encodeURIComponent(word)}?context=${encodeURIComponent(contextSentence)}`;
-      console.log(`Preloading definition for "${word}" with context, from: ${apiUrl}`);
+      // Create flashcard in our new system - call our backend API
+      // Get or create a userId using a helper function
+      const getUserId = () => {
+        let userId = localStorage.getItem('polycastUserId');
+        if (!userId) {
+          // Generate a random ID if crypto is available, or fallback to timestamp
+          userId = (window.crypto && window.crypto.randomUUID) ? 
+            window.crypto.randomUUID() : 
+            `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          localStorage.setItem('polycastUserId', userId);
+        }
+        return userId;
+      };
       
-      fetch(apiUrl)
-        .then(res => res.json())
-        .then(data => {
-          console.log(`Preloaded definition for "${word}":`, data);
+      const userId = getUserId();
+      
+      // Log context info for debugging
+      console.log(`Creating flashcard for "${word}" with context: "${contextSentence}"`);
+      
+      // Call our new API to create a flashcard
+      fetch('/api/flashcards', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId,
+          word,
+          context: contextSentence
+        }),
+      })
+      .then(res => {
+        if (!res.ok) {
+          throw new Error(`Failed with status: ${res.status}`);
+        }
+        return res.json();
+      })
+      .then(data => {
+        console.log(`Flashcard created for "${word}":`, data);
+        // Also store the flashcard data in our local state for immediate display
+        if (data.flashcard) {
           setWordDefinitions(prev => ({
             ...prev,
-            [word.toLowerCase()]: data
+            [word.toLowerCase()]: {
+              ...data.flashcard,
+              // Keep any existing image URL if available
+              imageUrl: prev[word.toLowerCase()]?.imageUrl || null
+            }
           }));
-        })
-        .catch(err => {
-          console.error(`Error preloading definition for ${word}:`, err);
-        });
+        }
+      })
+      .catch(err => {
+        console.error(`Error creating flashcard for ${word}:`, err);
+      });
         
-      // Generate image for the flashcard at the same time
+      // For backward compatibility - continue generating images if needed
+      // This could be moved to the backend in the future
       const imagePrompt = `Create a visually engaging, wordless flashcard image in the style of Charley Harper. Use bold shapes, minimal detail, and mid-century modern aesthetics to depict the concept in a memorable and metaphorical way. Avoid text or labels. Again, use no text. The word to illustrate is: "${word}". Use the following context sentence to determine the correct meaning and visual depiction: "${contextSentence}"`;
       
       console.log(`Generating image for word: ${word}`);
@@ -381,7 +426,7 @@ const TranscriptionDisplay = ({
           ) : (
             <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
               <span style={{ fontWeight: 400, fontSize: fontSize }}>
-                {renderSegmentsWithClickableWords(englishSegments, null, selectedWords, handleWordClick)}
+                {renderSegmentsWithClickableWords(englishSegments, null, selectedWords, handleWordClick, isStudent)}
               </span>
               <div className="scroll-end" />
             </div>

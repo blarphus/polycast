@@ -2,6 +2,13 @@
 require('dotenv').config(); // Ensure .env is loaded at the very top
 console.log('Server starting...');
 
+// Check for Gemini API key
+if (process.env.GEMINI_API_KEY) {
+    console.log('Gemini API Key loaded:', process.env.GEMINI_API_KEY.slice(0, 8) + '...');
+} else {
+    console.warn('Gemini API Key is NOT loaded! Flashcard generation will use fallback mode.');
+}
+
 const fs = require('fs');
 const path = require('path');
 const MODE_FILE = path.join(__dirname, 'mode.json');
@@ -50,6 +57,7 @@ const llmService = require('./services/llmService');
 const { transcribeAudio } = require('./services/whisperService');
 const { generateImage } = require('./services/imageService');
 const redisService = require('./services/redisService');
+const flashcardService = require('./services/flashcardService');
 
 // Initialize Express app
 const app = express();
@@ -647,6 +655,78 @@ app.post('/mode', (req, res) => {
 // Start the HTTP server
 server.listen(PORT, () => {
     console.log(`HTTP server listening on port ${PORT}`);
+});
+
+// === Flashcard API Endpoints ===
+
+// Get flashcards for a user
+app.get('/api/flashcards', async (req, res) => {
+    try {
+        const userId = req.query.userId || 'anonymous';
+        const dueOnly = req.query.due === 'true';
+        
+        const flashcards = flashcardService.getUserFlashcards(userId, dueOnly);
+        res.json({ flashcards });
+    } catch (error) {
+        console.error('[API] Error fetching flashcards:', error);
+        res.status(500).json({ error: 'Failed to fetch flashcards' });
+    }
+});
+
+// Create a new flashcard
+app.post('/api/flashcards', async (req, res) => {
+    try {
+        const { userId, word, context } = req.body;
+        
+        if (!userId || !word || !context) {
+            return res.status(400).json({ error: 'Missing required fields: userId, word, context' });
+        }
+        
+        const flashcard = await flashcardService.createFlashcard(userId, word, context);
+        
+        if (!flashcard) {
+            return res.status(404).json({ error: 'Word not found or could not create flashcard' });
+        }
+        
+        res.status(201).json({ flashcard });
+    } catch (error) {
+        console.error('[API] Error creating flashcard:', error);
+        res.status(500).json({ error: 'Failed to create flashcard' });
+    }
+});
+
+// Update flashcard review status
+app.post('/api/flashcards/mark', async (req, res) => {
+    try {
+        const { userId, word, dictionaryDefinition, rating } = req.body;
+        
+        if (!userId || !word || !dictionaryDefinition || !rating) {
+            return res.status(400).json({ 
+                error: 'Missing required fields: userId, word, dictionaryDefinition, rating' 
+            });
+        }
+        
+        // Valid ratings: again, hard, good, easy
+        const validRatings = ['again', 'hard', 'good', 'easy'];
+        if (!validRatings.includes(rating.toLowerCase())) {
+            return res.status(400).json({ 
+                error: 'Invalid rating. Must be one of: again, hard, good, easy'
+            });
+        }
+        
+        const updatedCard = flashcardService.updateFlashcardReview(
+            userId, word, dictionaryDefinition, rating
+        );
+        
+        if (!updatedCard) {
+            return res.status(404).json({ error: 'Flashcard not found' });
+        }
+        
+        res.json({ flashcard: updatedCard });
+    } catch (error) {
+        console.error('[API] Error updating flashcard:', error);
+        res.status(500).json({ error: 'Failed to update flashcard' });
+    }
 });
 
 // Basic health check endpoint (optional)
