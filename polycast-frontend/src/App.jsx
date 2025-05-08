@@ -247,31 +247,40 @@ function App({ targetLanguages, onReset, roomSetup }) {
   // --- FIX: Prevent text submission error in text mode ---
   // (No code needed here, but ensure isTextMode is derived from appMode === 'text')
 
+  // Track reconnection attempts
+  const [reconnectAttempts, setReconnectAttempts] = useState(0);
+  const maxReconnectAttempts = 3; // Limit reconnection attempts
+  
   const { sendMessage, lastMessage, readyState } = useWebSocket(socketUrl, {
     onOpen: () => {
       console.log('WebSocket connection opened with URL:', socketUrl);
+      // Reset reconnection attempts on successful connection
+      setReconnectAttempts(0);
+      
       // Initialize translation state with empty arrays for selected languages
       const initialTranslations = {};
       targetLanguages.forEach(lang => { initialTranslations[lang] = []; }); // Init with empty arrays
       setTranslations(initialTranslations);
     },
-    onClose: () => console.log('WebSocket connection closed'),
+    onClose: () => {
+      console.log('WebSocket connection closed');
+    },
     onError: (event) => {
       console.error('WebSocket error:', event);
       setErrorMessages(prev => [...prev, `WebSocket error: ${event.type}`]);
     },
-    // Reconnect automatically if the connection is closed
-    shouldReconnect: (closeEvent) => true,
-    reconnectInterval: 3000, // Attempt reconnect every 3 seconds
-    // Optional: Filter out initial info message if needed
-    // filter: (message) => {
-    //   try {
-    //     const data = JSON.parse(message.data);
-    //     return data.type !== 'info'; // Ignore the initial connection message
-    //   } catch (e) {
-    //     return true; // Keep non-JSON messages
-    //   }
-    // },
+    // Only reconnect if we haven't exceeded max attempts
+    shouldReconnect: (closeEvent) => {
+      const shouldReconnect = reconnectAttempts < maxReconnectAttempts;
+      if (shouldReconnect) {
+        setReconnectAttempts(prev => prev + 1);
+        console.log(`WebSocket reconnect attempt ${reconnectAttempts + 1}/${maxReconnectAttempts}`);
+      } else if (reconnectAttempts >= maxReconnectAttempts) {
+        console.log(`WebSocket reconnection stopped after ${maxReconnectAttempts} attempts`);
+      }
+      return shouldReconnect;
+    },
+    reconnectInterval: (attemptNumber) => Math.min(3000 * Math.pow(1.5, attemptNumber), 30000), // Exponential backoff with 30s max
   });
 
   // Handle incoming messages
