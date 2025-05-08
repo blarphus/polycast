@@ -4,7 +4,7 @@ import PropTypes from 'prop-types';
 /**
  * ClickableWord component for displaying words that can be clicked to add to dictionary/flashcards
  */
-const ClickableWord = ({ word, onClick, isSelected, isStudent }) => {
+const ClickableWord = ({ word, onClick, isSelected, isStudent, segmentId }) => {
   // Only make words clickable for students
   if (!isStudent) {
     return <span>{word}</span>;
@@ -21,10 +21,11 @@ const ClickableWord = ({ word, onClick, isSelected, isStudent }) => {
   // Handle word click and pass the event for position information
   const handleWordClick = (e) => {
     e.stopPropagation();
-    // Pass the click event so we can position the popup
+    // Pass the click event so we can position the popup and the segmentId for context
     onClick(cleanWord, {
       x: e.clientX,
-      y: e.clientY
+      y: e.clientY,
+      segmentId: segmentId // Pass the segment ID to identify which sentence this word belongs to
     });
   };
   
@@ -52,11 +53,13 @@ ClickableWord.propTypes = {
   onClick: PropTypes.func.isRequired,
   isSelected: PropTypes.bool,
   isStudent: PropTypes.bool,
+  segmentId: PropTypes.string
 };
 
 ClickableWord.defaultProps = {
   isSelected: false,
   isStudent: false,
+  segmentId: ''
 };
 
 export default ClickableWord;
