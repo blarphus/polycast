@@ -238,65 +238,124 @@ Return JSON in this format:
  * @returns {Object} The created flashcard or null if creation failed
  */
 async function createFlashcard(userId, word, context) {
-    // Lookup the word in the dictionary
-    const entry = await lookupWord(word);
-    if (!entry) {
-        console.log(`[FlashcardService] Word "${word}" not found in dictionary`);
-        return null;
+    try {
+        // Lookup the word in the dictionary
+        const entry = await lookupWord(word);
+        if (!entry) {
+            console.log(`[DICTIONARY_DEBUG] Word "${word}" not found in dictionary`);
+            // Return a minimal valid flashcard with default content instead of null
+            return {
+                word,
+                dictionaryDefinition: "No definition found in dictionary",
+                displayDefinition: `Definition for "${word}" not found in our dictionary`,
+                exampleSentence: context || `Example with ${word}`,
+                clozeSentence: context ? context.replace(new RegExp(`\\b${word}\\b`, 'i'), '___') : `Example with ___`,
+                partOfSpeech: "unknown",
+                created: Date.now(),
+                nextReview: Date.now(),
+                interval: 1,
+                easeFactor: 2.5,
+                repetitions: 0
+            };
+        }
+        
+        // Extract definitions
+        const definitions = extractDefinitions(entry);
+        if (definitions.length === 0) {
+            console.log(`[DICTIONARY_DEBUG] No definitions found for "${word}"`);
+            // Return a minimal valid flashcard with default content
+            return {
+                word,
+                dictionaryDefinition: "No definition extracted",
+                displayDefinition: `No definition details available for "${word}"`,
+                exampleSentence: context || `Example with ${word}`,
+                clozeSentence: context ? context.replace(new RegExp(`\\b${word}\\b`, 'i'), '___') : `Example with ___`,
+                partOfSpeech: "unknown",
+                created: Date.now(),
+                nextReview: Date.now(),
+                interval: 1,
+                easeFactor: 2.5,
+                repetitions: 0
+            };
+        }
+        
+        // Disambiguate which sense is being used
+        const matchedDefinition = await disambiguateWordSense(word, context, definitions);
+        if (!matchedDefinition) {
+            console.log(`[DICTIONARY_DEBUG] Could not disambiguate sense for "${word}"`);
+            // Use the first definition as fallback
+            const fallbackDefinition = definitions[0];
+            return {
+                word,
+                dictionaryDefinition: fallbackDefinition.definition,
+                displayDefinition: fallbackDefinition.definition,
+                exampleSentence: context || `Example with ${word}`,
+                clozeSentence: context ? context.replace(new RegExp(`\\b${word}\\b`, 'i'), '___') : `Example with ___`,
+                partOfSpeech: fallbackDefinition.partOfSpeech || "unknown",
+                created: Date.now(),
+                nextReview: Date.now(),
+                interval: 1,
+                easeFactor: 2.5,
+                repetitions: 0
+            };
+        }
+        
+        // Check if this user already has a flashcard for this word and definition
+        const userCards = getUserFlashcards(userId);
+        const existingCard = userCards.find(card => 
+            card.word.toLowerCase() === word.toLowerCase() && 
+            card.dictionaryDefinition === matchedDefinition.definition
+        );
+        
+        if (existingCard) {
+            console.log(`[DICTIONARY_DEBUG] Flashcard for "${word}" (${matchedDefinition.definition}) already exists for user ${userId}`);
+            return existingCard;
+        }
+        
+        // Generate flashcard content
+        const flashcardContent = await generateFlashcardContent(word, matchedDefinition, context);
+        
+        // Create the flashcard object
+        const now = Date.now();
+        const flashcard = {
+            word,
+            dictionaryDefinition: matchedDefinition.definition,
+            displayDefinition: flashcardContent.displayDefinition,
+            exampleSentence: flashcardContent.exampleSentence,
+            clozeSentence: flashcardContent.clozeSentence,
+            partOfSpeech: matchedDefinition.partOfSpeech,
+            created: now,
+            nextReview: now, // Due immediately
+            interval: 1, // In days
+            easeFactor: 2.5,
+            repetitions: 0
+        };
+        
+        // Add to user's flashcards
+        if (!userFlashcards.has(userId)) {
+            userFlashcards.set(userId, []);
+        }
+        userFlashcards.get(userId).push(flashcard);
+        
+        return flashcard;
+        
+    } catch (error) {
+        console.error(`[DICTIONARY_DEBUG] Error in createFlashcard for word "${word}":`, error);
+        // Return a minimal valid flashcard with error information
+        return {
+            word,
+            dictionaryDefinition: "Error occurred during lookup",
+            displayDefinition: `Could not process "${word}" due to an error`,
+            exampleSentence: context || `Example with ${word}`,
+            clozeSentence: context ? context.replace(new RegExp(`\\b${word}\\b`, 'i'), '___') : `Example with ___`,
+            partOfSpeech: "unknown",
+            created: Date.now(),
+            nextReview: Date.now(),
+            interval: 1,
+            easeFactor: 2.5,
+            repetitions: 0
+        };
     }
-    
-    // Extract definitions
-    const definitions = extractDefinitions(entry);
-    if (definitions.length === 0) {
-        console.log(`[FlashcardService] No definitions found for "${word}"`);
-        return null;
-    }
-    
-    // Disambiguate which sense is being used
-    const matchedDefinition = await disambiguateWordSense(word, context, definitions);
-    if (!matchedDefinition) {
-        console.log(`[FlashcardService] Could not disambiguate sense for "${word}"`);
-        return null;
-    }
-    
-    // Check if this user already has a flashcard for this word and definition
-    const userCards = getUserFlashcards(userId);
-    const existingCard = userCards.find(card => 
-        card.word.toLowerCase() === word.toLowerCase() && 
-        card.dictionaryDefinition === matchedDefinition.definition
-    );
-    
-    if (existingCard) {
-        console.log(`[FlashcardService] Flashcard for "${word}" (${matchedDefinition.definition}) already exists for user ${userId}`);
-        return existingCard;
-    }
-    
-    // Generate flashcard content
-    const flashcardContent = await generateFlashcardContent(word, matchedDefinition, context);
-    
-    // Create the flashcard object
-    const now = Date.now();
-    const flashcard = {
-        word,
-        dictionaryDefinition: matchedDefinition.definition,
-        displayDefinition: flashcardContent.displayDefinition,
-        exampleSentence: flashcardContent.exampleSentence,
-        clozeSentence: flashcardContent.clozeSentence,
-        partOfSpeech: matchedDefinition.partOfSpeech,
-        created: now,
-        nextReview: now, // Due immediately
-        interval: 1, // In days
-        easeFactor: 2.5,
-        repetitions: 0
-    };
-    
-    // Add to user's flashcards
-    if (!userFlashcards.has(userId)) {
-        userFlashcards.set(userId, []);
-    }
-    userFlashcards.get(userId).push(flashcard);
-    
-    return flashcard;
 }
 
 /**

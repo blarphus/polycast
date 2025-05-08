@@ -89,16 +89,16 @@ const WordPopup = ({ word, position, onClose, definitionData, isLoading }) => {
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
               <div style={{ color: '#b0b0ff', fontStyle: 'italic', fontSize: '13px' }}>
-                {definitionData.partOfSpeech || ''}
+                {(definitionData && definitionData.partOfSpeech) || ''}
               </div>
               <div style={{ color: '#6debb5', fontSize: '13px', fontWeight: '500' }}>
                 Word added to dictionary
               </div>
             </div>
             <div style={{ lineHeight: '1.4' }}>
-              {definitionData.displayDefinition || definitionData.definition}
+              {(definitionData && (definitionData.displayDefinition || definitionData.definition)) || `Definition for "${word}"`}
             </div>
-            {definitionData.exampleSentence && (
+            {definitionData && definitionData.exampleSentence && (
               <div style={{ 
                 marginTop: '8px', 
                 color: '#b0b0c0', 
