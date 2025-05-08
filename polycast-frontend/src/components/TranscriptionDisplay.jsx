@@ -131,7 +131,8 @@ const TranscriptionDisplay = ({
   selectedWords,
   setSelectedWords,
   wordDefinitions,
-  setWordDefinitions
+  setWordDefinitions,
+  isStudentMode = false
 }) => {
   const englishRef = useRef(null);
   const translationRefs = useRef({});
@@ -436,7 +437,11 @@ const TranscriptionDisplay = ({
           {targetLanguages.map((lang, idx) => {
             const scheme = colorSchemes[(idx + 1) % colorSchemes.length];
             const layout = langBoxLayout[idx] || { x: 0, y: 0, w: 320, h: 250 };
-            const segments = translations[lang] || [];
+            
+            // For student mode, always use Spanish translations if available regardless of language label
+            const segments = isStudentMode && lang === 'Spanish' 
+              ? (translations['Spanish'] || translations[Object.keys(translations)[0]] || []) 
+              : (translations[lang] || []);
             return (
               <div
                 key={lang}
@@ -469,7 +474,7 @@ const TranscriptionDisplay = ({
                   textTransform: 'uppercase',
                   opacity: 0.92,
                 }}>
-                  {lang}
+                  {isStudentMode ? 'Spanish' : lang}
                 </span>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 16, gap: 8, overflow: 'auto', minHeight: 0 }} ref={el => translationRefs.current[lang] = el}>
                   {isTextMode ? (
@@ -536,7 +541,8 @@ TranscriptionDisplay.propTypes = {
   selectedWords: PropTypes.array.isRequired,
   setSelectedWords: PropTypes.func.isRequired,
   wordDefinitions: PropTypes.object.isRequired,
-  setWordDefinitions: PropTypes.func.isRequired
+  setWordDefinitions: PropTypes.func.isRequired,
+  isStudentMode: PropTypes.bool
 };
 
 TranscriptionDisplay.defaultProps = {

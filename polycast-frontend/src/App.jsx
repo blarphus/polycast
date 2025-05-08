@@ -12,7 +12,9 @@ import FlashcardMode from './components/FlashcardMode';
 
 // App now receives an array of target languages and room setup as props
 function App({ targetLanguages, onReset, roomSetup }) {
-  const languagesQueryParam = targetLanguages.map(encodeURIComponent).join(',');
+  // For students, always use Spanish regardless of what the host selected
+  const effectiveLanguages = roomSetup && !roomSetup.isHost ? ['Spanish'] : targetLanguages;
+  const languagesQueryParam = effectiveLanguages.map(encodeURIComponent).join(',');
 
   // Construct the WebSocket URL for Render backend, including room information
   const wsBaseUrl = `wss://polycast-server.onrender.com`;
@@ -659,10 +661,11 @@ function App({ targetLanguages, onReset, roomSetup }) {
           <TranscriptionDisplay 
             englishSegments={englishSegments} 
             translations={translations} 
-            targetLanguages={targetLanguages} 
+            targetLanguages={effectiveLanguages} 
             showLiveTranscript={showLiveTranscript}
             showTranslation={showTranslation}
             isTextMode={appMode === 'text'}
+            isStudentMode={roomSetup && !roomSetup.isHost}
             onTextSubmit={(lang, text) => {
               // Send text submission for translation to backend
               sendMessage(JSON.stringify({ type: 'text_submit', lang, text }));
