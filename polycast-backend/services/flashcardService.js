@@ -62,8 +62,32 @@ async function lookupWord(word) {
         console.log(`[DICTIONARY_DEBUG] Dictionary for letter "${firstLetter}" not found or could not be loaded`);
         return null;
     }
-    const result = dictionary[word] || null;
-    console.log(`[DICTIONARY_DEBUG] Lookup result for "${word}": ${result ? 'Found' : 'Not found'}`);
+    
+    // First try the exact lowercase match
+    let result = dictionary[word] || null;
+    
+    // If not found, try uppercase version
+    if (!result) {
+        const uppercaseWord = word.toUpperCase();
+        result = dictionary[uppercaseWord] || null;
+        console.log(`[DICTIONARY_DEBUG] Trying uppercase lookup for "${uppercaseWord}": ${result ? 'Found' : 'Not found'}`);
+    }
+    
+    // If still not found, try to search case-insensitively through all keys
+    if (!result) {
+        console.log('[DICTIONARY_DEBUG] Trying case-insensitive lookup through all dictionary keys');
+        const wordLower = word.toLowerCase();
+        const dictionaryKeys = Object.keys(dictionary);
+        for (const key of dictionaryKeys) {
+            if (key.toLowerCase() === wordLower) {
+                result = dictionary[key];
+                console.log(`[DICTIONARY_DEBUG] Found match with dictionary key: "${key}"`);
+                break;
+            }
+        }
+    }
+    
+    console.log(`[DICTIONARY_DEBUG] Final lookup result for "${word}": ${result ? 'Found' : 'Not found'}`);
     
     // Print all definitions for the word if found
     if (result) {
