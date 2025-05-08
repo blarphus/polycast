@@ -36,7 +36,7 @@ function Controls({
                     value={appMode}
                     onChange={e => setAppMode && setAppMode(e.target.value)}
                     style={{ minWidth: 90, fontSize: 15, padding: '2px 6px', borderRadius: 6 }}
-                    disabled={isRecording || !isHostMode} // Disable for students or while recording
+                    disabled={isRecording} // Only disable while recording, allow students to change modes
                 >
                     <option value="audio">audio mode</option>
                     <option value="text">text mode</option>
@@ -53,7 +53,7 @@ function Controls({
                         onChange={e => {
                           setShowLiveTranscript && setShowLiveTranscript(e.target.checked);
                         }}
-                        disabled={!isHostMode || isRecording}
+                        disabled={isRecording}
                       />
                       Show Transcript
                     </label>
@@ -64,14 +64,14 @@ function Controls({
                         onChange={e => {
                           setShowTranslation && setShowTranslation(e.target.checked);
                         }}
-                        disabled={!isHostMode || isRecording}
+                        disabled={isRecording}
                       />
                       Show Translation
                     </label>
                   </>
                 )}
-                {/* Add auto-send checkbox in audio mode */}
-                {appMode === 'audio' && (
+                {/* Add auto-send checkbox in audio mode - host only */}
+                {appMode === 'audio' && isHostMode && (
                   <label style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 14, fontSize: 15, fontWeight: 500, color: '#ccc' }}>
                     <input
                       type="checkbox"
@@ -79,7 +79,7 @@ function Controls({
                       onChange={e => {
                         setAutoSend && setAutoSend(e.target.checked);
                       }}
-                      disabled={!isHostMode || isRecording} // Disable for students or while recording
+                      disabled={isRecording} // Disable while recording
                     />
                     Auto-send
                   </label>
@@ -93,12 +93,12 @@ function Controls({
                       onChange={e => {
                         setShowNoiseLevel && setShowNoiseLevel(e.target.checked);
                       }}
-                      disabled={!isHostMode}/>
+                    />
                     Show Noise Levels
                   </label>
                 )}
             </div>
-            {/* Font size controls */}
+            {/* Font size controls - available to both hosts and students */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 18 }}>
                 <button
                     onClick={() => window.dispatchEvent(new CustomEvent('changeFontSize', { detail: -2 }))}

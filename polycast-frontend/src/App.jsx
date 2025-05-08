@@ -552,21 +552,23 @@ function App({ targetLanguages, onReset, roomSetup }) {
               isTextMode={appMode === 'text'}
               setIsTextMode={roomSetup && roomSetup.isHost ? setIsTextMode : null}
               appMode={appMode}
-              setAppMode={roomSetup && roomSetup.isHost ? handleAppModeChange : null}
+              setAppMode={handleAppModeChange} // Allow both host and students to change modes
               autoSend={autoSend}
               setAutoSend={roomSetup && roomSetup.isHost ? setAutoSend : null}
               showNoiseLevel={showNoiseLevel}
               setShowNoiseLevel={roomSetup && roomSetup.isHost ? setShowNoiseLevel : null}
               showLiveTranscript={showLiveTranscript}
-              setShowLiveTranscript={roomSetup && roomSetup.isHost ? (checked) => {
+              setShowLiveTranscript={(checked) => {
+                // Both hosts and students can toggle transcript visibility
                 setShowLiveTranscript(checked);
                 if (!checked && !showTranslation) setShowTranslation(true);
-              } : null}
+              }}
               showTranslation={showTranslation}
-              setShowTranslation={roomSetup && roomSetup.isHost ? (checked) => {
+              setShowTranslation={(checked) => {
+                // Both hosts and students can toggle translation visibility
                 setShowTranslation(checked);
                 if (!checked && !showLiveTranscript) setShowLiveTranscript(true);
-              } : null}
+              }}
             />
           </div>
           {/* Audio mode user instructions at the bottom of the toolbar */}
@@ -601,7 +603,7 @@ function App({ targetLanguages, onReset, roomSetup }) {
               opacity: 0.96,
               userSelect: 'none',
             }}>
-              Viewing host's transcription in real-time
+              Viewing host's transcription in real-time • <span style={{ color: '#ffb84d' }}>Click words to add to dictionary</span>
             </div>
           )}
         </div>
