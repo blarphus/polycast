@@ -202,7 +202,7 @@ const TranscriptionDisplay = ({
     const userId = getUserId();
     
     // Call our new API to create a flashcard
-    fetch('/api/flashcards', {
+    fetch('https://polycast-server.onrender.com/api/flashcards', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
