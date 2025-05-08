@@ -329,7 +329,20 @@ wss.on('connection', (ws, req) => {
                 const transcription = await transcribeAudio(message, 'audio.webm');
                 if (transcription && ws.readyState === ws.OPEN) {
                     // Translate to all target languages (batch)
-                    const targetLangs = clientTargetLanguages.get(ws) || ['Spanish'];
+                    let targetLangs = clientTargetLanguages.get(ws) || ['Spanish'];
+                    
+                    // Check if this is a host with students in the room - ensure Spanish is included for students
+                    if (isRoomHost) {
+                        const room = activeRooms.get(clientRoom.roomCode);
+                        if (room && room.students && room.students.length > 0) {
+                            // Only add Spanish if it's not already in the target languages
+                            if (!targetLangs.includes('Spanish')) {
+                                targetLangs = [...targetLangs, 'Spanish'];
+                                console.log(`[Polycast] Added Spanish translation for students in room ${clientRoom.roomCode}`);
+                            }
+                        }
+                    }
+                    
                     console.log(`[Polycast] Calling Gemini for batch translation: '${transcription}' -> ${targetLangs.join(', ')}`);
                     const translations = await llmService.translateTextBatch(transcription, targetLangs);
                     
@@ -362,13 +375,24 @@ wss.on('connection', (ws, req) => {
                                 if (student.readyState === WebSocket.OPEN) {
                                     student.send(JSON.stringify(recognizedResponse));
                                     
-                                    // Also send translations to students
-                                    for (const lang of targetLangs) {
+                                    // Send Spanish translation to students, regardless of what other languages are available
+                                    if (translations['Spanish']) {
                                         student.send(JSON.stringify({ 
                                             type: 'translation', 
-                                            lang, 
-                                            data: translations[lang] 
+                                            lang: 'Spanish', 
+                                            data: translations['Spanish'] 
                                         }));
+                                    } else {
+                                        // Fallback: send the first available translation if Spanish isn't available
+                                        const availableLangs = Object.keys(translations);
+                                        if (availableLangs.length > 0) {
+                                            const firstLang = availableLangs[0];
+                                            student.send(JSON.stringify({ 
+                                                type: 'translation', 
+                                                lang: 'Spanish', // Still label it as Spanish for the student UI
+                                                data: translations[firstLang] 
+                                            }));
+                                        }
                                     }
                                 }
                             });
