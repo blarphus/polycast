@@ -62,6 +62,18 @@ const flashcardService = require('./services/flashcardService');
 // Initialize Express app
 const app = express();
 
+// Parse JSON body in requests
+app.use(express.json());
+
+// Add request logging middleware for debugging
+app.use((req, res, next) => {
+    console.log(`[DEBUG_API] ${req.method} ${req.url}`);
+    if (req.method === 'POST' && req.body) {
+        console.log('[DEBUG_API] Request body:', JSON.stringify(req.body, null, 2));
+    }
+    next();
+});
+
 // Add CORS middleware to enable cross-origin requests
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');

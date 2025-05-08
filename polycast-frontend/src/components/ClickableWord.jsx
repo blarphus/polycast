@@ -17,22 +17,30 @@ const ClickableWord = ({ word, onClick, isSelected, isStudent }) => {
   if (cleanWord.length < 2 || !/[a-zA-Z]/.test(cleanWord)) {
     return <span>{word}</span>;
   }
+
+  // Handle word click and pass the event for position information
+  const handleWordClick = (e) => {
+    e.stopPropagation();
+    // Pass the click event so we can position the popup
+    onClick(cleanWord, {
+      x: e.clientX,
+      y: e.clientY
+    });
+  };
   
   return (
     <span 
-      className={`clickable-word ${isSelected ? 'selected' : ''}`}
-      onClick={() => onClick(cleanWord)}
+      className="clickable-word"
+      onClick={handleWordClick}
       style={{
         cursor: 'pointer',
         padding: '2px 1px',
         margin: '0 1px',
-        borderRadius: '3px',
-        backgroundColor: isSelected ? 'rgba(90, 90, 255, 0.2)' : 'transparent',
-        borderBottom: isSelected ? '2px solid #5a5aff' : '1px dashed rgba(255, 255, 255, 0.2)',
-        transition: 'all 0.2s ease',
+        borderBottom: '1px dashed rgba(255, 255, 255, 0.2)',
+        transition: 'border-color 0.2s ease',
         display: 'inline-block',
       }}
-      title={`Click to add "${cleanWord}" to your dictionary`}
+      title={`Click to look up "${cleanWord}" in context`}
     >
       {word}
     </span>

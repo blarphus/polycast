@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
 import ClickableWord from './ClickableWord';
+import WordPopup from './WordPopup';
 
 // Helper function to render segments
 const renderSegments = (segments, lastPersisted) => {
@@ -139,6 +140,8 @@ const TranscriptionDisplay = ({
   setWordDefinitions,
   isStudent = false // Whether the current user is a student (for clickable words)
 }) => {
+  // State for word popup
+  const [popupInfo, setPopupInfo] = useState(null); // { word, position, isLoading, definition }
   const englishRef = useRef(null);
   const translationRefs = useRef({});
   const [fontSize, setFontSize] = useState(isTextMode ? 18 : 30); // Font size: default to 30 in audio mode
@@ -152,106 +155,131 @@ const TranscriptionDisplay = ({
   const lastPersistedTranslations = useRef({});
 
   // Helper: add/remove word from list
-  const handleWordClick = (word) => {
-    console.log('Word clicked:', word);
+  const handleWordClick = (word, position) => {
+    console.log('Word clicked:', word, 'at position:', position);
     const wordLower = word.toLowerCase();
-    const isSelected = selectedWords.some(w => w.toLowerCase() === wordLower);
     
-    if (isSelected) {
-      // Remove the word if already selected
-      setSelectedWords(prev => prev.filter(w => w.toLowerCase() !== wordLower));
-    } else {
-      // Add the word to selected words
-      setSelectedWords(prev => [...prev, word]);
+    // Set popup to loading state
+    setPopupInfo({
+      word,
+      position,
+      isLoading: true,
+      definition: null
+    });
+    
+    // Find the sentence context where this word appears
+    const contextSentence = englishSegments.find(segment => 
+      segment.text.toLowerCase().includes(wordLower)
+    )?.text || "";
+    
+    // Log context info for debugging
+    console.log(`Creating flashcard for "${word}" with context: "${contextSentence}"`);
+    
+    // Get or create a userId using a helper function
+    const getUserId = () => {
+      let userId = localStorage.getItem('polycastUserId');
+      if (!userId) {
+        // Generate a random ID if crypto is available, or fallback to timestamp
+        userId = (window.crypto && window.crypto.randomUUID) ? 
+          window.crypto.randomUUID() : 
+          `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        localStorage.setItem('polycastUserId', userId);
+      }
+      return userId;
+    };
+    
+    const userId = getUserId();
+    
+    // Call our new API to create a flashcard
+    fetch('/api/flashcards', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId,
+        word,
+        context: contextSentence
+      }),
+    })
+    .then(res => {
+      if (!res.ok) {
+        throw new Error(`Failed with status: ${res.status}`);
+      }
+      return res.json();
+    })
+    .then(data => {
+      console.log(`Flashcard created for "${word}":`, data);
       
-      // Find the sentence context where this word appears
-      const contextSentence = englishSegments.find(segment => 
-        segment.text.toLowerCase().includes(wordLower)
-      )?.text || "";
+      // Add the word to selected words if it's not already there
+      if (!selectedWords.some(w => w.toLowerCase() === wordLower)) {
+        setSelectedWords(prev => [...prev, word]);
+      }
       
-      // Create flashcard in our new system - call our backend API
-      // Get or create a userId using a helper function
-      const getUserId = () => {
-        let userId = localStorage.getItem('polycastUserId');
-        if (!userId) {
-          // Generate a random ID if crypto is available, or fallback to timestamp
-          userId = (window.crypto && window.crypto.randomUUID) ? 
-            window.crypto.randomUUID() : 
-            `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-          localStorage.setItem('polycastUserId', userId);
-        }
-        return userId;
-      };
+      // Also store the flashcard data in our local state for immediate display
+      if (data.flashcard) {
+        const flashcardData = {
+          ...data.flashcard,
+          // Keep any existing image URL if available
+          imageUrl: wordDefinitions[wordLower]?.imageUrl || null
+        };
+        
+        setWordDefinitions(prev => ({
+          ...prev,
+          [wordLower]: flashcardData
+        }));
+        
+        // Update popup with the definition
+        setPopupInfo(prev => ({
+          ...prev,
+          isLoading: false,
+          definition: flashcardData
+        }));
+      }
+    })
+    .catch(err => {
+      console.error(`Error creating flashcard for ${word}:`, err);
+      // Update popup to show error
+      setPopupInfo(prev => ({
+        ...prev,
+        isLoading: false, 
+        definition: null,
+        error: true
+      }));
+    });
       
-      const userId = getUserId();
-      
-      // Log context info for debugging
-      console.log(`Creating flashcard for "${word}" with context: "${contextSentence}"`);
-      
-      // Call our new API to create a flashcard
-      fetch('/api/flashcards', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId,
-          word,
-          context: contextSentence
-        }),
-      })
+    // For backward compatibility - continue generating images if needed
+    // This could be moved to the backend in the future
+    const imagePrompt = `Create a visually engaging, wordless flashcard image in the style of Charley Harper. Use bold shapes, minimal detail, and mid-century modern aesthetics to depict the concept in a memorable and metaphorical way. Avoid text or labels. Again, use no text. The word to illustrate is: "${word}". Use the following context sentence to determine the correct meaning and visual depiction: "${contextSentence}"`;
+    
+    console.log(`Generating image for word: ${word}`);
+    
+    fetch(`https://polycast-server.onrender.com/api/generate-image?prompt=${encodeURIComponent(imagePrompt)}`, {
+      mode: 'cors'
+    })
       .then(res => {
-        if (!res.ok) {
-          throw new Error(`Failed with status: ${res.status}`);
-        }
+        if (!res.ok) throw new Error(`Failed with status: ${res.status}`);
         return res.json();
       })
       .then(data => {
-        console.log(`Flashcard created for "${word}":`, data);
-        // Also store the flashcard data in our local state for immediate display
-        if (data.flashcard) {
-          setWordDefinitions(prev => ({
-            ...prev,
-            [word.toLowerCase()]: {
-              ...data.flashcard,
-              // Keep any existing image URL if available
-              imageUrl: prev[word.toLowerCase()]?.imageUrl || null
-            }
-          }));
-        }
+        console.log(`Image generated for: ${word}`);
+        // We need to update wordDefinitions to include the image URL
+        setWordDefinitions(prev => ({
+          ...prev,
+          [wordLower]: {
+            ...prev[wordLower],
+            imageUrl: data.imageUrl
+          }
+        }));
       })
       .catch(err => {
-        console.error(`Error creating flashcard for ${word}:`, err);
+        console.error(`Error generating image for ${word}:`, err);
       });
-        
-      // For backward compatibility - continue generating images if needed
-      // This could be moved to the backend in the future
-      const imagePrompt = `Create a visually engaging, wordless flashcard image in the style of Charley Harper. Use bold shapes, minimal detail, and mid-century modern aesthetics to depict the concept in a memorable and metaphorical way. Avoid text or labels. Again, use no text. The word to illustrate is: "${word}". Use the following context sentence to determine the correct meaning and visual depiction: "${contextSentence}"`;
-      
-      console.log(`Generating image for word: ${word}`);
-      
-      fetch(`https://polycast-server.onrender.com/api/generate-image?prompt=${encodeURIComponent(imagePrompt)}`, {
-        mode: 'cors'
-      })
-        .then(res => {
-          if (!res.ok) throw new Error(`Failed with status: ${res.status}`);
-          return res.json();
-        })
-        .then(data => {
-          console.log(`Image generated for: ${word}`);
-          // We need to update wordDefinitions to include the image URL
-          setWordDefinitions(prev => ({
-            ...prev,
-            [word.toLowerCase()]: {
-              ...prev[word.toLowerCase()],
-              imageUrl: data.url
-            }
-          }));
-        })
-        .catch(err => {
-          console.error(`Error generating image for ${word}:`, err);
-        });
-    }
+  };
+  
+  // Close the popup
+  const handleClosePopup = () => {
+    setPopupInfo(null);
   };
 
   const handleInputChange = (lang, value) => {
@@ -459,6 +487,16 @@ const TranscriptionDisplay = ({
         gap: 0,
       }}
     >
+      {/* Word popup for clicked words */}
+      {popupInfo && (
+        <WordPopup
+          word={popupInfo.word}
+          position={popupInfo.position}
+          onClose={handleClosePopup}
+          definitionData={popupInfo.definition}
+          isLoading={popupInfo.isLoading}
+        />
+      )}
       {/* Transcript/English box always renders and updates first */}
       {transcriptVisible && (
         <div style={{ width: translationVisible ? '100%' : '100%', flex: translationVisible ? '0 0 33.5%' : '1 1 100%', minHeight: 0, display: 'flex', flexDirection: 'column', transition: 'flex 0.3s, width 0.3s' }}>{renderEnglishBox()}</div>

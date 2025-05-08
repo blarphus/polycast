@@ -57,11 +57,22 @@ async function lookupWord(word) {
     if (!word) return null;
     
     const firstLetter = word.charAt(0);
+    console.log(`[DICTIONARY_DEBUG] Looking up word "${word}" in dictionary file "${firstLetter}.json"`);
+    
     const dictionary = await loadDictionary(firstLetter);
     
-    if (!dictionary) return null;
+    if (!dictionary) {
+        console.log(`[DICTIONARY_DEBUG] Dictionary for letter "${firstLetter}" not found or could not be loaded`);
+        return null;
+    }
     
-    return dictionary[word] || null;
+    const result = dictionary[word] || null;
+    console.log(`[DICTIONARY_DEBUG] Lookup result for "${word}": ${result ? 'Found' : 'Not found'}`);
+    if (result) {
+        console.log(`[DICTIONARY_DEBUG] Number of meanings found for "${word}": ${Object.keys(result.MEANINGS || {}).length}`);
+    }
+    
+    return result;
 }
 
 /**
@@ -93,6 +104,7 @@ function extractDefinitions(entry) {
 async function disambiguateWordSense(word, context, definitions) {
     if (!genAI || !definitions || definitions.length === 0) {
         // If no Gemini or no definitions, return the first definition if available
+        console.log(`[DICTIONARY_DEBUG] No Gemini API or no definitions available for word: "${word}"`);
         return definitions.length > 0 ? definitions[0] : null;
     }
     
@@ -109,20 +121,28 @@ async function disambiguateWordSense(word, context, definitions) {
         
         prompt += `\nWhich definition best matches the word "${word}" as used in the sentence? Return only the index number.`;
         
+        // Log the entire prompt for debugging
+        console.log(`[DICTIONARY_DEBUG] Gemini disambiguation prompt for "${word}":\n${prompt}`);
+        
         const result = await model.generateContent(prompt);
         const response = result.response.text().trim();
+        
+        // Log the Gemini response
+        console.log(`[DICTIONARY_DEBUG] Gemini disambiguation response for "${word}": "${response}"`);
         
         // Parse the response to get the index
         const index = parseInt(response, 10);
         
         if (!isNaN(index) && index >= 1 && index <= definitions.length) {
-            return definitions[index - 1];
+            const selectedDefinition = definitions[index - 1];
+            console.log(`[DICTIONARY_DEBUG] Selected definition for "${word}": ${selectedDefinition.partOfSpeech} - "${selectedDefinition.definition}"`);
+            return selectedDefinition;
         } else {
-            console.warn(`[FlashcardService] Gemini did not return a valid index: ${response}`);
+            console.warn(`[DICTIONARY_DEBUG] Gemini did not return a valid index: "${response}". Falling back to first definition.`);
             return definitions[0]; // Fallback to first definition
         }
     } catch (error) {
-        console.error('[FlashcardService] Error during word sense disambiguation:', error);
+        console.error('[DICTIONARY_DEBUG] Error during word sense disambiguation:', error);
         return definitions[0]; // Fallback to first definition
     }
 }
@@ -137,6 +157,7 @@ async function disambiguateWordSense(word, context, definitions) {
 async function generateFlashcardContent(word, definition, context) {
     if (!genAI) {
         // Fallback content if Gemini is not available
+        console.log(`[DICTIONARY_DEBUG] Gemini not available for flashcard content generation for "${word}". Using fallback content.`);
         return {
             displayDefinition: definition.definition,
             exampleSentence: context,
@@ -145,6 +166,7 @@ async function generateFlashcardContent(word, definition, context) {
     }
     
     try {
+        console.log(`[DICTIONARY_DEBUG] Generating flashcard content for "${word}" with definition: "${definition.definition}"`);
         const model = genAI.getGenerativeModel({ model: "gemini-pro" });
         
         const prompt = `The word is "${word}". The selected definition is:
@@ -164,8 +186,12 @@ Return JSON in this format:
   "clozeSentence": "..."
 }`;
 
+        console.log(`[DICTIONARY_DEBUG] Flashcard generation prompt for "${word}":\n${prompt}`);
+        
         const result = await model.generateContent(prompt);
         const response = result.response.text().trim();
+        
+        console.log(`[DICTIONARY_DEBUG] Gemini flashcard response for "${word}":\n${response}`);
         
         try {
             // Parse the JSON from the response
@@ -173,7 +199,10 @@ Return JSON in this format:
                              response.match(/{[\s\S]*?}/);
             
             const jsonContent = jsonMatch ? jsonMatch[0] : response;
+            console.log(`[DICTIONARY_DEBUG] Extracted JSON content for "${word}":\n${jsonContent}`);
+            
             const flashcardContent = JSON.parse(jsonContent.replace(/```json|```/g, ''));
+            console.log(`[DICTIONARY_DEBUG] Parsed flashcard content for "${word}":`, flashcardContent);
             
             return {
                 displayDefinition: flashcardContent.displayDefinition,
@@ -181,7 +210,8 @@ Return JSON in this format:
                 clozeSentence: flashcardContent.clozeSentence
             };
         } catch (jsonError) {
-            console.error('[FlashcardService] Error parsing Gemini JSON:', jsonError);
+            console.error('[DICTIONARY_DEBUG] Error parsing Gemini JSON:', jsonError);
+            console.log(`[DICTIONARY_DEBUG] Raw response that failed to parse: ${response}`);
             // Fallback if JSON parsing fails
             return {
                 displayDefinition: definition.definition,
@@ -190,7 +220,7 @@ Return JSON in this format:
             };
         }
     } catch (error) {
-        console.error('[FlashcardService] Error generating flashcard content:', error);
+        console.error('[DICTIONARY_DEBUG] Error generating flashcard content:', error);
         // Fallback content
         return {
             displayDefinition: definition.definition,
