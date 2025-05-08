@@ -1,7 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import DraggableResizableBox from './DraggableResizableBox';
-import ClickableWord from './ClickableWord';
+import DictionaryPopup from './DictionaryPopup';
 
 // Helper function to render segments
 const renderSegments = (segments, lastPersisted) => {
@@ -57,7 +56,7 @@ const renderHistoryStacked = (segments) => {
 };
 
 // Helper: render a segment with clickable words
-const renderSegmentsWithClickableWords = (segments, lastPersisted, selectedWords, handleWordClick, wordDefinitions) => {
+const renderSegmentsWithClickableWords = (segments, lastPersisted, selectedWords, handleWordClick) => {
   if ((!segments || segments.length === 0) && lastPersisted) {
     return <span>{lastPersisted}</span>;
   }
@@ -68,32 +67,29 @@ const renderSegmentsWithClickableWords = (segments, lastPersisted, selectedWords
   return segments.map((segment, segIdx) => {
     // Tokenize: words (with apostrophes/accents), punctuation, and spaces
     // This regex matches words, punctuation, and spaces
-    const tokens = segment.text.match(/[\w\p{L}\p{M}'']+|[.,!?;:()\[\]{}—–-]|\s+/gu) || [segment.text];
-    
+    const tokens = segment.text.match(/([\p{L}\p{M}\d']+|[.,!?;:]+|\s+)/gu) || [];
     return (
       <div key={segIdx} className={segment.isNew ? 'new-text' : ''} style={{ display: 'block', marginBottom: 2 }}>
         {tokens.map((token, i) => {
           // Only words (letters, numbers, apostrophes, accents) are clickable
-          const isWord = /^[\w\p{L}\p{M}'']+$/u.test(token);
-          const canClick = isWord && token.length > 1; // Don't make single letters clickable
-          
-          // Use the ClickableWord component for words that can be clicked
-          if (canClick) {
-            return (
-              <ClickableWord 
-                key={i}
-                word={token}
-                onWordClick={handleWordClick}
-                wordDefinitions={wordDefinitions}
-              />
-            );
-          }
-          
-          // For non-clickable tokens (spaces, punctuation, etc.)
+          const isWord = /^[\p{L}\p{M}\d']+$/u.test(token);
           return (
             <span
               key={i}
+              onClick={isWord ? (e => { 
+                e.stopPropagation(); 
+                // Get click position for popup
+                const rect = e.target.getBoundingClientRect();
+                handleWordClick(token, {
+                  x: rect.left, 
+                  y: rect.bottom + window.scrollY
+                }); 
+              }) : undefined}
               style={{
+                cursor: isWord ? 'pointer' : 'default',
+                textDecoration: isWord ? 'underline dotted #aaa' : 'none',
+                textDecorationThickness: isWord ? '1px' : 'auto',
+                transition: 'all 0.2s',
                 userSelect: 'text',
               }}
             >
@@ -148,96 +144,95 @@ const TranscriptionDisplay = ({
   const englishRef = useRef(null);
   const translationRefs = useRef({});
   const [fontSize, setFontSize] = useState(isTextMode ? 18 : 30); // Font size: default to 30 in audio mode
-  
-  // Dictionary popup state - Netflix-style popups for word definitions
-  const [popupInfo, setPopupInfo] = useState({
-    word: null,
-    position: { x: 0, y: 0 }
-  });
-  
   useEffect(() => {
     // Update font size default when mode changes
     setFontSize(isTextMode ? 18 : 30);
   }, [isTextMode]);
-  
   const containerRef = useRef(null);
-  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+  const [containerSize, setContainerSize] = useState({ width: 1200, height: 600 });
   const [langBoxStates, setLangBoxStates] = useState([]);
   const lastPersistedTranslations = useRef({});
   
-  // Timeout ref for hiding popup after delay
-  const popupTimeoutRef = useRef(null);
+  // Dictionary popup state
+  const [popupState, setPopupState] = useState({
+    isVisible: false,
+    word: null,
+    position: null
+  });
+  
+  // Close the dictionary popup
+  const handleClosePopup = () => {
+    setPopupState({
+      isVisible: false,
+      word: null,
+      position: null
+    });
+  };
 
-  // Handle word click to show dictionary popup
-  const handleWordClick = (word, e) => {
-    // Get word info (lowercase for lookup)
+  // Helper: add/remove word from list and show popup
+  const handleWordClick = (word, position) => {
+    // Don't add duplicates (case insensitive)
     const wordLower = word.toLowerCase();
+    const isSelected = selectedWords.some(w => w.toLowerCase() === wordLower);
     
-    // Get clicked element position for popup
-    const rect = e.currentTarget.getBoundingClientRect();
+    // Always show the popup when a word is clicked
+    setPopupState({
+      isVisible: true,
+      word: word,
+      position: position
+    });
     
-    // Check if we're closing the same popup
-    if (popupInfo.word === word) {
-      setPopupInfo({ word: null, position: { x: 0, y: 0 } });
+    if (isSelected) {
+      // No need to remove words anymore - we're keeping them for reference
+      // but we'll still show the popup
       return;
     }
     
-    // Position popup below the clicked word
-    setPopupInfo({ 
-      word: word,
-      position: { 
-        x: rect.left + (rect.width / 2), // Center horizontally on word
-        y: rect.bottom + window.scrollY + 5 // Place below word
-      }
-    });
+    // Add the word to selected words
+    setSelectedWords(prev => [...prev, word]);
     
-    // Add the word to dictionary if not already there
-    const isSelected = selectedWords.some(w => w.toLowerCase() === wordLower);
-    if (!isSelected) {
-      // Add the word to selected words
-      setSelectedWords(prev => [...prev, word]);
-      
-      // Find the sentence context where this word appears
-      const contextSentence = englishSegments.find(segment => 
-        segment.text.toLowerCase().includes(wordLower)
-      )?.text || "";
-      
-      // Preload the definition immediately with context
-      const apiUrl = `https://polycast-server.onrender.com/api/dictionary/${encodeURIComponent(word)}?context=${encodeURIComponent(contextSentence)}`;
-      console.log(`Preloading definition for "${word}" with context, from: ${apiUrl}`);
-      
-      fetch(apiUrl)
-        .then(res => res.json())
-        .then(data => {
-          console.log(`Preloaded definition for "${word}":`, data);
-          setWordDefinitions(prev => ({
-            ...prev,
-            [word.toLowerCase()]: data
-          }));
-        })
-        .catch(err => {
-          console.error(`Error preloading definition for ${word}:`, err);
-        });
-        
-      // Generate image for the flashcard at the same time
-      const imagePrompt = `Create a visually engaging, wordless flashcard image in the style of Charley Harper. Use bold shapes, minimal detail, and mid-century modern aesthetics to depict the concept in a memorable and metaphorical way. Avoid text or labels. Again, use no text. The word to illustrate is: "${word}".`;
-      
-      console.log(`Generating image for word: ${word}`);
-      
-      fetch(`https://polycast-server.onrender.com/api/generate-image?prompt=${encodeURIComponent(imagePrompt)}`, {
-        mode: 'cors'
+    // Find the sentence context where this word appears
+    const contextSentence = englishSegments.find(segment => 
+      segment.text.toLowerCase().includes(wordLower)
+    )?.text || "";
+    
+    // Preload the definition immediately with context
+    const apiUrl = `https://polycast-server.onrender.com/api/dictionary/${encodeURIComponent(word)}?context=${encodeURIComponent(contextSentence)}`;
+    console.log(`Preloading definition for "${word}" with context, from: ${apiUrl}`);
+    
+    fetch(apiUrl)
+      .then(res => res.json())
+      .then(data => {
+        console.log(`Preloaded definition for "${word}":`, data);
+        setWordDefinitions(prev => ({
+          ...prev,
+          [word.toLowerCase()]: data
+        }));
       })
-        .then(res => {
-          if (!res.ok) throw new Error(`Failed with status: ${res.status}`);
-          return res.json();
-        })
-        .then(data => {
-          console.log(`Image generated for: ${word}`);
-          // We need to update wordDefinitions to include the image URL
-          setWordDefinitions(prev => ({
-            ...prev,
-            [word.toLowerCase()]: {
-              ...prev[word.toLowerCase()],
+      .catch(err => {
+        console.error(`Error preloading definition for ${word}:`, err);
+      });
+      
+    // Generate image for the flashcard at the same time
+    const imagePrompt = `Create a visually engaging, wordless flashcard image in the style of Charley Harper. Use bold shapes, minimal detail, and mid-century modern aesthetics to depict the concept in a memorable and metaphorical way. Avoid text or labels. Again, use no text. The word to illustrate is: "${word}".`;
+    
+    console.log(`Generating image for word: ${word}`);
+    
+    fetch(`https://polycast-server.onrender.com/api/generate-image?prompt=${encodeURIComponent(imagePrompt)}`, {
+      mode: 'cors'
+    })
+      .then(res => {
+        if (!res.ok) throw new Error(`Failed with status: ${res.status}`);
+        return res.json();
+      })
+      .then(data => {
+        console.log(`Image generated for: ${word}`);
+        // We need to update wordDefinitions to include the image URL
+        setWordDefinitions(prev => ({
+          ...prev,
+          [word.toLowerCase()]: {
+            ...prev[word.toLowerCase()],
+
               imageUrl: data.url
             }
           }));
@@ -420,7 +415,7 @@ const TranscriptionDisplay = ({
           ) : (
             <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
               <span style={{ fontWeight: 400, fontSize: fontSize }}>
-                {renderSegmentsWithClickableWords(englishSegments, null, selectedWords, handleWordClick, wordDefinitions)}
+                {renderSegmentsWithClickableWords(englishSegments, null, selectedWords, handleWordClick)}
               </span>
               <div className="scroll-end" />
             </div>
@@ -435,145 +430,133 @@ const TranscriptionDisplay = ({
   const transcriptVisible = showLiveTranscript || isTextMode;
   const translationVisible = showTranslation;
 
-  // Render a translation box for a target language
-  const renderLanguageBox = (lang, boxIndex) => {
-    const scheme = colorSchemes[boxIndex % colorSchemes.length];
-    const segments = translations[lang] || [];
-    
-    return (
-      <div
-        key={lang}
-        style={{
-          position: 'relative',
-          background: scheme.bg,
-          color: scheme.fg,
-          borderTop: `6px solid ${scheme.accent}`,
-          borderRadius: 10,
-          boxShadow: `0 2px 12px 0 ${scheme.accent}14`,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'flex-start',
-          alignItems: 'stretch',
-          padding: 0,
-          width: '100%',
-          marginTop: 8, // Reduced from 16px to 8px for tighter spacing
-          overflow: 'hidden',
-        }}
-      >
-        <span style={{ 
-          letterSpacing: 0.5, 
-          textAlign: 'center', 
-          fontWeight: 800, 
-          fontSize: 20, 
-          margin: '18px 0 10px 0',
-          color: scheme.accent + 'cc',
-          textTransform: 'uppercase',
-          opacity: 0.92,
-        }}>
-          {lang}
-        </span>
-        <div style={{ 
-          flex: 1, 
-          display: 'flex', 
-          flexDirection: 'column', 
-          padding: 16, 
-          gap: 8, 
-          overflow: 'auto', 
-          minHeight: 0 
-        }} ref={el => translationRefs.current[lang] = el}>
-          {isTextMode ? (
-            <>
-              <textarea
-                value={textInputs[lang] ?? ''}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  flex: 1,
-                  fontSize: fontSize,
-                  borderRadius: 6,
-                  border: `1.5px solid ${scheme.accent}`,
-                  padding: 8,
-                  resize: 'none',
-                  background: scheme.bg,
-                  color: scheme.fg,
-                  boxSizing: 'border-box',
-                  minHeight: 80,
-                }}
-                onChange={e => handleInputChange(lang, e.target.value)}
-                onKeyDown={e => {
-                  if (isTextMode && e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSubmit(lang);
-                  }
-                }}
-              />
-              <button
-                style={{ 
-                  marginTop: 10, 
-                  alignSelf: 'center', 
-                  background: scheme.accent, 
-                  color: '#fff', 
-                  border: 'none', 
-                  borderRadius: 6, 
-                  padding: '6px 18px', 
-                  fontWeight: 700, 
-                  fontSize: 16, 
-                  cursor: 'pointer' 
-                }}
-                onClick={() => handleSubmit(lang)}
-              >
-                Submit
-              </button>
-            </>
-          ) : (
-            <span style={{ fontWeight: 400, fontSize: fontSize }}>
-              {renderSegmentsWithClickableWords(segments, lastPersistedTranslations.current[lang], selectedWords, handleWordClick, wordDefinitions)}
-            </span>
-          )}
-        </div>
-      </div>
-    );
-  };
-  
+  // ...existing logic...
+
   return (
-    <div className="transcription-container" ref={containerRef}
+    <div
+      ref={containerRef}
       style={{
-        position: 'relative',
+        height: '100%',
         width: '100%',
-        height: 'calc(100vh - 244px)',
-        margin: '10px auto 0', // Reduced from 20px to 10px
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'center',
-        padding: '0 24px 12px', // Reduced bottom padding from 24px to 12px
+        flex: 1,
+        position: 'relative',
         overflow: 'hidden',
-        boxSizing: 'border-box',
+        minHeight: 0
       }}
     >
-      {/* Live Transcript Section */}
-      {showLiveTranscript && (
-        <div style={{ width: '100%', maxHeight: '100%', overflowY: 'hidden' }}>
-          {renderEnglishBox()}
-        </div>
+      {/* Transcript/English box always renders and updates first */}
+      {transcriptVisible && (
+        <div style={{ width: translationVisible ? '100%' : '100%', flex: translationVisible ? '0 0 33.5%' : '1 1 100%', minHeight: 0, display: 'flex', flexDirection: 'column', transition: 'flex 0.3s, width 0.3s' }}>{renderEnglishBox()}</div>
       )}
-
-      {/* Translations Section */}
-      {showTranslation && (
-        <div style={{ width: '100%', marginTop: 6 }}> {/* Reduced from 20px to 6px */}
-          {targetLanguages.map((lang, i) => (
-            renderLanguageBox(lang, i + 1)
-          ))}
+      {/* Language boxes fill the remaining space */}
+      {translationVisible && (
+        <div
+          style={{
+            width: '100%',
+            display: 'flex',
+            justifyContent: langCount === 1 ? 'center' : 'flex-start',
+            flex: '1 1 66.5%',
+            alignItems: 'stretch',
+            minHeight: 0,
+            gap: 24,
+            boxSizing: 'border-box',
+            marginTop: 24,
+          }}
+        >
+          {targetLanguages.map((lang, idx) => {
+            const scheme = colorSchemes[(idx + 1) % colorSchemes.length];
+            const layout = langBoxLayout[idx] || { x: 0, y: 0, w: 320, h: 250 };
+            const segments = translations[lang] || [];
+            return (
+              <div
+                key={lang}
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  minHeight: 0,
+                  maxHeight: '100%',
+                  overflow: 'hidden',
+                  margin: 0,
+                  background: scheme.bg,
+                  color: scheme.fg,
+                  borderTop: `4px solid ${scheme.accent}`,
+                  borderRadius: 12,
+                  boxShadow: '0 2px 12px 0 rgba(124, 98, 255, 0.07)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'flex-start',
+                  alignItems: 'stretch',
+                  padding: 0,
+                }}
+              >
+                <span style={{
+                  letterSpacing: 0.5,
+                  textAlign: 'center',
+                  fontWeight: 800,
+                  fontSize: 20,
+                  margin: '18px 0 10px 0',
+                  color: scheme.accent + 'cc',
+                  textTransform: 'uppercase',
+                  opacity: 0.92,
+                }}>
+                  {lang}
+                </span>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 16, gap: 8, overflow: 'auto', minHeight: 0 }} ref={el => translationRefs.current[lang] = el}>
+                  {isTextMode ? (
+                    <>
+                      <textarea
+                        value={textInputs[lang] ?? ''}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          flex: 1,
+                          fontSize: fontSize,
+                          borderRadius: 6,
+                          border: `1.5px solid ${scheme.accent}`,
+                          padding: 8,
+                          resize: 'none',
+                          background: scheme.bg,
+                          color: scheme.fg,
+                          boxSizing: 'border-box',
+                          minHeight: 80,
+                        }}
+                        onChange={e => handleInputChange(lang, e.target.value)}
+                        onKeyDown={e => {
+                          if (isTextMode && e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSubmit(lang);
+                          }
+                        }}
+                      />
+                      <button
+                        style={{ marginTop: 10, alignSelf: 'center', background: scheme.accent, color: '#fff', border: 'none', borderRadius: 6, padding: '6px 18px', fontWeight: 700, fontSize: 16, cursor: 'pointer' }}
+                        onClick={() => handleSubmit(lang)}
+                      >
+                        Submit
+                      </button>
+                    </>
+                  ) : (
+                    <span style={{ fontWeight: 400, fontSize: fontSize }}>
+                      {renderHistoryStacked(segments)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
       
       {/* Dictionary Popup */}
-      {popupInfo.word && (
-        <ClickableWord 
-          word={popupInfo.word}
-          wordDefinitions={wordDefinitions}
-          onWordClick={handleWordClick}
-        />
-      )}
+      <DictionaryPopup 
+        word={popupState.word}
+        position={popupState.position}
+        definition={popupState.word ? wordDefinitions[popupState.word?.toLowerCase()] : null}
+        isVisible={popupState.isVisible}
+        onClose={handleClosePopup}
+      />
     </div>
   );
 };

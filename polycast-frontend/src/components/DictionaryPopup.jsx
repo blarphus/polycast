@@ -1,123 +1,170 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 
 /**
- * Netflix-style popup dialog for dictionary lookups
+ * Netflix-style popup for displaying word definitions
  */
-const DictionaryPopup = ({ word, definition, position, onClose }) => {
-  // Close on click outside
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (!e.target.closest('.dictionary-popup') && !e.target.closest('.clickable-word')) {
-        onClose();
-      }
-    };
-    
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [onClose]);
+const DictionaryPopup = ({ 
+  word, 
+  position, 
+  definition, 
+  isVisible, 
+  onClose 
+}) => {
+  const popupRef = useRef(null);
 
-  // Close on ESC key press
   useEffect(() => {
-    const handleEscape = (e) => {
-      if (e.key === 'Escape') {
+    // Close popup when clicking outside
+    const handleClickOutside = (event) => {
+      if (popupRef.current && !popupRef.current.contains(event.target)) {
         onClose();
       }
     };
-    
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, [onClose]);
-  
-  if (!definition) {
-    return null;
-  }
-  
-  // Extract Spanish translation and definition for clarity
-  const spanishTranslation = definition.translation || word;
-  const spanishDefinition = definition.definition || 'Loading definition...';
+
+    if (isVisible) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isVisible, onClose]);
+
+  if (!isVisible || !word || !position) return null;
+
+  // Generate examples from definition data
+  const examples = definition?.examples || [];
   
   return (
     <div 
-      className="dictionary-popup"
+      ref={popupRef}
       style={{
         position: 'absolute',
-        top: position.y,
-        left: position.x,
-        transform: 'translateX(-50%)',
-        background: '#181a2a', // Dark background like Netflix
+        left: `${position.x}px`,
+        top: `${position.y}px`,
+        maxWidth: '400px',
+        width: 'auto',
+        backgroundColor: 'rgba(31, 31, 31, 0.95)',
         color: 'white',
-        padding: '16px',
-        borderRadius: '6px',
-        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.7)',
+        borderRadius: '4px',
+        boxShadow: '0 4px 14px rgba(0, 0, 0, 0.5)',
         zIndex: 1000,
-        width: '300px',
-        maxWidth: '90vw',
-        animation: 'fadeIn 0.2s ease-out',
+        padding: '12px 16px',
+        fontSize: '14px',
+        lineHeight: '1.4',
+        animation: 'fadeIn 0.2s',
+        border: '1px solid rgba(255, 255, 255, 0.15)',
+        backdropFilter: 'blur(4px)',
+        filter: 'drop-shadow(0 0 8px rgba(0, 0, 0, 0.15))',
+        maxHeight: '300px',
+        overflowY: 'auto',
+        cursor: 'default',
       }}
     >
-      {/* Arrow/triangle at top of popup */}
-      <div style={{
-        position: 'absolute',
-        top: '-10px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        width: 0,
-        height: 0,
-        borderLeft: '10px solid transparent',
-        borderRight: '10px solid transparent',
-        borderBottom: '10px solid #181a2a',
-      }} />
-      
       {/* Close button */}
-      <div onClick={onClose} style={{ position: 'absolute', right: 10, top: 10, cursor: 'pointer', fontSize: '1.2rem' }}>×</div>
-      
-      {/* Word heading (similar to Netflix UI) */}
-      <div style={{ fontSize: '1.3rem', fontWeight: 700, marginBottom: 10, color: '#fff' }}>
-        {word}
+      <div 
+        style={{
+          position: 'absolute',
+          right: '8px',
+          top: '8px',
+          cursor: 'pointer',
+          fontSize: '16px',
+          width: '24px',
+          height: '24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderRadius: '50%',
+          color: 'rgba(255, 255, 255, 0.7)',
+        }}
+        onClick={onClose}
+      >
+        ✕
       </div>
-      
-      {/* Spanish translation and definition */}
-      <div style={{ padding: '8px 0', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
-        <div style={{ fontSize: '1.15rem', fontWeight: 500, marginBottom: 6, color: '#e6e6e6' }}>
-          {spanishTranslation}
-        </div>
-        
-        {/* Translation */}
-        <div style={{ marginBottom: '12px' }}>
-          <div style={{ color: '#7c62ff', fontWeight: 'bold', marginBottom: '4px' }}>Translation:</div>
-          <div>{definition.translation || 'No translation available'}</div>
-        </div>
-        
-        {/* Definition */}
-        <div style={{ marginBottom: '12px' }}>
-          <div style={{ color: '#7c62ff', fontWeight: 'bold', marginBottom: '4px' }}>Definition:</div>
-          <div>{definition.definition || 'No definition available'}</div>
-        </div>
-        
-        {/* Examples */}
-        {definition.examples && definition.examples.length > 0 && (
-          <div>
-            <div style={{ color: '#7c62ff', fontWeight: 'bold', marginBottom: '4px' }}>Examples:</div>
-            <ul style={{ paddingLeft: '20px', margin: '4px 0' }}>
-              {definition.examples.slice(0, 2).map((example, index) => (
-                <li key={index} style={{ marginBottom: '4px' }}>{example}</li>
-              ))}
-            </ul>
+
+      {/* Word with synonyms */}
+      <div style={{ marginBottom: '12px', paddingRight: '20px' }}>
+        <h3 style={{ margin: '0 0 4px 0', fontSize: '17px', fontWeight: '600' }}>
+          {word}
+        </h3>
+        {definition?.synonyms && (
+          <div style={{ color: '#aaa', fontSize: '14px' }}>
+            Synonyms: {definition.synonyms.join(', ')}
           </div>
         )}
+      </div>
+
+      {/* Spanish translation */}
+      {definition?.translation && (
+        <div style={{ marginBottom: '12px' }}>
+          <div style={{ color: '#4ad991', fontWeight: '500', marginBottom: '4px' }}>
+            Translation
+          </div>
+          <div>{definition.translation}</div>
+        </div>
+      )}
+
+      {/* Examples section */}
+      {examples.length > 0 && (
+        <div>
+          <div style={{ 
+            fontSize: '14px', 
+            color: '#aaa', 
+            marginBottom: '4px',
+            paddingTop: '4px',
+            borderTop: '1px solid rgba(255, 255, 255, 0.1)'
+          }}>
+            Examples
+          </div>
+          <div>
+            {examples.map((example, index) => (
+              <div 
+                key={index} 
+                style={{ 
+                  marginBottom: index < examples.length - 1 ? '8px' : 0,
+                  color: '#ddd',
+                  fontSize: '13px'
+                }}
+              >
+                {example}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Action buttons */}
+      <div 
+        style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between',
+          marginTop: '12px',
+          paddingTop: '10px',
+          borderTop: '1px solid rgba(255, 255, 255, 0.1)'
+        }}
+      >
+        <div 
+          style={{
+            fontSize: '13px',
+            color: '#ffb84d',
+            opacity: 0.85,
+            padding: '2px 0'
+          }}
+        >
+          Word saved to your dictionary
+        </div>
       </div>
     </div>
   );
 };
 
 DictionaryPopup.propTypes = {
-  word: PropTypes.string.isRequired,
-  definition: PropTypes.object,
+  word: PropTypes.string,
   position: PropTypes.shape({
-    x: PropTypes.number.isRequired,
-    y: PropTypes.number.isRequired
-  }).isRequired,
+    x: PropTypes.number,
+    y: PropTypes.number
+  }),
+  definition: PropTypes.object,
+  isVisible: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired
 };
 
