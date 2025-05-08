@@ -296,12 +296,14 @@ function App({ targetLanguages, onReset, roomSetup, studentHomeLanguage }) {
     // },
   });
 
-  // Function to translate English text to student's home language
+  // Function to translate English text to student's home language using LLM service
   const translateForStudent = async (text) => {
     if (!studentHomeLanguage || !text || roomSetup.isHost) return;
     
     try {
       console.log(`Translating for student to ${studentHomeLanguage}: ${text}`);
+      
+      // Use the POST API for more reliable translation with longer text
       const response = await fetch('https://polycast-server.onrender.com/api/translate', {
         method: 'POST',
         headers: {
@@ -320,13 +322,25 @@ function App({ targetLanguages, onReset, roomSetup, studentHomeLanguage }) {
       const data = await response.json();
       console.log(`Received student translation: ${data.translation}`);
       
+      // Update student translations with the result
       setStudentTranslations([{
         text: data.translation, 
         isNew: true, 
         id: `student-trans-${Date.now()}`
       }]);
+      
+      // Also update text inputs if in text mode
+      if (appMode === 'text') {
+        setTextInputs(inputs => ({
+          ...inputs,
+          [studentHomeLanguage]: data.translation
+        }));
+      }
     } catch (error) {
       console.error('Error translating for student:', error);
+      
+      // Show brief error notification
+      setErrorMessages(prev => [...prev, `Translation error: Failed to translate to ${studentHomeLanguage}`]);
     }
   };
   

@@ -4,18 +4,9 @@ import PropTypes from 'prop-types';
 function RoomSelectionScreen({ onRoomSetup }) {
   const [mode, setMode] = useState(null);
   const [roomCode, setRoomCode] = useState('');
-  const [homeLanguage, setHomeLanguage] = useState('Spanish'); // Default language
+  const [homeLanguage, setHomeLanguage] = useState(''); // Empty by default
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  
-  // List of common languages for the dropdown
-  const commonLanguages = [
-    'Spanish', 'French', 'German', 'Italian', 'Portuguese', 'Dutch',
-    'Russian', 'Chinese', 'Japanese', 'Korean', 'Arabic', 'Hindi',
-    'Bengali', 'Urdu', 'Vietnamese', 'Thai', 'Turkish', 'Polish',
-    'Ukrainian', 'Greek', 'Czech', 'Romanian', 'Hungarian', 'Swedish',
-    'Norwegian', 'Finnish', 'Danish', 'Hebrew', 'Indonesian'
-  ].sort();
 
   const handleHostClick = async () => {
     setIsLoading(true);
@@ -138,12 +129,14 @@ function RoomSelectionScreen({ onRoomSetup }) {
               </div>
               <div style={{ marginBottom: '15px' }}>
                 <label htmlFor="homeLanguage" style={{ display: 'block', marginBottom: '5px', color: '#fff', textAlign: 'left' }}>
-                  Home Language:
+                  Home Language (e.g., Spanish, French, Japanese):
                 </label>
-                <select
+                <input
+                  type="text"
                   id="homeLanguage"
                   value={homeLanguage}
                   onChange={(e) => setHomeLanguage(e.target.value)}
+                  placeholder="Type any language name"
                   style={{
                     width: '100%',
                     padding: '8px',
@@ -153,11 +146,7 @@ function RoomSelectionScreen({ onRoomSetup }) {
                     color: '#fff'
                   }}
                   disabled={isLoading}
-                >
-                  {commonLanguages.map(lang => (
-                    <option key={lang} value={lang}>{lang}</option>
-                  ))}
-                </select>
+                />
               </div>
               <button 
                 type="submit" 

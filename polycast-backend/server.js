@@ -603,6 +603,7 @@ let isTextMode = loadModeFromDisk();
 const PORT = process.env.PORT || config.port || 3000;
 
 // API routes
+// GET endpoint for translations (backward compatibility)
 app.get('/api/translate/:language/:text', async (req, res) => {
     try {
         const { language, text } = req.params;
@@ -610,6 +611,26 @@ app.get('/api/translate/:language/:text', async (req, res) => {
         res.json({ translation: translatedText });
     } catch (error) {
         console.error("Translation API error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// POST endpoint for translations (for student home language support)
+app.post('/api/translate', async (req, res) => {
+    try {
+        const { text, targetLanguage } = req.body;
+        
+        if (!text || !targetLanguage) {
+            return res.status(400).json({ error: "Missing required fields: text and targetLanguage" });
+        }
+        
+        console.log(`[Student Translation] Translating to ${targetLanguage}: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
+        const translatedText = await llmService.translateText(text, targetLanguage);
+        
+        console.log(`[Student Translation] Result: "${translatedText.substring(0, 50)}${translatedText.length > 50 ? '...' : ''}"`);
+        res.json({ translation: translatedText });
+    } catch (error) {
+        console.error("Student translation API error:", error);
         res.status(500).json({ error: error.message });
     }
 });
