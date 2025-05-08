@@ -190,34 +190,58 @@ const TranscriptionDisplay = ({
     const getUserId = () => {
       let userId = localStorage.getItem('polycastUserId');
       if (!userId) {
-        // Generate a random ID if crypto is available, or fallback to timestamp
-        userId = (window.crypto && window.crypto.randomUUID) ? 
-          window.crypto.randomUUID() : 
-          `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        // Generate a simple alphanumeric ID without special characters
+        userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
         localStorage.setItem('polycastUserId', userId);
       }
       return userId;
     };
     
     const userId = getUserId();
+    console.log(`Using userId: ${userId}`);
+    
     
     // Call our new API to create a flashcard
-    fetch('https://polycast-server.onrender.com/api/flashcards', {
+    console.log(`Making API request to create flashcard for "${word}" with userId: ${userId}`);
+    
+    // Ensure URL doesn't have special characters or encoding issues
+    const apiUrl = 'https://polycast-server.onrender.com/api/flashcards';
+    console.log(`API URL: ${apiUrl}`);
+    
+    // Create the request body
+    const requestBody = {
+      userId: userId.trim(),
+      word: word.trim(),
+      context: contextSentence
+    };
+    
+    console.log('Request body:', JSON.stringify(requestBody));
+    
+    fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        userId,
-        word,
-        context: contextSentence
-      }),
+      body: JSON.stringify(requestBody),
     })
-    .then(res => {
+    .then(async res => {
+      console.log(`Response status: ${res.status} ${res.statusText}`);
+      
+      // Clone the response and log the raw text for debugging
+      const resClone = res.clone();
+      const rawText = await resClone.text();
+      console.log('Raw response:', rawText);
+      
       if (!res.ok) {
-        throw new Error(`Failed with status: ${res.status}`);
+        throw new Error(`Failed with status: ${res.status} ${res.statusText}. Response: ${rawText}`);
       }
-      return res.json();
+      
+      try {
+        return JSON.parse(rawText);
+      } catch (e) {
+        console.error('Failed to parse response as JSON:', e);
+        throw new Error(`Invalid JSON response from server: ${rawText.substring(0, 100)}...`);
+      }
     })
     .then(data => {
       console.log(`Flashcard created for "${word}":`, data);
