@@ -313,17 +313,20 @@ async function createFlashcard(userId, word, context) {
             };
         }
         
-        // Check if this user already has a flashcard for this word and definition
+        // Check if this user already has a flashcard for this EXACT word and context combination
+        // This ensures different contexts for the same word create different flashcards
         const userCards = getUserFlashcards(userId);
         const existingCard = userCards.find(card => 
             card.word.toLowerCase() === word.toLowerCase() && 
-            card.dictionaryDefinition === matchedDefinition.definition
+            card.dictionaryDefinition === matchedDefinition.definition &&
+            card.originalContext === context // Add context to uniqueness check
         );
         
         if (existingCard) {
-            console.log(`[DICTIONARY_DEBUG] Flashcard for "${word}" (${matchedDefinition.definition}) already exists for user ${userId}`);
+            console.log(`[DICTIONARY_DEBUG] Flashcard for "${word}" with context "${context}" already exists for user ${userId}`);
             return existingCard;
         }
+        console.log(`[DICTIONARY_DEBUG] Creating NEW flashcard for "${word}" with context "${context}" for user ${userId}`);
         
         // Generate flashcard content
         const flashcardContent = await generateFlashcardContent(word, matchedDefinition, context);
@@ -337,6 +340,7 @@ async function createFlashcard(userId, word, context) {
             exampleSentence: flashcardContent.exampleSentence,
             clozeSentence: flashcardContent.clozeSentence,
             partOfSpeech: matchedDefinition.partOfSpeech,
+            originalContext: context, // Store the original context to ensure uniqueness
             created: now,
             nextReview: now, // Due immediately
             interval: 1, // In days
