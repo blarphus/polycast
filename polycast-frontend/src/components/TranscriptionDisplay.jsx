@@ -652,15 +652,6 @@ const TranscriptionDisplay = ({
               wordSenseId: wordSenseId,
               contextSentence: contextSentence,
               disambiguatedDefinition: disambiguatedDefinition,
-              // Include dictionary data for Spanish translations
-              dictionaryDefinition: dictData,
-              // Add translation from the API response
-              translation: dictData?.translation || wordData.translation || wordLower,
-              // Add definition directly for easier access
-              definition: disambiguatedDefinition?.definition || 
-                        (dictData?.definitions && dictData.definitions[0]?.definition) ||
-                        (dictData?.allDefinitions && dictData.allDefinitions[0]?.definition) ||
-                        wordData.definition,
               inFlashcards: true, // Mark that this word is now in flashcards with this sense
               cardCreatedAt: new Date().toISOString(),
               partOfSpeech: partOfSpeech
@@ -700,15 +691,6 @@ const TranscriptionDisplay = ({
               wordSenseId: wordSenseId,
               contextSentence: contextSentence,
               disambiguatedDefinition: disambiguatedDefinition,
-              // Include dictionary data for Spanish translations
-              dictionaryDefinition: dictData,
-              // Add translation from the API response
-              translation: dictData?.translation || wordData.translation || wordLower,
-              // Add definition directly for easier access
-              definition: disambiguatedDefinition?.definition || 
-                        (dictData?.definitions && dictData.definitions[0]?.definition) ||
-                        (dictData?.allDefinitions && dictData.allDefinitions[0]?.definition) ||
-                        wordData.definition,
               inFlashcards: true, // Mark that this word is now in flashcards with this sense
               cardCreatedAt: new Date().toISOString(),
               partOfSpeech: partOfSpeech

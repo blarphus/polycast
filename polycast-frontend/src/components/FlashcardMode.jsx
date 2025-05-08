@@ -13,6 +13,15 @@ const FlashcardMode = ({ selectedWords, wordDefinitions, englishSegments }) => {
   });
   const [wordImages, setWordImages] = useState({});
   const [imageLoading, setImageLoading] = useState({});
+  const [generatedSentences, setGeneratedSentences] = useState({});
+  const [viewedCards, setViewedCards] = useState({});
+  const [queueOrder, setQueueOrder] = useState([]);
+  
+  // Track card views - a card can be in one of 4 spaced repetition stages
+  // 1: First time seen today
+  // 2: Second viewing today
+  // 3: Third viewing today
+  // 4: Will be shown tomorrow
   
   // Filter only words that have definitions
   const availableCards = selectedWords.filter(word => 
