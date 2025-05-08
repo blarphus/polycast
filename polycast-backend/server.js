@@ -85,6 +85,12 @@ console.log(`WebSocket server created.`);
 // Room management system
 const activeRooms = new Map(); // Map of roomCode -> {hostWs, students, transcript}
 
+// Track client connection attempts - prevent multiple connection spam
+const connectionAttempts = new Map();
+
+// Global list of all rejected room codes - to prevent reconnection attempts
+const rejectedRoomCodes = new Set();
+
 // Generate a unique 5-digit room code
 async function generateRoomCode() {
     // Try up to 5 times to generate a unique code
@@ -119,6 +125,17 @@ wss.on('connection', (ws, req) => {
     // Parse URL parameters
     const parsedUrl = url.parse(req.url, true); // true parses query string
     const query = parsedUrl.query;
+    
+    // EARLY REJECTION: Immediately reject connection if trying to join a known bad room code
+    if (query && query.roomCode && query.isHost === 'false' && rejectedRoomCodes.has(query.roomCode)) {
+        console.log(`[Room] Immediately rejected student connection for known bad room code: ${query.roomCode}`);
+        ws.send(JSON.stringify({
+            type: 'room_error',
+            message: 'This room does not exist or has expired. Please check the code and try again.'
+        }));
+        ws.close();
+        return;
+    }
     
     // Set a timeout for joining a room (60 seconds)
     // This prevents lingering connections that never successfully join a room
@@ -182,6 +199,10 @@ wss.on('connection', (ws, req) => {
                 } else {
                     // Reject connection if student tries to join non-existent room
                     console.log(`[Room] Rejected student - room not found: ${roomCode}`);
+                    
+                    // Add to rejected rooms set to prevent future reconnection attempts
+                    rejectedRoomCodes.add(roomCode);
+                    
                     ws.send(JSON.stringify({ 
                         type: 'room_error', 
                         message: 'Room not found. Please check the code and try again.' 
@@ -692,6 +713,171 @@ app.post('/mode', (req, res) => {
 // Start the HTTP server
 server.listen(PORT, () => {
     console.log(`HTTP server listening on port ${PORT}`);
+});
+
+// Room cleanup - run every minute
+setInterval(() => {
+    console.log('[Cleanup] Running room cleanup check');
+    const now = Date.now();
+    const MAX_ROOM_AGE_MS = 60 * 60 * 1000; // 60 minutes
+    
+    // Check each active room
+    for (const [roomCode, roomData] of activeRooms.entries()) {
+        const roomAge = now - roomData.createdAt;
+        
+        // If room is older than MAX_ROOM_AGE_MS, clean it up
+        if (roomAge > MAX_ROOM_AGE_MS) {
+            console.log(`[Cleanup] Removing inactive room: ${roomCode} (age: ${Math.floor(roomAge / 60000)} minutes)`);
+            
+            // Close all connections in this room
+            if (roomData.hostWs && roomData.hostWs.readyState === WebSocket.OPEN) {
+                roomData.hostWs.send(JSON.stringify({
+                    type: 'room_expired',
+                    message: 'This room has expired due to inactivity.'
+                }));
+                roomData.hostWs.close();
+            }
+            
+            roomData.students.forEach(studentWs => {
+                if (studentWs.readyState === WebSocket.OPEN) {
+                    studentWs.send(JSON.stringify({
+                        type: 'room_expired',
+                        message: 'This room has expired due to inactivity.'
+                    }));
+                    studentWs.close();
+                }
+            });
+            
+            // Remove room data
+            activeRooms.delete(roomCode);
+            redisService.deleteRoom(roomCode).catch(console.error);
+        }
+    }
+}, 60000); // Run every minute
+
+// Global cleanup admin endpoint - clears all rejected rooms and force-disconnects problematic connections
+app.post('/api/admin/global-cleanup', async (req, res) => {
+    const adminKey = req.headers['x-admin-key'];
+    
+    // Basic authentication
+    if (!adminKey || adminKey !== process.env.ADMIN_KEY) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    
+    try {
+        // Count of all connections before
+        const connectionsBefore = wss.clients.size;
+        let closedConnections = 0;
+        
+        // Force close all problematic WebSocket connections
+        wss.clients.forEach(client => {
+            const clientRoom = clientRooms.get(client);
+            
+            // Close connections that either:
+            // 1. Have no room association (lingering)
+            // 2. Are students trying to connect to a room in the rejected list
+            if (!clientRoom || 
+                (clientRoom && !clientRoom.isHost && rejectedRoomCodes.has(clientRoom.roomCode))) {
+                
+                if (client.readyState === WebSocket.OPEN) {
+                    client.send(JSON.stringify({
+                        type: 'admin_terminated',
+                        message: 'Your connection has been terminated by an administrator.'
+                    }));
+                    client.close();
+                    closedConnections++;
+                }
+            }
+        });
+        
+        // Count of rejected rooms before
+        const rejectedBefore = rejectedRoomCodes.size;
+        
+        // Clear all rejected room codes
+        rejectedRoomCodes.clear();
+        
+        return res.status(200).json({
+            success: true,
+            message: `Global cleanup completed. Closed ${closedConnections} of ${connectionsBefore} connections. Cleared ${rejectedBefore} rejected room codes.`
+        });
+    } catch (error) {
+        console.error('[Admin] Error performing global cleanup:', error);
+        return res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Force-terminate a room (admin endpoint)
+app.post('/api/admin/terminate-room/:roomCode', async (req, res) => {
+    const { roomCode } = req.params;
+    const adminKey = req.headers['x-admin-key'];
+    
+    // Basic authentication
+    if (!adminKey || adminKey !== process.env.ADMIN_KEY) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    
+    try {
+        if (activeRooms.has(roomCode)) {
+            const roomData = activeRooms.get(roomCode);
+            
+            // Close all connections
+            let disconnectedClients = 0;
+            
+            if (roomData.hostWs && roomData.hostWs.readyState === WebSocket.OPEN) {
+                roomData.hostWs.send(JSON.stringify({
+                    type: 'room_terminated',
+                    message: 'This room has been terminated by an administrator.'
+                }));
+                roomData.hostWs.close();
+                disconnectedClients++;
+            }
+            
+            roomData.students.forEach(studentWs => {
+                if (studentWs.readyState === WebSocket.OPEN) {
+                    studentWs.send(JSON.stringify({
+                        type: 'room_terminated',
+                        message: 'This room has been terminated by an administrator.'
+                    }));
+                    studentWs.close();
+                    disconnectedClients++;
+                }
+            });
+            
+            // Remove from memory and Redis
+            activeRooms.delete(roomCode);
+            await redisService.deleteRoom(roomCode);
+            
+            return res.status(200).json({ 
+                success: true, 
+                message: `Room ${roomCode} terminated. ${disconnectedClients} active connections closed.` 
+            });
+        } else {
+            // Check if room exists in Redis
+            const exists = await redisService.roomExists(roomCode);
+            
+            if (exists) {
+                await redisService.deleteRoom(roomCode);
+                return res.status(200).json({ 
+                    success: true, 
+                    message: `Room ${roomCode} deleted from persistent storage. No active connections.` 
+                });
+            } else {
+                return res.status(404).json({ 
+                    success: false, 
+                    message: `Room ${roomCode} not found` 
+                });
+            }
+        }
+    } catch (error) {
+        console.error(`[Admin] Error terminating room ${roomCode}:`, error);
+        return res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
 });
 
 // Basic health check endpoint (optional)
