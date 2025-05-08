@@ -114,7 +114,7 @@ function RoomSelectionScreen({ onRoomSetup }) {
         ) : (
           <div className="mode-container">
             <p>Enter a 5-digit room code to join as Student</p>
-            <form onSubmit={handleStudentSubmit}>
+            <form onSubmit={(e) => e.preventDefault()}> 
               <div style={{ marginBottom: '15px' }}>
                 <input
                   type="text"
@@ -127,6 +127,8 @@ function RoomSelectionScreen({ onRoomSetup }) {
                   disabled={isLoading}
                 />
               </div>
+            </form> 
+            <form onSubmit={handleStudentSubmit}> 
               <div style={{ marginBottom: '15px' }}>
                 <label htmlFor="homeLanguage" style={{ display: 'block', marginBottom: '5px', color: '#fff', textAlign: 'left' }}>
                   Home Language (e.g., Spanish, French, Japanese):
