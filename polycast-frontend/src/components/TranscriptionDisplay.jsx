@@ -410,40 +410,66 @@ const TranscriptionDisplay = ({
     try {
       // Get dictionary definitions from the word data
       const dictData = wordData.dictionaryDefinition;
-      if (!dictData || !dictData.allDefinitions || dictData.allDefinitions.length === 0) {
-        console.error('No dictionary definitions found for word:', word);
-        return;
+      
+      // We need to check if dictData exists and has valid content
+      if (!dictData) {
+        console.warn(`No dictionary data found for word: ${word}. Using disambiguated definition instead.`);
+        // If we don't have dictionary definition, but we do have a disambiguated definition, use that
+        if (wordData.disambiguatedDefinition) {
+          console.log(`Using disambiguated definition for ${word}:`, wordData.disambiguatedDefinition);
+        } else if (wordData.definition) {
+          console.log(`Using Gemini definition for ${word}:`, wordData.definition);
+        } else {
+          console.error(`No usable definition found for word: ${word}`);
+          return;
+        }
+      } else if (!dictData.definitions || dictData.definitions.length === 0) {
+        // Some responses have dictData.definitions instead of dictData.allDefinitions
+        if (dictData.allDefinitions && dictData.allDefinitions.length > 0) {
+          console.log(`Using allDefinitions for ${word}:`, dictData.allDefinitions[0]);
+        } else {
+          console.warn(`Dictionary data has no definitions array for word: ${word}. Using disambiguated definition.`);
+          if (!wordData.disambiguatedDefinition && !wordData.definition) {
+            console.error(`No usable definition found for word: ${word}`);
+            return;
+          }
+        }
       }
       
       // Get all existing flashcard sense IDs
       const existingFlashcardSenseIds = getAllFlashcardSenseIds();
       
-      // Send to backend for disambiguation and flashcard check
-      console.log(`Disambiguating definition for "${word}" in context: "${contextSentence}"...`);
+      // Get the best definition based on what's available
+      const bestDefinition = wordData.disambiguatedDefinition || 
+                             (dictData && dictData.allDefinitions && dictData.allDefinitions.length > 0 ? 
+                                dictData.allDefinitions[0] : 
+                                (dictData && dictData.definitions && dictData.definitions.length > 0 ? 
+                                   dictData.definitions[0] : 
+                                   null));
       
-      const disambiguationResponse = await fetch('https://polycast-server.onrender.com/api/disambiguate-word', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          word: word,
-          contextSentence: contextSentence,
-          definitions: dictData.allDefinitions,
-          existingFlashcardSenseIds: existingFlashcardSenseIds
-        })
-      }).then(res => res.json());
+      if (!bestDefinition) {
+        console.error(`No definition found for ${word} in context: ${contextSentence}`);
+        return;
+      }
+      
+      // Get the part of speech from the best available source
+      const partOfSpeech = bestDefinition.partOfSpeech || 
+                           (dictData && dictData.partOfSpeech) ||
+                           wordData.partOfSpeech ||
+                           'unknown';
+      
+      // Generate a unique word sense ID based on the context
+      const wordSenseId = `${wordLower}_${partOfSpeech}_${Date.now()}`;
       
       // Check if this sense already exists in flashcards
-      if (disambiguationResponse.existingFlashcard) {
+      if (existingFlashcardSenseIds.includes(wordSenseId)) {
         console.log(`This sense of "${word}" already exists in flashcards. No new card needed.`);
         // The word is still added to selectedWords above for UI consistency
         return;
       }
       
-      // Get the disambiguated definition and word sense ID
-      const disambiguatedDefinition = disambiguationResponse.disambiguatedDefinition;
-      const wordSenseId = disambiguationResponse.wordSenseId;
+      // Define disambiguatedDefinition for the rest of the code
+      const disambiguatedDefinition = bestDefinition;
       
       if (!disambiguatedDefinition || !wordSenseId) {
         console.error('Failed to disambiguate definition for word:', word);
@@ -452,7 +478,6 @@ const TranscriptionDisplay = ({
       
       // Generate the image prompt based on the specific definition
       const definition = disambiguatedDefinition.definition;
-      const partOfSpeech = disambiguatedDefinition.partOfSpeech;
       
       const imagePrompt = `Create a visually engaging, wordless flashcard image in the style of Charley Harper. Use bold shapes, minimal detail, and mid-century modern aesthetics to depict this specific meaning of the word "${word}" (${partOfSpeech}): "${definition}". Avoid text or labels. Create a metaphorical image representation of this exact meaning.`;
       
