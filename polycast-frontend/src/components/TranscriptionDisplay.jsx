@@ -1,6 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import DictionaryPopup from './DictionaryPopup';
 
 // Helper function to render segments
 const renderSegments = (segments, lastPersisted) => {
@@ -76,20 +75,13 @@ const renderSegmentsWithClickableWords = (segments, lastPersisted, selectedWords
           return (
             <span
               key={i}
-              onClick={isWord ? (e => { 
-                e.stopPropagation(); 
-                // Get click position for popup
-                const rect = e.target.getBoundingClientRect();
-                handleWordClick(token, {
-                  x: rect.left, 
-                  y: rect.bottom + window.scrollY
-                }); 
-              }) : undefined}
+              onClick={isWord ? (e => { e.stopPropagation(); handleWordClick(token); }) : undefined}
               style={{
                 cursor: isWord ? 'pointer' : 'default',
-                textDecoration: isWord ? 'underline dotted #aaa' : 'none',
-                textDecorationThickness: isWord ? '1px' : 'auto',
-                transition: 'all 0.2s',
+                color: isWord && selectedWords.some(w => w.toLowerCase() === token.toLowerCase()) ? '#1976d2' : undefined,
+                background: isWord && selectedWords.some(w => w.toLowerCase() === token.toLowerCase()) ? 'rgba(25,118,210,0.07)' : undefined,
+                borderRadius: isWord && selectedWords.some(w => w.toLowerCase() === token.toLowerCase()) ? 3 : undefined,
+                transition: 'color 0.2s',
                 userSelect: 'text',
               }}
             >
@@ -152,87 +144,61 @@ const TranscriptionDisplay = ({
   const [containerSize, setContainerSize] = useState({ width: 1200, height: 600 });
   const [langBoxStates, setLangBoxStates] = useState([]);
   const lastPersistedTranslations = useRef({});
-  
-  // Dictionary popup state
-  const [popupState, setPopupState] = useState({
-    isVisible: false,
-    word: null,
-    position: null
-  });
-  
-  // Close the dictionary popup
-  const handleClosePopup = () => {
-    setPopupState({
-      isVisible: false,
-      word: null,
-      position: null
-    });
-  };
 
-  // Helper: add/remove word from list and show popup
-  const handleWordClick = (word, position) => {
+  // Helper: add/remove word from list
+  const handleWordClick = (word) => {
     // Don't add duplicates (case insensitive)
     const wordLower = word.toLowerCase();
     const isSelected = selectedWords.some(w => w.toLowerCase() === wordLower);
     
-    // Always show the popup when a word is clicked
-    setPopupState({
-      isVisible: true,
-      word: word,
-      position: position
-    });
-    
     if (isSelected) {
-      // No need to remove words anymore - we're keeping them for reference
-      // but we'll still show the popup
-      return;
-    }
-    
-    // Add the word to selected words
-    setSelectedWords(prev => [...prev, word]);
-    
-    // Find the sentence context where this word appears
-    const contextSentence = englishSegments.find(segment => 
-      segment.text.toLowerCase().includes(wordLower)
-    )?.text || "";
-    
-    // Preload the definition immediately with context
-    const apiUrl = `https://polycast-server.onrender.com/api/dictionary/${encodeURIComponent(word)}?context=${encodeURIComponent(contextSentence)}`;
-    console.log(`Preloading definition for "${word}" with context, from: ${apiUrl}`);
-    
-    fetch(apiUrl)
-      .then(res => res.json())
-      .then(data => {
-        console.log(`Preloaded definition for "${word}":`, data);
-        setWordDefinitions(prev => ({
-          ...prev,
-          [word.toLowerCase()]: data
-        }));
-      })
-      .catch(err => {
-        console.error(`Error preloading definition for ${word}:`, err);
-      });
+      // Remove the word if already selected
+      setSelectedWords(prev => prev.filter(w => w.toLowerCase() !== wordLower));
+    } else {
+      // Add the word to selected words
+      setSelectedWords(prev => [...prev, word]);
       
-    // Generate image for the flashcard at the same time
-    const imagePrompt = `Create a visually engaging, wordless flashcard image in the style of Charley Harper. Use bold shapes, minimal detail, and mid-century modern aesthetics to depict the concept in a memorable and metaphorical way. Avoid text or labels. Again, use no text. The word to illustrate is: "${word}".`;
-    
-    console.log(`Generating image for word: ${word}`);
-    
-    fetch(`https://polycast-server.onrender.com/api/generate-image?prompt=${encodeURIComponent(imagePrompt)}`, {
-      mode: 'cors'
-    })
-      .then(res => {
-        if (!res.ok) throw new Error(`Failed with status: ${res.status}`);
-        return res.json();
+      // Find the sentence context where this word appears
+      const contextSentence = englishSegments.find(segment => 
+        segment.text.toLowerCase().includes(wordLower)
+      )?.text || "";
+      
+      // Preload the definition immediately with context
+      const apiUrl = `https://polycast-server.onrender.com/api/dictionary/${encodeURIComponent(word)}?context=${encodeURIComponent(contextSentence)}`;
+      console.log(`Preloading definition for "${word}" with context, from: ${apiUrl}`);
+      
+      fetch(apiUrl)
+        .then(res => res.json())
+        .then(data => {
+          console.log(`Preloaded definition for "${word}":`, data);
+          setWordDefinitions(prev => ({
+            ...prev,
+            [word.toLowerCase()]: data
+          }));
+        })
+        .catch(err => {
+          console.error(`Error preloading definition for ${word}:`, err);
+        });
+        
+      // Generate image for the flashcard at the same time
+      const imagePrompt = `Create a visually engaging, wordless flashcard image in the style of Charley Harper. Use bold shapes, minimal detail, and mid-century modern aesthetics to depict the concept in a memorable and metaphorical way. Avoid text or labels. Again, use no text. The word to illustrate is: "${word}".`;
+      
+      console.log(`Generating image for word: ${word}`);
+      
+      fetch(`https://polycast-server.onrender.com/api/generate-image?prompt=${encodeURIComponent(imagePrompt)}`, {
+        mode: 'cors'
       })
-      .then(data => {
-        console.log(`Image generated for: ${word}`);
-        // We need to update wordDefinitions to include the image URL
-        setWordDefinitions(prev => ({
-          ...prev,
-          [word.toLowerCase()]: {
-            ...prev[word.toLowerCase()],
-
+        .then(res => {
+          if (!res.ok) throw new Error(`Failed with status: ${res.status}`);
+          return res.json();
+        })
+        .then(data => {
+          console.log(`Image generated for: ${word}`);
+          // We need to update wordDefinitions to include the image URL
+          setWordDefinitions(prev => ({
+            ...prev,
+            [word.toLowerCase()]: {
+              ...prev[word.toLowerCase()],
               imageUrl: data.url
             }
           }));
@@ -434,16 +400,18 @@ const TranscriptionDisplay = ({
 
   return (
     <div
-      ref={containerRef}
       style={{
-        height: '100%',
+        position: 'relative',
         width: '100%',
+        height: 'calc(100vh - 244px)',
+        margin: '20px auto 0',
         display: 'flex',
         flexDirection: 'column',
-        flex: 1,
-        position: 'relative',
+        alignItems: 'center',
+        padding: '0 24px 24px',
         overflow: 'hidden',
-        minHeight: 0
+        boxSizing: 'border-box',
+        gap: 0,
       }}
     >
       {/* Transcript/English box always renders and updates first */}
@@ -548,15 +516,6 @@ const TranscriptionDisplay = ({
           })}
         </div>
       )}
-      
-      {/* Dictionary Popup */}
-      <DictionaryPopup 
-        word={popupState.word}
-        position={popupState.position}
-        definition={popupState.word ? wordDefinitions[popupState.word?.toLowerCase()] : null}
-        isVisible={popupState.isVisible}
-        onClose={handleClosePopup}
-      />
     </div>
   );
 };
