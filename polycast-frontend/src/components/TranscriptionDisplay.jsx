@@ -435,6 +435,106 @@ const TranscriptionDisplay = ({
   const transcriptVisible = showLiveTranscript || isTextMode;
   const translationVisible = showTranslation;
 
+  // Render a translation box for a target language
+  const renderLanguageBox = (lang, boxIndex) => {
+    const scheme = colorSchemes[boxIndex % colorSchemes.length];
+    const segments = translations[lang] || [];
+    
+    return (
+      <div
+        key={lang}
+        style={{
+          position: 'relative',
+          background: scheme.bg,
+          color: scheme.fg,
+          borderTop: `6px solid ${scheme.accent}`,
+          borderRadius: 10,
+          boxShadow: `0 2px 12px 0 ${scheme.accent}14`,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'flex-start',
+          alignItems: 'stretch',
+          padding: 0,
+          width: '100%',
+          marginTop: 16,
+          overflow: 'hidden',
+        }}
+      >
+        <span style={{ 
+          letterSpacing: 0.5, 
+          textAlign: 'center', 
+          fontWeight: 800, 
+          fontSize: 20, 
+          margin: '18px 0 10px 0',
+          color: scheme.accent + 'cc',
+          textTransform: 'uppercase',
+          opacity: 0.92,
+        }}>
+          {lang}
+        </span>
+        <div style={{ 
+          flex: 1, 
+          display: 'flex', 
+          flexDirection: 'column', 
+          padding: 16, 
+          gap: 8, 
+          overflow: 'auto', 
+          minHeight: 0 
+        }} ref={el => translationRefs.current[lang] = el}>
+          {isTextMode ? (
+            <>
+              <textarea
+                value={textInputs[lang] ?? ''}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  flex: 1,
+                  fontSize: fontSize,
+                  borderRadius: 6,
+                  border: `1.5px solid ${scheme.accent}`,
+                  padding: 8,
+                  resize: 'none',
+                  background: scheme.bg,
+                  color: scheme.fg,
+                  boxSizing: 'border-box',
+                  minHeight: 80,
+                }}
+                onChange={e => handleInputChange(lang, e.target.value)}
+                onKeyDown={e => {
+                  if (isTextMode && e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSubmit(lang);
+                  }
+                }}
+              />
+              <button
+                style={{ 
+                  marginTop: 10, 
+                  alignSelf: 'center', 
+                  background: scheme.accent, 
+                  color: '#fff', 
+                  border: 'none', 
+                  borderRadius: 6, 
+                  padding: '6px 18px', 
+                  fontWeight: 700, 
+                  fontSize: 16, 
+                  cursor: 'pointer' 
+                }}
+                onClick={() => handleSubmit(lang)}
+              >
+                Submit
+              </button>
+            </>
+          ) : (
+            <span style={{ fontWeight: 400, fontSize: fontSize }}>
+              {renderSegmentsWithClickableWords(segments, lastPersistedTranslations.current[lang], selectedWords, handleWordClick, wordDefinitions)}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  };
+  
   return (
     <div className="transcription-container" ref={containerRef}
       style={{
