@@ -386,13 +386,19 @@ const FlashcardMode = ({ selectedWords, wordDefinitions, englishSegments }) => {
                   {imageLoading[currentWord] && (
                     <div className="image-loading">Creating image for "{currentWord}"...</div>
                   )}
-                  {wordImages[currentWord] && (
+                  {wordImages[currentWord] ? (
                     <img 
                       src={wordImages[currentWord]} 
                       alt={`Visual representation of "${currentWord}"`}
                       className="flashcard-word-image"
                     />
-                  )}
+                  ) : definition?.imageUrl ? (
+                    <img 
+                      src={definition.imageUrl} 
+                      alt={`Visual representation of "${currentWord}"`}
+                      className="flashcard-word-image"
+                    />
+                  ) : null}
                 </div>
               </div>
               <div className="flashcard-back">

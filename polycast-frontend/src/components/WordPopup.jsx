@@ -142,23 +142,27 @@ const WordPopup = ({ word, position, isLoading, definitionData, onClose }) => {
               </div>
             </div>
             
-            {/* Spanish translation - larger text */}
+            {/* Spanish translation - much larger text */}
             <div style={{ 
-              fontSize: '18px',
+              fontSize: '36px',
               fontWeight: 'bold',
-              margin: '8px 0',
+              margin: '12px 0',
               color: '#ffcc80',
-              textAlign: 'center'
+              textAlign: 'center',
+              textShadow: '0 1px 2px rgba(0,0,0,0.2)'
             }}>
               {getSpanishTranslation(word)}
             </div>
             
-            {/* Main definition */}
+            {/* Main definition - doubled size */}
             <div style={{ 
-              fontSize: '13px',
+              fontSize: '26px',
               lineHeight: '1.4',
-              margin: '4px 0',
-              wordBreak: 'break-word'
+              margin: '10px 0',
+              wordBreak: 'break-word',
+              padding: '8px',
+              backgroundColor: 'rgba(255,255,255,0.05)',
+              borderRadius: '8px'
             }}>
               {definition}
             </div>
