@@ -82,9 +82,9 @@ const renderSegmentsWithClickableWords = (segments, lastPersisted, selectedWords
               }) : undefined}
               style={{
                 cursor: isWord ? 'pointer' : 'default',
-                color: isWord && selectedWords.some(w => w.toLowerCase() === token.toLowerCase()) ? '#1976d2' : undefined,
-                background: isWord && selectedWords.some(w => w.toLowerCase() === token.toLowerCase()) ? 'rgba(25,118,210,0.07)' : undefined,
-                borderRadius: isWord && selectedWords.some(w => w.toLowerCase() === token.toLowerCase()) ? 3 : undefined,
+                color: isWord && isWordInSelectedList(token, segment.text) ? '#1976d2' : undefined,
+                background: isWord && isWordInSelectedList(token, segment.text) ? 'rgba(25,118,210,0.07)' : undefined,
+                borderRadius: isWord && isWordInSelectedList(token, segment.text) ? 3 : undefined,
                 transition: 'color 0.2s',
                 userSelect: 'text',
               }}
@@ -309,28 +309,60 @@ const TranscriptionDisplay = ({
     }
   };
   
+  // Function to check if a word in a specific context is in the selected words list
+  const isWordInSelectedList = (word, contextSentence) => {
+    if (!word || !contextSentence) return false;
+    
+    const wordLower = word.toLowerCase();
+    const wordData = wordDefinitions[wordLower];
+    
+    if (!wordData) return selectedWords.some(w => w.toLowerCase() === wordLower);
+    
+    // Use regex to check if this exact context sentence contains the word
+    // We need to compare the current context with saved ones
+    for (const entry of Object.values(wordDefinitions)) {
+      if (entry.contextSentence && 
+          entry.contextSentence.toLowerCase().includes(wordLower) &&
+          contextSentence.includes(entry.contextSentence) &&
+          entry.inFlashcards === true) {
+        return true;
+      }
+    }
+    
+    return false;
+  };
+  
   // Get all existing flashcard sense IDs
   const getAllFlashcardSenseIds = () => {
     return Object.values(wordDefinitions)
       .filter(def => def.wordSenseId && def.inFlashcards)
       .map(def => def.wordSenseId);
   };
+  
+  // Function to check if a specific word sense already exists
+  const doesWordSenseExist = (word, contextSentence) => {
+    if (!word || !contextSentence) return false;
+    
+    const wordLower = word.toLowerCase();
+    
+    // Try to find a matching context sentence
+    for (const entry of Object.values(wordDefinitions)) {
+      if (entry.wordSenseId && 
+          entry.contextSentence && 
+          entry.contextSentence.toLowerCase().includes(wordLower) &&
+          (contextSentence.includes(entry.contextSentence) || entry.contextSentence.includes(contextSentence)) &&
+          entry.inFlashcards === true) {
+        return true;
+      }
+    }
+    
+    return false;
+  };
 
   // Function to add word to dictionary when the + button is clicked
   const handleAddWordToDictionary = async (word) => {
     const wordLower = word.toLowerCase();
     console.log(`Adding "${word}" to dictionary...`);
-    
-    // First, add the word to the selectedWords right away to update UI
-    // This will make the checkmark appear immediately
-    setSelectedWords(prev => {
-      if (prev.some(w => w.toLowerCase() === wordLower)) {
-        console.log(`Word "${word}" is already in selected words list`);
-        return prev; // Already in the list
-      }
-      console.log(`Adding "${word}" to selected words list`);
-      return [...prev, word];
-    });
     
     // Get the word data with definitions
     const wordData = wordDefinitions[wordLower];
@@ -342,6 +374,30 @@ const TranscriptionDisplay = ({
     
     // Get the context sentence from the word data
     const contextSentence = wordData.contextSentence || '';
+    
+    // Check if this specific sense of the word is already in the dictionary
+    if (doesWordSenseExist(word, contextSentence)) {
+      console.log(`This specific sense of "${word}" is already in the dictionary: "${contextSentence.substring(0, 30)}..."`);
+      // Update UI to show it's already added, but don't duplicate
+      setPopupInfo(prev => ({
+        ...prev, 
+        wordAddedToDictionary: true,
+        existingWordSense: true
+      }));
+      return;
+    }
+    
+    // Add the word to the selectedWords right away to update UI
+    // Note: we now just store the word text. The actual context is stored in wordDefinitions
+    setSelectedWords(prev => {
+      // We now allow multiple entries of the same word with different senses
+      console.log(`Adding "${word}" to selected words list in context: "${contextSentence.substring(0, 30)}..."`);
+      // Still add to the list for backward compatibility
+      if (!prev.some(w => w.toLowerCase() === wordLower)) {
+        return [...prev, word];
+      }
+      return prev;
+    });
     if (!contextSentence) {
       console.error('No context sentence found for word:', word);
       return;
@@ -669,7 +725,7 @@ const TranscriptionDisplay = ({
           dictDefinition={wordDefinitions[popupInfo.word.toLowerCase()]?.dictionaryDefinition}
           disambiguatedDefinition={wordDefinitions[popupInfo.word.toLowerCase()]?.disambiguatedDefinition}
           position={popupInfo.position}
-          isInDictionary={selectedWords.some(w => w.toLowerCase() === popupInfo.word.toLowerCase())}
+          isInDictionary={doesWordSenseExist(popupInfo.word, wordDefinitions[popupInfo.word.toLowerCase()]?.contextSentence)}
           onAddToDictionary={handleAddWordToDictionary}
           loading={popupInfo.loading}
           onClose={() => setPopupInfo(prev => ({ ...prev, visible: false }))}
