@@ -1,24 +1,24 @@
 .word-definition-popup {
   position: fixed;
   width: 380px;
+  min-height: 100px;
   max-height: 400px;
-  background-color: rgba(35, 35, 35, 0.95);
-  backdrop-filter: blur(5px);
-  border-radius: 4px;
+  background-color: #262440;
+  border-radius: 0;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
   color: #fff;
   font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-  padding: 14px 16px;
+  padding: 0;
   z-index: 9999;
   overflow-y: auto;
   transition: opacity 0.2s;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: none;
 }
 
 .popup-close-btn {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 5px;
+  right: 5px;
   background: transparent;
   border: none;
   color: #aaa;
@@ -30,6 +30,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
+  z-index: 10;
 }
 
 .popup-close-btn:hover {
@@ -37,104 +38,75 @@
   color: #fff;
 }
 
-.popup-header {
+/* Dictionary-specific styles */
+.dict-header {
+  background-color: #342e58;
+  padding: 10px 16px;
+  border-bottom: 1px solid #3f3969;
+}
+
+.dict-word-row {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
 }
 
-.popup-word-section {
+.dict-word, .dict-spanish-label {
+  font-size: 15px;
+  font-weight: 600;
+  padding: 6px 0;
+}
+
+.dict-content {
+  display: flex;
+  padding: 10px 0;
+}
+
+.dict-english-side {
+  width: 35%;
+  padding: 0 16px;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
 }
 
-.popup-word {
-  font-size: 18px;
-  font-weight: 700;
-  color: #fff;
-  display: block;
-  margin-bottom: 6px;
+.dict-spanish-side {
+  width: 65%;
+  padding: 0 16px;
+  border-left: 1px solid #3f3969;
 }
 
-.popup-phonetic {
-  font-size: 12px;
-  color: #bbb;
-  margin-top: 2px;
-  display: inline-block;
-}
-
-.popup-audio-btn {
-  background: transparent;
-  border: none;
-  color: #4ad991;
-  cursor: pointer;
-  font-size: 18px;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-}
-
-.popup-audio-btn:hover {
-  background-color: rgba(74, 217, 145, 0.1);
-}
-
-.popup-section {
-  margin-bottom: 10px;
-  padding-bottom: 8px;
-}
-
-.popup-section:last-child {
-  margin-bottom: 0;
-  padding-bottom: 0;
-}
-
-.popup-section-title {
-  font-size: 13px;
-  color: #999;
-  margin-bottom: 3px;
+.dict-word-display {
+  color: #39e58c;
+  font-size: 17px;
   font-weight: 600;
-  text-transform: none;
-}
-
-.popup-synonyms {
-  font-size: 14px;
-  color: #ccc;
-  line-height: 1.4;
-  margin-top: 2px;
   margin-bottom: 4px;
 }
 
-.popup-examples {
+.dict-part-of-speech {
+  color: #aaa;
   font-size: 14px;
-  color: #ccc;
+  font-style: italic;
+  margin-bottom: 8px;
 }
 
-.popup-example {
-  margin-bottom: 4px;
+.dict-translation {
+  color: #bbb;
+  font-size: 17px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.dict-full-definition {
+  color: #ddd;
+  font-size: 14px;
+  margin-bottom: 8px;
   line-height: 1.4;
-  color: #ccc;
-  font-weight: 400;
 }
 
-.popup-example:last-child {
-  margin-bottom: 0;
-}
-
-.popup-translation {
+.dict-example {
+  color: #aaa;
   font-size: 14px;
-  line-height: 1.5;
-  color: #ccc;
-  margin-top: 2px;
-}
-
-.popup-header {
-  margin-bottom: 10px;
-}
-
-.popup-header .popup-section-title {
-  margin-bottom: 2px;
+  margin-top: 8px;
+  font-style: italic;
+  line-height: 1.4;
 }

@@ -6,65 +6,73 @@ const WordDefinitionPopup = ({ word, definition, position, onClose }) => {
   if (!word || !definition) return null;
   
   // Ensure definition data exists and handle all possible dictionary response formats
-  const meanings = definition.meanings || [];
-  const synonyms = definition.synonyms || [];
+  const partOfSpeech = definition.partOfSpeech || 
+                        (definition.meanings && definition.meanings[0] && definition.meanings[0].partOfSpeech) ||
+                        '';
+  
+  const fullDefinition = definition.definition ||
+                         (definition.meanings && definition.meanings[0] && definition.meanings[0].definition) ||
+                         '';
+  
   const examples = definition.examples || [];
   
   // Look for translations in multiple possible locations in the API response
   const translation = definition.translation || 
-                    (definition.translations && definition.translations.es) || 
-                    (definition.translations && definition.translations.Spanish) || 
-                    '';
+                     (definition.translations && definition.translations.es) || 
+                     (definition.translations && definition.translations.Spanish) || 
+                     '';
   
   // Calculate positioning to be right next to the clicked word
-  // Try to position above the word first, but near it
-  const windowHeight = window.innerHeight;
-  const isNearBottom = position.y > windowHeight - 200;
+  const viewportWidth = window.innerWidth;
+  const popupWidth = 380; // Match width from CSS
+  
+  // Calculate optimal position to avoid going off screen
+  const spaceOnRight = viewportWidth - position.x;
+  const fitsOnRight = spaceOnRight >= popupWidth + 10;
+  
+  // Position to the right if there's room, otherwise to the left
+  const xPos = fitsOnRight ? position.x + 5 : position.x - popupWidth - 5;
   
   return (
     <div 
       className="word-definition-popup"
       style={{
-        // Position right above the word if near bottom of screen, otherwise below
-        top: isNearBottom ? `${position.y - 10}px` : `${position.y + 25}px`,
-        left: `${position.x}px`,
-        transformOrigin: isNearBottom ? 'bottom left' : 'top left'
+        top: `${position.y + 25}px`,
+        left: `${Math.max(5, Math.min(viewportWidth - popupWidth - 5, xPos))}px`,
       }}
     >
       {/* Close button */}
       <button className="popup-close-btn" onClick={onClose}>×</button>
       
-      {/* Word section - simplified like Netflix */}
-      <div className="popup-header">
-        <div className="popup-section-title">Synonyms:</div>
-        <div className="popup-word">{word}</div>
-        {/* Only show a few synonyms at most */}
-        <div className="popup-synonyms">
-          {synonyms.length > 0 ? synonyms.slice(0, 5).join(', ') : 'N/A'}
+      <div className="dict-header">
+        <div className="dict-word-row">
+          <div className="dict-word">Word</div>
+          <div className="dict-spanish-label">Spanish Definition</div>
         </div>
       </div>
       
-      {/* Netflix-style examples section */}
-      <div className="popup-section">
-        <div className="popup-section-title">Examples:</div>
-        <div className="popup-examples">
-          {examples.length > 0 ? (
-            examples.slice(0, 3).map((example, index) => (
-              <div key={index} className="popup-example">{example}</div>
-            ))
-          ) : (
-            <div className="popup-example">No examples available</div>
+      <div className="dict-content">
+        <div className="dict-english-side">
+          <div className="dict-word-display">{word}</div>
+          {partOfSpeech && (
+            <div className="dict-part-of-speech">{partOfSpeech}</div>
+          )}
+        </div>
+        
+        <div className="dict-spanish-side">
+          {translation && (
+            <div className="dict-translation">{translation}</div>
+          )}
+          
+          {fullDefinition && (
+            <div className="dict-full-definition">{fullDefinition}</div>
+          )}
+          
+          {examples.length > 0 && (
+            <div className="dict-example">{examples[0]}</div>
           )}
         </div>
       </div>
-      
-      {/* Translation section (if available) */}
-      {translation && (
-        <div className="popup-section">
-          <div className="popup-section-title">Spanish:</div>
-          <div className="popup-translation">{translation}</div>
-        </div>
-      )}
     </div>
   );
 };
