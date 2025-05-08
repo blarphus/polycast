@@ -9,24 +9,9 @@ import Controls from './components/Controls';
 import TranscriptionDisplay from './components/TranscriptionDisplay';
 import DictionaryTable from './components/DictionaryTable';
 import FlashcardMode from './components/FlashcardMode';
-import Dictionary from './components/Dictionary';
-import FlashcardReview from './components/FlashcardReview';
 
-// Helper function to get or create a user ID
-function getUserId() {
-  let userId = localStorage.getItem('polycastUserId');
-  if (!userId) {
-    // Generate a random ID if crypto is available, or fallback to timestamp
-    userId = (window.crypto && window.crypto.randomUUID) ? 
-      window.crypto.randomUUID() : 
-      `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    localStorage.setItem('polycastUserId', userId);
-  }
-  return userId;
-}
-
-// App now receives an array of target languages, room setup, and student home language as props
-function App({ targetLanguages, onReset, roomSetup, studentHomeLanguage }) {
+// App now receives an array of target languages and room setup as props
+function App({ targetLanguages, onReset, roomSetup }) {
   const languagesQueryParam = targetLanguages.map(encodeURIComponent).join(',');
 
   // Construct the WebSocket URL for Render backend, including room information
@@ -36,16 +21,8 @@ function App({ targetLanguages, onReset, roomSetup, studentHomeLanguage }) {
 
   const [messageHistory, setMessageHistory] = useState([]);
   const [isRecording, setIsRecording] = useState(false);
-  // Initialize with empty array for both host and student to ensure proper updates
-  const [englishSegments, setEnglishSegments] = useState([]);
-  
-  // Add logging to track when segments are updated
-  useEffect(() => {
-    console.log('English segments updated:', englishSegments);
-  }, [englishSegments]); 
+  const [englishSegments, setEnglishSegments] = useState([]); 
   const [translations, setTranslations] = useState({}); // Structure: { lang: [{ text: string, isNew: boolean }] }
-  // Student personal translations
-  const [studentTranslations, setStudentTranslations] = useState([]);
   const [errorMessages, setErrorMessages] = useState([]); 
   const [showLiveTranscript, setShowLiveTranscript] = useState(true); 
   const [showTranslation, setShowTranslation] = useState(true); 
@@ -56,8 +33,7 @@ function App({ targetLanguages, onReset, roomSetup, studentHomeLanguage }) {
   const [textInputs, setTextInputs] = useState({}); // Lifted state
   const [showNotification, setShowNotification] = useState(false);
   const [notificationOpacity, setNotificationOpacity] = useState(1);
-  // Set auto-send off by default for hosts, on for students
-  const [autoSend, setAutoSend] = useState(!roomSetup.isHost); // Auto-send off by default for hosts
+  const [autoSend, setAutoSend] = useState(true); // Controls auto-sending of audio chunks
   const [showNoiseLevel, setShowNoiseLevel] = useState(false); // Controls visibility of noise level display
   const notificationTimeoutRef = useRef(null);
   const modeRef = useRef(appMode === 'text');
@@ -296,63 +272,6 @@ function App({ targetLanguages, onReset, roomSetup, studentHomeLanguage }) {
     // },
   });
 
-  // Function to translate English text to student's home language using LLM service
-  const translateForStudent = async (text) => {
-    if (!studentHomeLanguage || !text || roomSetup.isHost) return;
-    
-    try {
-      console.log(`Translating for student to ${studentHomeLanguage}: ${text}`);
-      
-      // Use the POST API for more reliable translation with longer text
-      const response = await fetch('https://polycast-server.onrender.com/api/translate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text,
-          targetLanguage: studentHomeLanguage
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Translation failed: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log(`Received student translation: ${data.translation}`);
-      
-      // Update student translations with the result
-      setStudentTranslations([{
-        text: data.translation, 
-        isNew: true, 
-        id: `student-trans-${Date.now()}`
-      }]);
-      
-      // Also update text inputs if in text mode
-      if (appMode === 'text') {
-        setTextInputs(inputs => ({
-          ...inputs,
-          [studentHomeLanguage]: data.translation
-        }));
-      }
-    } catch (error) {
-      console.error('Error translating for student:', error);
-      
-      // Show brief error notification
-      setErrorMessages(prev => [...prev, `Translation error: Failed to translate to ${studentHomeLanguage}`]);
-    }
-  };
-  
-  // Trigger student translation when English segments update
-  useEffect(() => {
-    if (englishSegments.length > 0 && !roomSetup.isHost && studentHomeLanguage) {
-      // Get the most recent segment
-      const latestSegment = englishSegments[0];
-      translateForStudent(latestSegment.text);
-    }
-  }, [englishSegments, studentHomeLanguage, roomSetup.isHost]);
-
   // Handle incoming messages
   useEffect(() => {
     if (lastMessage !== null) {
@@ -364,21 +283,18 @@ function App({ targetLanguages, onReset, roomSetup, studentHomeLanguage }) {
         // Check message type and update state accordingly
         if (parsedData.type === 'recognized') {
           // Replace any existing interim segment with the final one
-          console.log('Received recognized speech from server:', parsedData.data);
-          // Always replace the segments entirely with the new data for better sync
-          setEnglishSegments([
-            { text: parsedData.data, isNew: true, id: `segment-${Date.now()}`, timestamp: Date.now() }
+          setEnglishSegments(prevSegments => [
+            // Find the index of the last segment (which might be an interim one)
+            // Keep all segments *except* the last one if it was interim, then add final.
+            // OR simpler: just mark all as old and add final.
+            ...prevSegments.map(seg => ({ ...seg, isNew: false })),
+            { text: parsedData.data, isNew: true }
           ]);
         } else if (parsedData.type === 'recognizing_interim') { 
            // Only update if toggle is on
            if (showLiveTranscript) {
-             console.log('Received interim speech from server:', parsedData.data);
-             setEnglishSegments([{ text: parsedData.data, isNew: false, id: `interim-${Date.now()}`, timestamp: Date.now() }]); 
+             setEnglishSegments([{ text: parsedData.data, isNew: false }]); 
            }
-        } else if (parsedData.type === 'host_transcript') {
-          // Special case for receiving transcripts from the host
-          console.log('Received transcript from host:', parsedData.data);
-          setEnglishSegments([{ text: parsedData.data, isNew: true, id: `host-${Date.now()}`, timestamp: Date.now(), speaker: 'Host' }]);
         } else if (parsedData.type === 'error') {
           console.error('Backend Error:', parsedData.message);
           setErrorMessages(prev => [...prev, `Backend Error: ${parsedData.message}`]);
@@ -387,17 +303,18 @@ function App({ targetLanguages, onReset, roomSetup, studentHomeLanguage }) {
           // Optionally display info messages somewhere
         } else if (parsedData.type === 'translation') {
           // Handle single translation (non-batch)
-          console.log('Received translation:', parsedData.lang, parsedData.data);
-          
-          // Force clear any previous state to ensure consistency
           setTranslations(prevTranslations => {
             const newTranslations = { ...prevTranslations };
             const lang = parsedData.lang;
-            // Replace content entirely rather than appending
-            newTranslations[lang] = [{ text: parsedData.data, isNew: true, id: `trans-${Date.now()}` }];
+            const currentLangSegments = newTranslations[lang] || [];
+            // Only keep the most recent 3 segments
+            const updatedSegments = [
+              ...currentLangSegments.map(seg => ({ ...seg, isNew: false })),
+              { text: parsedData.data, isNew: true }
+            ];
+            newTranslations[lang] = updatedSegments.slice(-3);
             return newTranslations;
           });
-          
           // Update textInputs in text mode
           if (appMode === 'text') {
             setTextInputs(inputs => ({
@@ -405,40 +322,23 @@ function App({ targetLanguages, onReset, roomSetup, studentHomeLanguage }) {
               [parsedData.lang]: parsedData.data
             }));
           }
-          
-          // Log the current translations state for debugging
-          console.log('Updated translations state:', JSON.stringify(translations));
-        } else if (parsedData.type === 'host_translation') {
-          // Special case for receiving translations from the host
-          console.log('Received translation from host:', parsedData.lang, parsedData.data);
-          
-          setTranslations(prevTranslations => {
-            const newTranslations = { ...prevTranslations };
-            const lang = parsedData.lang;
-            newTranslations[lang] = [{ text: parsedData.data, isNew: true, id: `host-trans-${Date.now()}` }];
-            return newTranslations;
-          });
         } else if (parsedData.type === 'translations_batch') {
           console.log('Received Translation Batch:', parsedData.data);
-          // Update multiple translations - completely replace with new data
+          // Update multiple translations
           setTranslations(prevTranslations => {
-            const newTranslations = {}; // Start fresh to avoid stale translations
+            const newTranslations = { ...prevTranslations };
             for (const lang in parsedData.data) {
               if (parsedData.data.hasOwnProperty(lang)) {
-                // Create a single new entry for each language
-                newTranslations[lang] = [{ 
-                  text: parsedData.data[lang], 
-                  isNew: true,
-                  id: `batch-${lang}-${Date.now()}`
-                }];
-                console.log(`Updated translation for ${lang}:`, parsedData.data[lang]);
+                const currentLangSegments = newTranslations[lang] || [];
+                const updatedSegments = [
+                  ...currentLangSegments.map(seg => ({ ...seg, isNew: false })),
+                  { text: parsedData.data[lang], isNew: true }
+                ];
+                newTranslations[lang] = updatedSegments.slice(-3);
               }
             }
-            return newTranslations; // Complete replacement of all translations
+            return newTranslations;
           });
-          
-          // Log the updated state
-          console.log('Translations after batch update:', JSON.stringify(translations));
         } else {
             console.warn('Received unknown message type:', parsedData.type);
         }
@@ -743,20 +643,23 @@ function App({ targetLanguages, onReset, roomSetup, studentHomeLanguage }) {
       )}
       <div className="display-container">
         {appMode === 'dictionary' ? (
-          <Dictionary 
-            userId={getUserId()}
+          <DictionaryTable 
+            selectedWords={selectedWords}
+            englishSegments={englishSegments}
+            wordDefinitions={wordDefinitions}
+            setWordDefinitions={setWordDefinitions}
           />
         ) : appMode === 'flashcard' ? (
-          <FlashcardReview 
-            userId={getUserId()}
+          <FlashcardMode 
+            selectedWords={selectedWords}
+            wordDefinitions={wordDefinitions}
+            englishSegments={englishSegments}
           />
         ) : (
           <TranscriptionDisplay 
             englishSegments={englishSegments} 
-            targetLanguages={roomSetup.isHost ? targetLanguages : []}
-            translations={roomSetup.isHost ? translations : {}}
-            studentTranslations={!roomSetup.isHost ? studentTranslations : []}
-            studentHomeLanguage={studentHomeLanguage}
+            translations={translations} 
+            targetLanguages={targetLanguages} 
             showLiveTranscript={showLiveTranscript}
             showTranslation={showTranslation}
             isTextMode={appMode === 'text'}
@@ -770,7 +673,6 @@ function App({ targetLanguages, onReset, roomSetup, studentHomeLanguage }) {
             setSelectedWords={setSelectedWords}
             wordDefinitions={wordDefinitions}
             setWordDefinitions={setWordDefinitions}
-            isStudent={roomSetup && !roomSetup.isHost}
           />
         )}
       </div>
@@ -784,10 +686,8 @@ App.propTypes = {
     onReset: PropTypes.func,
     roomSetup: PropTypes.shape({
         isHost: PropTypes.bool.isRequired,
-        roomCode: PropTypes.string.isRequired,
-        homeLanguage: PropTypes.string
-    }).isRequired,
-    studentHomeLanguage: PropTypes.string
+        roomCode: PropTypes.string.isRequired
+    }).isRequired
 };
 
 // Define backend port in a config object or hardcode if simple

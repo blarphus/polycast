@@ -28,7 +28,6 @@ function Main() {
         setSelectedLanguages(null);
       }}
       roomSetup={roomSetup}
-      studentHomeLanguage={!roomSetup.isHost ? roomSetup.homeLanguage : null} // Pass home language for students
     />
   );
 }

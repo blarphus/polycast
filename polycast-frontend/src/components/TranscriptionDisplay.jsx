@@ -1,7 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import ClickableWord from './ClickableWord';
-import WordPopup from './WordPopup';
 
 // Helper function to render segments
 const renderSegments = (segments, lastPersisted) => {
@@ -56,45 +54,45 @@ const renderHistoryStacked = (segments) => {
   );
 };
 
-// INLINE RENDERING: English transcript segments with clickable words
-// Replace any use of renderSegmentsWithClickableWords with this block:
-const renderEnglishSegmentsWithClickableWords = (segments, isStudent, handleWordClick, lastPersisted) => {
+// Helper: render a segment with clickable words
+const renderSegmentsWithClickableWords = (segments, lastPersisted, selectedWords, handleWordClick) => {
   if ((!segments || segments.length === 0) && lastPersisted) {
     return <span>{lastPersisted}</span>;
   }
   if (!segments || segments.length === 0) {
     return <p>Waiting...</p>;
   }
+  // Each segment on its own line
   return segments.map((segment, segIdx) => {
-    if (!segment || !segment.text) return null;
+    // Tokenize: words (with apostrophes/accents), punctuation, and spaces
+    // This regex matches words, punctuation, and spaces
     const tokens = segment.text.match(/([\p{L}\p{M}\d']+|[.,!?;:]+|\s+)/gu) || [];
     return (
       <div key={segIdx} className={segment.isNew ? 'new-text' : ''} style={{ display: 'block', marginBottom: 2 }}>
         {tokens.map((token, i) => {
+          // Only words (letters, numbers, apostrophes, accents) are clickable
           const isWord = /^[\p{L}\p{M}\d']+$/u.test(token);
-          if (isWord) {
-            return (
-              <ClickableWord
-                key={i}
-                word={token}
-                onClick={(word, position) => {
-                  handleWordClick(word, {
-                    ...position,
-                    exactContext: segment.text // Always use the current segment
-                  });
-                }}
-                isStudent={isStudent}
-              />
-            );
-          } else {
-            return <span key={i}>{token}</span>;
-          }
+          return (
+            <span
+              key={i}
+              onClick={isWord ? (e => { e.stopPropagation(); handleWordClick(token); }) : undefined}
+              style={{
+                cursor: isWord ? 'pointer' : 'default',
+                color: isWord && selectedWords.some(w => w.toLowerCase() === token.toLowerCase()) ? '#1976d2' : undefined,
+                background: isWord && selectedWords.some(w => w.toLowerCase() === token.toLowerCase()) ? 'rgba(25,118,210,0.07)' : undefined,
+                borderRadius: isWord && selectedWords.some(w => w.toLowerCase() === token.toLowerCase()) ? 3 : undefined,
+                transition: 'color 0.2s',
+                userSelect: 'text',
+              }}
+            >
+              {token}
+            </span>
+          );
         })}
       </div>
     );
   });
 };
-
 
 // Assign a unique color scheme for each language box
 const colorSchemes = [
@@ -124,8 +122,6 @@ const TranscriptionDisplay = ({
   englishSegments, 
   targetLanguages, 
   translations, 
-  studentTranslations = [], // New prop for student personal translations
-  studentHomeLanguage = null, // New prop for student home language
   showLiveTranscript, 
   showTranslation, 
   isTextMode, 
@@ -135,11 +131,8 @@ const TranscriptionDisplay = ({
   selectedWords,
   setSelectedWords,
   wordDefinitions,
-  setWordDefinitions,
-  isStudent = false // Whether the current user is a student (for clickable words)
+  setWordDefinitions
 }) => {
-  // State for word popup
-  const [popupInfo, setPopupInfo] = useState(null); // { word, position, isLoading, definition }
   const englishRef = useRef(null);
   const translationRefs = useRef({});
   const [fontSize, setFontSize] = useState(isTextMode ? 18 : 30); // Font size: default to 30 in audio mode
@@ -153,178 +146,67 @@ const TranscriptionDisplay = ({
   const lastPersistedTranslations = useRef({});
 
   // Helper: add/remove word from list
-  const handleWordClick = (word, position) => {
-    console.log('Word clicked:', word, 'at position:', position);
+  const handleWordClick = (word) => {
+    // Don't add duplicates (case insensitive)
+    const wordLower = word.toLowerCase();
+    const isSelected = selectedWords.some(w => w.toLowerCase() === wordLower);
     
-    // Make sure position is valid to prevent errors
-    const safePosition = position && typeof position.x === 'number' && typeof position.y === 'number' 
-      ? position 
-      : { x: window.innerWidth / 2, y: window.innerHeight / 2 }; // Fallback to center of screen
-    
-    // Set popup to loading state
-    setPopupInfo({
-      word,
-      position: safePosition,
-      isLoading: true,
-      definition: null
-    });
-    
-    // CRITICAL FIX: Always require an exact context from the clicked position
-    // This ensures we're using the precise sentence where the word was clicked
-    if (!position || !position.exactContext) {
-      console.error('ERROR: Missing exact context for clicked word. Word click will be ignored.');
-      setPopupInfo(prev => ({
-        ...prev,
-        isLoading: false,
-        error: 'Could not determine context for this word'
-      }));
-      return; // Exit early if we don't have the context
+    if (isSelected) {
+      // Remove the word if already selected
+      setSelectedWords(prev => prev.filter(w => w.toLowerCase() !== wordLower));
+    } else {
+      // Add the word to selected words
+      setSelectedWords(prev => [...prev, word]);
+      
+      // Find the sentence context where this word appears
+      const contextSentence = englishSegments.find(segment => 
+        segment.text.toLowerCase().includes(wordLower)
+      )?.text || "";
+      
+      // Preload the definition immediately with context
+      const apiUrl = `https://polycast-server.onrender.com/api/dictionary/${encodeURIComponent(word)}?context=${encodeURIComponent(contextSentence)}`;
+      console.log(`Preloading definition for "${word}" with context, from: ${apiUrl}`);
+      
+      fetch(apiUrl)
+        .then(res => res.json())
+        .then(data => {
+          console.log(`Preloaded definition for "${word}":`, data);
+          setWordDefinitions(prev => ({
+            ...prev,
+            [word.toLowerCase()]: data
+          }));
+        })
+        .catch(err => {
+          console.error(`Error preloading definition for ${word}:`, err);
+        });
+        
+      // Generate image for the flashcard at the same time
+      const imagePrompt = `Create a visually engaging, wordless flashcard image in the style of Charley Harper. Use bold shapes, minimal detail, and mid-century modern aesthetics to depict the concept in a memorable and metaphorical way. Avoid text or labels. Again, use no text. The word to illustrate is: "${word}". Use the following context sentence to determine the correct meaning and visual depiction: "${contextSentence}"`;
+      
+      console.log(`Generating image for word: ${word}`);
+      
+      fetch(`https://polycast-server.onrender.com/api/generate-image?prompt=${encodeURIComponent(imagePrompt)}`, {
+        mode: 'cors'
+      })
+        .then(res => {
+          if (!res.ok) throw new Error(`Failed with status: ${res.status}`);
+          return res.json();
+        })
+        .then(data => {
+          console.log(`Image generated for: ${word}`);
+          // We need to update wordDefinitions to include the image URL
+          setWordDefinitions(prev => ({
+            ...prev,
+            [word.toLowerCase()]: {
+              ...prev[word.toLowerCase()],
+              imageUrl: data.url
+            }
+          }));
+        })
+        .catch(err => {
+          console.error(`Error generating image for ${word}:`, err);
+        });
     }
-    
-    // Use the exact context that was captured and passed by the ClickableWord component
-    const contextSentence = position.exactContext;
-    console.log(`Creating flashcard with EXACT context: "${contextSentence}"`);
-    
-    // Log word highlight in context for debugging
-    const highlightedContext = contextSentence.replace(
-      new RegExp(`\\b${word}\\b`, 'gi'), 
-      match => `*${match}*`
-    );
-    console.log(`Context with word highlighted: "${highlightedContext}"`);
-
-    
-    // Log context info for debugging
-    console.log(`Creating flashcard for "${word}" with context: "${contextSentence}"`);
-    
-    // Get or create a userId using a helper function
-    const getUserId = () => {
-      let userId = localStorage.getItem('polycastUserId');
-      if (!userId) {
-        // Generate a simple alphanumeric ID without special characters
-        userId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-        localStorage.setItem('polycastUserId', userId);
-      }
-      return userId;
-    };
-    
-    const userId = getUserId();
-    console.log(`Using userId: ${userId}`);
-    
-    
-    // Call our new API to create a flashcard
-    console.log(`Making API request to create flashcard for "${word}" with userId: ${userId}`);
-    
-    // Ensure URL doesn't have special characters or encoding issues
-    const apiUrl = 'https://polycast-server.onrender.com/api/flashcards';
-    console.log(`API URL: ${apiUrl}`);
-    
-    // Create the request body
-    const requestBody = {
-      userId: userId.trim(),
-      word: word.trim(),
-      context: contextSentence
-    };
-    
-    console.log('Request body:', JSON.stringify(requestBody));
-    
-    fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-    })
-    .then(async res => {
-      console.log(`Response status: ${res.status} ${res.statusText}`);
-      
-      // Clone the response and log the raw text for debugging
-      const resClone = res.clone();
-      const rawText = await resClone.text();
-      console.log('Raw response:', rawText);
-      
-      if (!res.ok) {
-        throw new Error(`Failed with status: ${res.status} ${res.statusText}. Response: ${rawText}`);
-      }
-      
-      try {
-        return JSON.parse(rawText);
-      } catch (e) {
-        console.error('Failed to parse response as JSON:', e);
-        throw new Error(`Invalid JSON response from server: ${rawText.substring(0, 100)}...`);
-      }
-    })
-    .then(data => {
-      console.log(`Flashcard created for "${word}":`, data);
-      
-      // Add the word to selected words if it's not already there
-      if (!selectedWords.some(w => w.toLowerCase() === wordLower)) {
-        setSelectedWords(prev => [...prev, word]);
-      }
-      
-      // Also store the flashcard data in our local state for immediate display
-      if (data.flashcard) {
-        const flashcardData = {
-          ...data.flashcard,
-          // Keep any existing image URL if available
-          imageUrl: wordDefinitions[wordLower]?.imageUrl || null
-        };
-        
-        setWordDefinitions(prev => ({
-          ...prev,
-          [wordLower]: flashcardData
-        }));
-        
-        // Update popup with the definition
-        setPopupInfo(prev => ({
-          ...prev,
-          isLoading: false,
-          definition: flashcardData
-        }));
-      }
-    })
-    .catch(err => {
-      console.error(`Error creating flashcard for ${word}:`, err);
-      // Update popup to show error
-      setPopupInfo(prev => ({
-        ...prev,
-        isLoading: false, 
-        definition: null,
-        error: true
-      }));
-    });
-      
-    // For backward compatibility - continue generating images if needed
-    // This could be moved to the backend in the future
-    const imagePrompt = `Create a visually engaging, wordless flashcard image in the style of Charley Harper. Use bold shapes, minimal detail, and mid-century modern aesthetics to depict the concept in a memorable and metaphorical way. Avoid text or labels. Again, use no text. The word to illustrate is: "${word}".`;
-    
-    console.log(`Generating image for word: ${word}`);
-    
-    fetch(`https://polycast-server.onrender.com/api/generate-image?prompt=${encodeURIComponent(imagePrompt)}`, {
-      mode: 'cors'
-    })
-      .then(res => {
-        if (!res.ok) throw new Error(`Failed with status: ${res.status}`);
-        return res.json();
-      })
-      .then(data => {
-        console.log(`Image generated for: ${word}`);
-        // We need to update wordDefinitions to include the image URL
-        setWordDefinitions(prev => ({
-          ...prev,
-          [wordLower]: {
-            ...prev[wordLower],
-            imageUrl: data.imageUrl
-          }
-        }));
-      })
-      .catch(err => {
-        console.error(`Error generating image for ${word}:`, err);
-      });
-  };
-  
-  // Close the popup
-  const handleClosePopup = () => {
-    setPopupInfo(null);
   };
 
   const handleInputChange = (lang, value) => {
@@ -390,91 +272,6 @@ const TranscriptionDisplay = ({
       }
     }
   }, [translations, targetLanguages]);
-  
-  // Build the grid of target language boxes (excluding English)
-  const renderTranslationBoxes = () => {
-    if (!showTranslation) return null;
-    
-    // For students, show their home language translation
-    if (isStudent && studentHomeLanguage) {
-      return (
-        <div className="transcription-grid one-col">
-          {renderStudentTranslationBox()}
-        </div>
-      );
-    }
-    
-    // For hosts, show the target language translations
-    // If no translations and not isTextMode, don't render anything
-    if (!isTextMode && Object.keys(translations).length === 0 && targetLanguages.length === 0) {
-      return null;
-    }
-    
-    return (
-      <div className={`transcription-grid ${targetLanguages.length === 1 ? 'one-col' : targetLanguages.length <= 3 ? 'two-col' : 'three-col'}`}>
-        {targetLanguages.map((lang, index) => renderTranslationBox(lang, index + 1))}
-      </div>
-    );
-  };
-  
-  // Render student's personal translation box
-  const renderStudentTranslationBox = () => {
-    const scheme = colorSchemes[1]; // Use a distinct color scheme
-    return (
-      <div
-        className="transcription-box translation-box"
-        style={{
-          background: scheme.bg,
-          color: scheme.fg,
-          borderTop: `6px solid ${scheme.accent}`,
-        }}
-        ref={el => {
-          if (el) translationRefs.current[studentHomeLanguage] = el;
-        }}
-      >
-        <span 
-          className="transcription-box-label"
-          style={{ 
-            color: scheme.accent, 
-            letterSpacing: 0.5, 
-            textAlign: 'center', 
-            fontWeight: 800, 
-            fontSize: 20, 
-            margin: '12px 0 6px 0'
-          }}
-        >
-          {studentHomeLanguage}
-        </span>
-        <div className="transcription-box-content">
-          {isTextMode ? (
-            <textarea
-              value={textInputs[studentHomeLanguage] ?? ''}
-              onChange={e => handleInputChange(studentHomeLanguage, e.target.value)}
-              placeholder={`Type ${studentHomeLanguage} text here...`}
-              style={{
-                width: '100%',
-                height: '100%',
-                flex: 1,
-                fontSize: fontSize,
-                borderRadius: 6,
-                border: `1.5px solid ${scheme.accent}`,
-                padding: 8,
-                background: scheme.bg,
-                color: scheme.fg,
-              }}
-            />
-          ) : (
-            <div style={{ fontSize: fontSize, lineHeight: 1.4, overflowWrap: 'break-word', opacity: 0.92 }}>
-              {studentTranslations && studentTranslations.length > 0 ? 
-                renderSegmentsStacked(studentTranslations, lastPersistedTranslations.current[studentHomeLanguage]) :
-                <span style={{ opacity: 0.7 }}>Translation will appear here...</span>
-              }
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
 
   // Center the English box, and make it taller
   // For single language, center translation box too
@@ -584,7 +381,7 @@ const TranscriptionDisplay = ({
           ) : (
             <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
               <span style={{ fontWeight: 400, fontSize: fontSize }}>
-                {renderSegmentsWithClickableWords(englishSegments, null, selectedWords, handleWordClick, isStudent)}
+                {renderSegmentsWithClickableWords(englishSegments, null, selectedWords, handleWordClick)}
               </span>
               <div className="scroll-end" />
             </div>
@@ -617,16 +414,6 @@ const TranscriptionDisplay = ({
         gap: 0,
       }}
     >
-      {/* Word popup for clicked words */}
-      {popupInfo && (
-        <WordPopup
-          word={popupInfo.word}
-          position={popupInfo.position}
-          onClose={handleClosePopup}
-          definitionData={popupInfo.definition}
-          isLoading={popupInfo.isLoading}
-        />
-      )}
       {/* Transcript/English box always renders and updates first */}
       {transcriptVisible && (
         <div style={{ width: translationVisible ? '100%' : '100%', flex: translationVisible ? '0 0 33.5%' : '1 1 100%', minHeight: 0, display: 'flex', flexDirection: 'column', transition: 'flex 0.3s, width 0.3s' }}>{renderEnglishBox()}</div>

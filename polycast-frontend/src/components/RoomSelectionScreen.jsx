@@ -4,7 +4,6 @@ import PropTypes from 'prop-types';
 function RoomSelectionScreen({ onRoomSetup }) {
   const [mode, setMode] = useState(null);
   const [roomCode, setRoomCode] = useState('');
-  const [homeLanguage, setHomeLanguage] = useState(''); // Empty by default
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -60,8 +59,7 @@ function RoomSelectionScreen({ onRoomSetup }) {
       
       onRoomSetup({ 
         isHost: false, 
-        roomCode: cleanedRoomCode,
-        homeLanguage: homeLanguage // Include home language for student translation
+        roomCode: cleanedRoomCode 
       });
     } catch (err) {
       console.error('Error joining room:', err);
@@ -79,11 +77,11 @@ function RoomSelectionScreen({ onRoomSetup }) {
         {!mode ? (
           <div className="room-buttons">
             <button 
-              onClick={handleHostClick}
+              onClick={() => setMode('host')} 
               className="room-btn host-btn"
               disabled={isLoading}
             >
-              {isLoading ? 'Creating Room...' : 'Host'}
+              Host
             </button>
             <button 
               onClick={() => setMode('student')} 
@@ -114,42 +112,16 @@ function RoomSelectionScreen({ onRoomSetup }) {
         ) : (
           <div className="mode-container">
             <p>Enter a 5-digit room code to join as Student</p>
-            <form onSubmit={(e) => e.preventDefault()}> 
-              <div style={{ marginBottom: '15px' }}>
-                <input
-                  type="text"
-                  placeholder="5-digit room code"
-                  value={roomCode}
-                  onChange={(e) => setRoomCode(e.target.value)}
-                  maxLength={5}
-                  style={{ width: '100%', marginBottom: '10px' }}
-                  required
-                  disabled={isLoading}
-                />
-              </div>
-            </form> 
-            <form onSubmit={handleStudentSubmit}> 
-              <div style={{ marginBottom: '15px' }}>
-                <label htmlFor="homeLanguage" style={{ display: 'block', marginBottom: '5px', color: '#fff', textAlign: 'left' }}>
-                  Home Language (e.g., Spanish, French, Japanese):
-                </label>
-                <input
-                  type="text"
-                  id="homeLanguage"
-                  value={homeLanguage}
-                  onChange={(e) => setHomeLanguage(e.target.value)}
-                  placeholder="Type any language name"
-                  style={{
-                    width: '100%',
-                    padding: '8px',
-                    borderRadius: '4px',
-                    border: '1px solid #444',
-                    backgroundColor: '#2d2a3a',
-                    color: '#fff'
-                  }}
-                  disabled={isLoading}
-                />
-              </div>
+            <form onSubmit={handleStudentSubmit}>
+              <input
+                type="text"
+                placeholder="5-digit room code"
+                value={roomCode}
+                onChange={(e) => setRoomCode(e.target.value)}
+                maxLength={5}
+                required
+                disabled={isLoading}
+              />
               <button 
                 type="submit" 
                 className="room-btn student-btn"

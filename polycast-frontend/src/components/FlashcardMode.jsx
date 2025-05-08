@@ -13,70 +13,12 @@ const FlashcardMode = ({ selectedWords, wordDefinitions, englishSegments }) => {
   });
   const [wordImages, setWordImages] = useState({});
   const [imageLoading, setImageLoading] = useState({});
-  const [generatedSentences, setGeneratedSentences] = useState({});
-  const [viewedCards, setViewedCards] = useState({});
-  const [queueOrder, setQueueOrder] = useState([]);
-  
-  // Track card views - a card can be in one of 4 spaced repetition stages
-  // 1: First time seen today
-  // 2: Second viewing today
-  // 3: Third viewing today
-  // 4: Will be shown tomorrow
   
   // Filter only words that have definitions
   const availableCards = selectedWords.filter(word => 
     wordDefinitions[word.toLowerCase()] && 
     !wordDefinitions[word.toLowerCase()].error
   );
-  
-  // Initialize queue order if it's empty and we have cards
-  useEffect(() => {
-    if (availableCards.length > 0 && queueOrder.length === 0) {
-      console.log('Initializing queue order with available cards:', availableCards);
-      setQueueOrder([...availableCards]);
-    }
-  }, [availableCards, queueOrder.length]);
-  
-  // Calculate current card index and word
-  const getCurrentWord = () => queueOrder[currentIndex] || (availableCards.length > 0 ? availableCards[0] : '');
-  const currentWord = getCurrentWord();
-  
-  // Function to generate a sentence for a word using Gemini
-  const generateSentenceWithGemini = async (word, context) => {
-    if (generatedSentences[word]) return; // Already have a sentence
-    
-    console.log(`Generating sentence for "${word}" with context: "${context}"`);
-    
-    try {
-      const prompt = `Create a simple, everyday sentence using the English word "${word}" in the same sense as it's used in this context: "${context}". Make the sentence natural, conversational, and appropriate for English language learners. The word "${word}" should be used naturally in the sentence. Return ONLY the sentence, nothing else.`;
-      
-      const response = await fetch('https://polycast-server.onrender.com/api/generate-content', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt })
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Error ${response.status}: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      const sentence = data.content || `This is an example sentence using the word "${word}".`;
-      
-      console.log(`Generated sentence for "${word}": "${sentence}"`);
-      setGeneratedSentences(prev => ({
-        ...prev,
-        [word]: sentence
-      }));
-    } catch (error) {
-      console.error(`Error generating sentence for "${word}":`, error);
-      // Fallback sentence if generation fails
-      setGeneratedSentences(prev => ({
-        ...prev,
-        [word]: context || `This is an example sentence with the word "${word}".`
-      }));
-    }
-  };
   
   const cardContainerRef = useRef(null);
   
@@ -129,6 +71,24 @@ const FlashcardMode = ({ selectedWords, wordDefinitions, englishSegments }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentIndex, isFlipped, availableCards, showStats]);
   
+  const markCard = (isCorrect) => {
+    setStats(prev => ({
+      ...prev,
+      correctAnswers: isCorrect ? prev.correctAnswers + 1 : prev.correctAnswers,
+      history: [...prev.history, {
+        word: availableCards[currentIndex],
+        date: new Date().toISOString(),
+        correct: isCorrect
+      }]
+    }));
+    
+    // Move to next card after marking
+    setTimeout(() => {
+      setIsFlipped(false);
+      setCurrentIndex(prev => (prev + 1) % availableCards.length);
+    }, 500);
+  };
+  
   const flipCard = () => {
     setIsFlipped(prev => !prev);
   };
@@ -156,23 +116,12 @@ const FlashcardMode = ({ selectedWords, wordDefinitions, englishSegments }) => {
     );
   };
   
-  // Preload all images and generate sentences for all available cards
+  // Preload all images for all available cards
   useEffect(() => {
     if (availableCards.length === 0 || showStats) return;
     
     availableCards.forEach(word => {
       const definition = wordDefinitions[word.toLowerCase()];
-      const wordLower = word.toLowerCase();
-      
-      // Find context from English segments
-      const context = englishSegments?.find(seg => 
-        seg?.text?.toLowerCase().includes(wordLower)
-      )?.text || `Example using the word ${word}.`;
-      
-      // Generate a sentence for this word if we don't have one yet
-      if (!generatedSentences[word]) {
-        generateSentenceWithGemini(word, context);
-      }
       
       // If we already have the image URL in the wordDefinitions, use that
       if (definition && definition.imageUrl) {
@@ -201,7 +150,7 @@ const FlashcardMode = ({ selectedWords, wordDefinitions, englishSegments }) => {
           })
           .then(data => {
             console.log(`Image loaded for: ${word}`);
-            setWordImages(prev => ({...prev, [word]: data.imageUrl || data.url}));
+            setWordImages(prev => ({...prev, [word]: data.url}));
           })
           .catch(err => {
             console.error(`Error fetching image for ${word}:`, err);
@@ -211,10 +160,7 @@ const FlashcardMode = ({ selectedWords, wordDefinitions, englishSegments }) => {
           });
       }
     });
-  }, [availableCards, showStats, wordImages, imageLoading, englishSegments, generatedSentences]);
-  
-  // Check if this is the first time viewing this card today
-  const isFirstTimeViewing = !viewedCards[currentWord];
+  }, [availableCards, showStats, wordImages, imageLoading, englishSegments]);
   
   // Calculate stats for the visualization
   const calculatedStats = {
@@ -281,58 +227,8 @@ const FlashcardMode = ({ selectedWords, wordDefinitions, englishSegments }) => {
     );
   }
   
-  // Use the already calculated currentWord value
-  const definition = wordDefinitions[currentWord?.toLowerCase()];
-  
-  // Handle marking a card as correct or incorrect
-  const markCard = (isCorrect) => {
-    if (!currentWord) return;
-    
-    // Update stats
-    setStats(prev => ({
-      ...prev,
-      cardsReviewed: prev.cardsReviewed + 1,
-      correctAnswers: isCorrect ? prev.correctAnswers + 1 : prev.correctAnswers,
-      history: [...prev.history, {
-        word: currentWord,
-        date: new Date().toISOString(),
-        correct: isCorrect
-      }]
-    }));
-    
-    // Update the viewed status of this card
-    setViewedCards(prev => {
-      const currentStage = prev[currentWord] || 0;
-      const nextStage = isCorrect ? Math.min(currentStage + 1, 3) : 0; // If incorrect, reset to stage 0
-      
-      return {
-        ...prev,
-        [currentWord]: nextStage
-      };
-    });
-    
-    // Remove the current card from the queue
-    const newQueue = [...queueOrder];
-    newQueue.splice(currentIndex, 1);
-    
-    // If correct and not at stage 3 yet, move to back of queue
-    // If at stage 3, it's completed for today
-    if (isCorrect && viewedCards[currentWord] < 3) {
-      newQueue.push(currentWord);
-    }
-    
-    // Update queue
-    setQueueOrder(newQueue);
-    
-    // If we've reached the end of the queue, reset to the beginning
-    if (currentIndex >= newQueue.length) {
-      setCurrentIndex(0);
-    }
-    
-    // Otherwise keep the same index (which will now point to the next card)
-    // and unflip the card
-    setIsFlipped(false);
-  };
+  const currentWord = availableCards[currentIndex];
+  const definition = wordDefinitions[currentWord.toLowerCase()];
   
   return (
     <div className="flashcard-container">
@@ -386,104 +282,98 @@ const FlashcardMode = ({ selectedWords, wordDefinitions, englishSegments }) => {
                   {imageLoading[currentWord] && (
                     <div className="image-loading">Creating image for "{currentWord}"...</div>
                   )}
-                  {wordImages[currentWord] ? (
+                  {wordImages[currentWord] && (
                     <img 
                       src={wordImages[currentWord]} 
                       alt={`Visual representation of "${currentWord}"`}
                       className="flashcard-word-image"
                     />
-                  ) : definition?.imageUrl ? (
-                    <img 
-                      src={definition.imageUrl} 
-                      alt={`Visual representation of "${currentWord}"`}
-                      className="flashcard-word-image"
-                    />
-                  ) : null}
+                  )}
                 </div>
               </div>
               <div className="flashcard-back">
                 <div className="flashcard-content">
-                  <div className="flashcard-word">{currentWord}</div>
+                  <div className="flashcard-translation">{definition?.translation || ''}</div>
                   
-                  {/* Commonality rating */}
-                  <div className="flashcard-commonality">
-                    <div className="commonality-label">
-                      {definition?.frequency ? 
-                        getFrequencyLabel(definition.frequency) : 
-                        getFrequencyLabel('3') /* Default to moderately common */}
-                    </div>
-                  </div>
-                  
-                  {/* First viewing shows full context sentence with highlighted word */}
-                  {isFirstTimeViewing && generatedSentences[currentWord] && (
-                    <div className="flashcard-first-view">
-                      <div className="first-view-label">Example sentence:</div>
-                      <div className="first-view-sentence">
-                        {(() => {
-                          const sentence = generatedSentences[currentWord];
-                          const wordRegex = new RegExp(`\b${currentWord.replace(/[.*+?^${}()|[\]\]/g, '\\$&')}\b`, 'gi');
-                          return sentence.split(wordRegex).reduce((acc, part, idx, arr) => {
-                            acc.push(part);
-                            if (idx < arr.length - 1) {
-                              acc.push(<strong key={idx} style={{ color: '#f15bb5', fontWeight: 700, fontSize: '110%' }}>{currentWord}</strong>);
-                            }
-                            return acc;
-                          }, []);
-                        })()}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Regular definition content */}
+                  {/* Handle multiple definitions */}
                   {definition?.definitions ? (
-                    // New format with multiple definitions
+                    // If we have an array of definitions
                     <div className="flashcard-definitions-container">
-                      {definition.definitions.slice(0, 2).map((def, index) => (
+                      {definition.definitions.slice(0, 3).map((def, index) => (
                         <div key={index} className="flashcard-definition-item">
                           <div className="flashcard-definition">{def.text || ''}</div>
+                          <div className="flashcard-example">
+                            {def.example ? (
+                              <span>
+                                {(() => {
+                                  const wordRegex = new RegExp(`\\b${currentWord.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\b`, 'gi');
+                                  return def.example.split(wordRegex).reduce((acc, part, idx, arr) => {
+                                    acc.push(part);
+                                    if (idx < arr.length - 1) {
+                                      acc.push(<strong key={idx} style={{ color: '#ffe066', fontWeight: 700 }}>{currentWord}</strong>);
+                                    }
+                                    return acc;
+                                  }, []);
+                                })()}
+                              </span>
+                            ) : (
+                              <span>No example available</span>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
                   ) : (
                     // Fallback for legacy format with single definition
-                    <div className="flashcard-definition">{definition?.definition || ''}</div>
+                    <>
+                      <div className="flashcard-definition">{definition?.definition || ''}</div>
+                      <div className="flashcard-example">
+                        {definition?.example ? (
+                          <span>
+                            {(() => {
+                              const wordRegex = new RegExp(`\\b${currentWord.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\b`, 'gi');
+                              return definition.example.split(wordRegex).reduce((acc, part, idx, arr) => {
+                                acc.push(part);
+                                if (idx < arr.length - 1) {
+                                  acc.push(<strong key={idx} style={{ color: '#ffe066', fontWeight: 700 }}>{currentWord}</strong>);
+                                }
+                                return acc;
+                              }, []);
+                            })()}
+                          </span>
+                        ) : (
+                          <span>No example available</span>
+                        )}
+                      </div>
+                    </>
                   )}
                   
-                  {/* Updated rating buttons */}
                   <div className="flashcard-rating">
                     <button 
                       className="incorrect-btn"
                       onClick={(e) => { e.stopPropagation(); markCard(false); }}
                     >
-                      Incorrect
+                      Incorrect (1)
                     </button>
                     <button 
                       className="correct-btn"
                       onClick={(e) => { e.stopPropagation(); markCard(true); }}
                     >
-                      Correct
+                      Correct (2)
                     </button>
                   </div>
                 </div>
-                
-                {/* Always show image - moved outside of conditional display */}
                 <div className="flashcard-image-container">
                   {imageLoading[currentWord] && (
                     <div className="image-loading">Creating image for "{currentWord}"...</div>
                   )}
-                  {wordImages[currentWord] ? (
+                  {wordImages[currentWord] && (
                     <img 
                       src={wordImages[currentWord]} 
                       alt={`Visual representation of "${currentWord}"`}
                       className="flashcard-word-image"
                     />
-                  ) : definition?.imageUrl ? (
-                    <img 
-                      src={definition.imageUrl} 
-                      alt={`Visual representation of "${currentWord}"`}
-                      className="flashcard-word-image"
-                    />
-                  ) : null}
+                  )}
                 </div>
               </div>
             </div>
