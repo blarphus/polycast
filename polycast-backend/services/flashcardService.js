@@ -55,21 +55,24 @@ async function loadDictionary(letter) {
 async function lookupWord(word) {
     word = word.toLowerCase().trim();
     if (!word) return null;
-    
     const firstLetter = word.charAt(0);
     console.log(`[DICTIONARY_DEBUG] Looking up word "${word}" in dictionary file "${firstLetter}.json"`);
-    
     const dictionary = await loadDictionary(firstLetter);
-    
     if (!dictionary) {
         console.log(`[DICTIONARY_DEBUG] Dictionary for letter "${firstLetter}" not found or could not be loaded`);
         return null;
     }
-    
     const result = dictionary[word] || null;
     console.log(`[DICTIONARY_DEBUG] Lookup result for "${word}": ${result ? 'Found' : 'Not found'}`);
+    
+    // Print all definitions for the word if found
     if (result) {
-        console.log(`[DICTIONARY_DEBUG] Number of meanings found for "${word}": ${Object.keys(result.MEANINGS || {}).length}`);
+        try {
+            const definitions = extractDefinitions(result);
+            console.log(`[DICTIONARY_DEBUG] All definitions for "${word}":`, JSON.stringify(definitions, null, 2));
+        } catch (err) {
+            console.log(`[DICTIONARY_DEBUG] Error extracting definitions for "${word}": ${err.message}`);
+        }
     }
     
     return result;

@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 
 /**
  * Component for displaying a popup with word definition and status
  */
 const WordPopup = ({ word, position, isLoading, definitionData, onClose }) => {
-  const [visible, setVisible] = useState(false);
+  const popupRef = useRef(null);
 
   // Add CSS for the spinning loader animation
   useEffect(() => {
@@ -17,31 +17,43 @@ const WordPopup = ({ word, position, isLoading, definitionData, onClose }) => {
     `;
     document.head.appendChild(styleEl);
 
+    // Add click outside handler
+    const handleClickOutside = (event) => {
+      if (popupRef.current && !popupRef.current.contains(event.target)) {
+        onClose();
+      }
+    };
+
+    // Add the event listener
+    document.addEventListener('mousedown', handleClickOutside);
+
     return () => {
       document.head.removeChild(styleEl);
+      document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, []);
+  }, [onClose]);
 
   // Safely extract information from definitionData
   const partOfSpeech = definitionData?.partOfSpeech || '';
   const definition = definitionData?.displayDefinition || definitionData?.definition || '';
 
   return (
-    <div style={{
-      position: 'absolute',
-      top: `${position.y + 20}px`,
-      left: `${position.x}px`,
-      transform: 'translateX(-50%)',
-      backgroundColor: 'rgba(28, 28, 30, 0.95)',
-      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
-      borderRadius: '4px',
-      padding: '10px 14px',
-      maxWidth: '280px',
-      zIndex: 1000,
-      color: 'white',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      fontSize: '14px',
-    }}>
+    <div 
+      ref={popupRef}
+      style={{
+        position: 'fixed', // Using fixed to ensure it shows at the right position
+        top: `${position.y}px`,
+        left: `${position.x + 5}px`, // Position it slightly to the right of the click position
+        backgroundColor: 'rgba(28, 28, 30, 0.95)',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
+        borderRadius: '4px',
+        padding: '10px 14px',
+        maxWidth: '280px',
+        zIndex: 1000,
+        color: 'white',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        fontSize: '14px',
+      }}>
       {/* Close button - X in the top right */}
       <button 
         onClick={onClose}

@@ -36,7 +36,11 @@ function App({ targetLanguages, onReset, roomSetup }) {
 
   const [messageHistory, setMessageHistory] = useState([]);
   const [isRecording, setIsRecording] = useState(false);
-  const [englishSegments, setEnglishSegments] = useState([]); 
+  const [englishSegments, setEnglishSegments] = useState(
+    roomSetup.isHost
+      ? []
+      : [{ text: "testing time, baby. let's go", id: 'preload-1', speaker: 'Host', timestamp: Date.now() }]
+  ); 
   const [translations, setTranslations] = useState({}); // Structure: { lang: [{ text: string, isNew: boolean }] }
   const [errorMessages, setErrorMessages] = useState([]); 
   const [showLiveTranscript, setShowLiveTranscript] = useState(true); 
@@ -48,7 +52,8 @@ function App({ targetLanguages, onReset, roomSetup }) {
   const [textInputs, setTextInputs] = useState({}); // Lifted state
   const [showNotification, setShowNotification] = useState(false);
   const [notificationOpacity, setNotificationOpacity] = useState(1);
-  const [autoSend, setAutoSend] = useState(true); // Controls auto-sending of audio chunks
+  // Set auto-send off by default for hosts, on for students
+  const [autoSend, setAutoSend] = useState(!roomSetup.isHost); // Auto-send off by default for hosts
   const [showNoiseLevel, setShowNoiseLevel] = useState(false); // Controls visibility of noise level display
   const notificationTimeoutRef = useRef(null);
   const modeRef = useRef(appMode === 'text');

@@ -18,15 +18,18 @@ const Dictionary = ({ userId }) => {
     const fetchFlashcards = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`/api/flashcards?userId=${userId}`);
+        // Updated API URL to work with the deployed app
+        const response = await fetch(`https://polycast-server.onrender.com/api/flashcards?userId=${userId}`);
         if (!response.ok) {
-          throw new Error('Failed to fetch flashcards');
+          throw new Error(`Failed to fetch flashcards: ${response.status}`);
         }
         const data = await response.json();
         setFlashcards(data.flashcards || []);
       } catch (err) {
         console.error('Error fetching flashcards:', err);
         setError('Failed to load flashcards. Please try again.');
+        // Initialize with empty array to prevent further errors
+        setFlashcards([]);
       } finally {
         setLoading(false);
       }
