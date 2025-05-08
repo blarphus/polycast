@@ -124,6 +124,8 @@ const TranscriptionDisplay = ({
   englishSegments, 
   targetLanguages, 
   translations, 
+  studentTranslations = [], // New prop for student personal translations
+  studentHomeLanguage = null, // New prop for student home language
   showLiveTranscript, 
   showTranslation, 
   isTextMode, 
@@ -388,6 +390,91 @@ const TranscriptionDisplay = ({
       }
     }
   }, [translations, targetLanguages]);
+  
+  // Build the grid of target language boxes (excluding English)
+  const renderTranslationBoxes = () => {
+    if (!showTranslation) return null;
+    
+    // For students, show their home language translation
+    if (isStudent && studentHomeLanguage) {
+      return (
+        <div className="transcription-grid one-col">
+          {renderStudentTranslationBox()}
+        </div>
+      );
+    }
+    
+    // For hosts, show the target language translations
+    // If no translations and not isTextMode, don't render anything
+    if (!isTextMode && Object.keys(translations).length === 0 && targetLanguages.length === 0) {
+      return null;
+    }
+    
+    return (
+      <div className={`transcription-grid ${targetLanguages.length === 1 ? 'one-col' : targetLanguages.length <= 3 ? 'two-col' : 'three-col'}`}>
+        {targetLanguages.map((lang, index) => renderTranslationBox(lang, index + 1))}
+      </div>
+    );
+  };
+  
+  // Render student's personal translation box
+  const renderStudentTranslationBox = () => {
+    const scheme = colorSchemes[1]; // Use a distinct color scheme
+    return (
+      <div
+        className="transcription-box translation-box"
+        style={{
+          background: scheme.bg,
+          color: scheme.fg,
+          borderTop: `6px solid ${scheme.accent}`,
+        }}
+        ref={el => {
+          if (el) translationRefs.current[studentHomeLanguage] = el;
+        }}
+      >
+        <span 
+          className="transcription-box-label"
+          style={{ 
+            color: scheme.accent, 
+            letterSpacing: 0.5, 
+            textAlign: 'center', 
+            fontWeight: 800, 
+            fontSize: 20, 
+            margin: '12px 0 6px 0'
+          }}
+        >
+          {studentHomeLanguage}
+        </span>
+        <div className="transcription-box-content">
+          {isTextMode ? (
+            <textarea
+              value={textInputs[studentHomeLanguage] ?? ''}
+              onChange={e => handleInputChange(studentHomeLanguage, e.target.value)}
+              placeholder={`Type ${studentHomeLanguage} text here...`}
+              style={{
+                width: '100%',
+                height: '100%',
+                flex: 1,
+                fontSize: fontSize,
+                borderRadius: 6,
+                border: `1.5px solid ${scheme.accent}`,
+                padding: 8,
+                background: scheme.bg,
+                color: scheme.fg,
+              }}
+            />
+          ) : (
+            <div style={{ fontSize: fontSize, lineHeight: 1.4, overflowWrap: 'break-word', opacity: 0.92 }}>
+              {studentTranslations && studentTranslations.length > 0 ? 
+                renderSegmentsStacked(studentTranslations, lastPersistedTranslations.current[studentHomeLanguage]) :
+                <span style={{ opacity: 0.7 }}>Translation will appear here...</span>
+              }
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   // Center the English box, and make it taller
   // For single language, center translation box too

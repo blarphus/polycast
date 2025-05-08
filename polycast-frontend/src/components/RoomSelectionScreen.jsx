@@ -4,8 +4,18 @@ import PropTypes from 'prop-types';
 function RoomSelectionScreen({ onRoomSetup }) {
   const [mode, setMode] = useState(null);
   const [roomCode, setRoomCode] = useState('');
+  const [homeLanguage, setHomeLanguage] = useState('Spanish'); // Default language
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  
+  // List of common languages for the dropdown
+  const commonLanguages = [
+    'Spanish', 'French', 'German', 'Italian', 'Portuguese', 'Dutch',
+    'Russian', 'Chinese', 'Japanese', 'Korean', 'Arabic', 'Hindi',
+    'Bengali', 'Urdu', 'Vietnamese', 'Thai', 'Turkish', 'Polish',
+    'Ukrainian', 'Greek', 'Czech', 'Romanian', 'Hungarian', 'Swedish',
+    'Norwegian', 'Finnish', 'Danish', 'Hebrew', 'Indonesian'
+  ].sort();
 
   const handleHostClick = async () => {
     setIsLoading(true);
@@ -59,7 +69,8 @@ function RoomSelectionScreen({ onRoomSetup }) {
       
       onRoomSetup({ 
         isHost: false, 
-        roomCode: cleanedRoomCode 
+        roomCode: cleanedRoomCode,
+        homeLanguage: homeLanguage // Include home language for student translation
       });
     } catch (err) {
       console.error('Error joining room:', err);
@@ -113,15 +124,41 @@ function RoomSelectionScreen({ onRoomSetup }) {
           <div className="mode-container">
             <p>Enter a 5-digit room code to join as Student</p>
             <form onSubmit={handleStudentSubmit}>
-              <input
-                type="text"
-                placeholder="5-digit room code"
-                value={roomCode}
-                onChange={(e) => setRoomCode(e.target.value)}
-                maxLength={5}
-                required
-                disabled={isLoading}
-              />
+              <div style={{ marginBottom: '15px' }}>
+                <input
+                  type="text"
+                  placeholder="5-digit room code"
+                  value={roomCode}
+                  onChange={(e) => setRoomCode(e.target.value)}
+                  maxLength={5}
+                  style={{ width: '100%', marginBottom: '10px' }}
+                  required
+                  disabled={isLoading}
+                />
+              </div>
+              <div style={{ marginBottom: '15px' }}>
+                <label htmlFor="homeLanguage" style={{ display: 'block', marginBottom: '5px', color: '#fff', textAlign: 'left' }}>
+                  Home Language:
+                </label>
+                <select
+                  id="homeLanguage"
+                  value={homeLanguage}
+                  onChange={(e) => setHomeLanguage(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    borderRadius: '4px',
+                    border: '1px solid #444',
+                    backgroundColor: '#2d2a3a',
+                    color: '#fff'
+                  }}
+                  disabled={isLoading}
+                >
+                  {commonLanguages.map(lang => (
+                    <option key={lang} value={lang}>{lang}</option>
+                  ))}
+                </select>
+              </div>
               <button 
                 type="submit" 
                 className="room-btn student-btn"

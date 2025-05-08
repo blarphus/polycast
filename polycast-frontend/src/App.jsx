@@ -25,8 +25,8 @@ function getUserId() {
   return userId;
 }
 
-// App now receives an array of target languages and room setup as props
-function App({ targetLanguages, onReset, roomSetup }) {
+// App now receives an array of target languages, room setup, and student home language as props
+function App({ targetLanguages, onReset, roomSetup, studentHomeLanguage }) {
   const languagesQueryParam = targetLanguages.map(encodeURIComponent).join(',');
 
   // Construct the WebSocket URL for Render backend, including room information
@@ -44,6 +44,8 @@ function App({ targetLanguages, onReset, roomSetup }) {
     console.log('English segments updated:', englishSegments);
   }, [englishSegments]); 
   const [translations, setTranslations] = useState({}); // Structure: { lang: [{ text: string, isNew: boolean }] }
+  // Student personal translations
+  const [studentTranslations, setStudentTranslations] = useState([]);
   const [errorMessages, setErrorMessages] = useState([]); 
   const [showLiveTranscript, setShowLiveTranscript] = useState(true); 
   const [showTranslation, setShowTranslation] = useState(true); 
@@ -293,6 +295,49 @@ function App({ targetLanguages, onReset, roomSetup }) {
     //   }
     // },
   });
+
+  // Function to translate English text to student's home language
+  const translateForStudent = async (text) => {
+    if (!studentHomeLanguage || !text || roomSetup.isHost) return;
+    
+    try {
+      console.log(`Translating for student to ${studentHomeLanguage}: ${text}`);
+      const response = await fetch('https://polycast-server.onrender.com/api/translate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text,
+          targetLanguage: studentHomeLanguage
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Translation failed: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log(`Received student translation: ${data.translation}`);
+      
+      setStudentTranslations([{
+        text: data.translation, 
+        isNew: true, 
+        id: `student-trans-${Date.now()}`
+      }]);
+    } catch (error) {
+      console.error('Error translating for student:', error);
+    }
+  };
+  
+  // Trigger student translation when English segments update
+  useEffect(() => {
+    if (englishSegments.length > 0 && !roomSetup.isHost && studentHomeLanguage) {
+      // Get the most recent segment
+      const latestSegment = englishSegments[0];
+      translateForStudent(latestSegment.text);
+    }
+  }, [englishSegments, studentHomeLanguage, roomSetup.isHost]);
 
   // Handle incoming messages
   useEffect(() => {
@@ -694,8 +739,10 @@ function App({ targetLanguages, onReset, roomSetup }) {
         ) : (
           <TranscriptionDisplay 
             englishSegments={englishSegments} 
-            translations={translations} 
-            targetLanguages={targetLanguages} 
+            targetLanguages={roomSetup.isHost ? targetLanguages : []}
+            translations={roomSetup.isHost ? translations : {}}
+            studentTranslations={!roomSetup.isHost ? studentTranslations : []}
+            studentHomeLanguage={studentHomeLanguage}
             showLiveTranscript={showLiveTranscript}
             showTranslation={showTranslation}
             isTextMode={appMode === 'text'}
@@ -723,8 +770,10 @@ App.propTypes = {
     onReset: PropTypes.func,
     roomSetup: PropTypes.shape({
         isHost: PropTypes.bool.isRequired,
-        roomCode: PropTypes.string.isRequired
-    }).isRequired
+        roomCode: PropTypes.string.isRequired,
+        homeLanguage: PropTypes.string
+    }).isRequired,
+    studentHomeLanguage: PropTypes.string
 };
 
 // Define backend port in a config object or hardcode if simple
