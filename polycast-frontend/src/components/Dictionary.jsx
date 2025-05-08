@@ -18,12 +18,33 @@ const Dictionary = ({ userId }) => {
     const fetchFlashcards = async () => {
       try {
         setLoading(true);
-        // Updated API URL to work with the deployed app
-        const response = await fetch(`https://polycast-server.onrender.com/api/flashcards?userId=${userId}`);
+        console.log(`Fetching flashcards for userId: ${userId}`);
+        
+        // Construct a proper URL with query parameters
+        const url = new URL('https://polycast-server.onrender.com/api/flashcards');
+        url.searchParams.append('userId', userId);
+        console.log(`Fetching flashcards from: ${url.toString()}`);
+        
+        const response = await fetch(url.toString());
+        console.log(`Flashcard fetch response status: ${response.status} ${response.statusText}`);
+        
+        // Log the raw response for debugging
+        const responseText = await response.text();
+        console.log('Raw flashcard response:', responseText);
+        
         if (!response.ok) {
-          throw new Error(`Failed to fetch flashcards: ${response.status}`);
+          throw new Error(`Failed to fetch flashcards: ${response.status} ${response.statusText}. Response: ${responseText}`);
         }
-        const data = await response.json();
+        
+        let data;
+        try {
+          data = JSON.parse(responseText);
+        } catch (err) {
+          console.error('Error parsing flashcard response:', err);
+          throw new Error('Invalid JSON in flashcard response');
+        }
+        
+        console.log('Parsed flashcard data:', data);
         setFlashcards(data.flashcards || []);
       } catch (err) {
         console.error('Error fetching flashcards:', err);

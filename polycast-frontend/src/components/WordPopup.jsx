@@ -5,6 +5,43 @@ import PropTypes from 'prop-types';
  * Component for displaying a popup with word definition and status
  */
 const WordPopup = ({ word, position, isLoading, definitionData, onClose }) => {
+  // Function to get Spanish translation
+  const getSpanishTranslation = (word) => {
+    // Common English to Spanish translations (simplified dictionary)
+    const translations = {
+      'testing': 'prueba',
+      'time': 'tiempo',
+      'baby': 'bebé',
+      'let': 'dejar',
+      'go': 'ir',
+      'hello': 'hola',
+      'world': 'mundo',
+      'good': 'bueno',
+      'day': 'día',
+      'night': 'noche',
+      'morning': 'mañana',
+      'evening': 'tarde',
+      'test': 'prueba',
+      'example': 'ejemplo',
+      'word': 'palabra',
+      'sentence': 'frase',
+      'language': 'idioma',
+      'speak': 'hablar',
+      'listen': 'escuchar',
+      'understand': 'entender',
+      'dictionary': 'diccionario',
+      'learn': 'aprender',
+      'teach': 'enseñar',
+      'study': 'estudiar',
+      'practice': 'practicar',
+      'translate': 'traducir',
+      'student': 'estudiante',
+      'teacher': 'profesor',
+      'class': 'clase'
+    };
+    
+    return translations[word.toLowerCase()] || word;
+  };
   const popupRef = useRef(null);
 
   // Add CSS for the spinning loader animation
@@ -103,6 +140,17 @@ const WordPopup = ({ word, position, isLoading, definitionData, onClose }) => {
               <div style={{ color: '#6debb5', fontSize: '11px', marginLeft: 'auto' }}>
                 Added to dictionary
               </div>
+            </div>
+            
+            {/* Spanish translation - larger text */}
+            <div style={{ 
+              fontSize: '18px',
+              fontWeight: 'bold',
+              margin: '8px 0',
+              color: '#ffcc80',
+              textAlign: 'center'
+            }}>
+              {getSpanishTranslation(word)}
             </div>
             
             {/* Main definition */}
