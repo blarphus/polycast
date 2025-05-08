@@ -76,9 +76,42 @@ const server = http.createServer(app);
 
 // Create WebSocket server
 // Pass request object to connection handler
-const wss = new WebSocket.Server({ server });
+const wss = new WebSocket.Server({ 
+    server,
+    // Set a generous ping timeout (10 minutes of inactivity)
+    clientTracking: true,
+    // The WebSocket spec doesn't have a standard ping interval, but we can simulate it
+});
 
-console.log(`WebSocket server created.`);
+// Set up a heartbeat interval to keep connections alive
+function heartbeat() {
+    this.isAlive = true;
+    console.log('Received pong from client');
+}
+
+// Send pings to all clients every 30 seconds
+const pingInterval = setInterval(() => {
+    wss.clients.forEach((ws) => {
+        // If the client hasn't responded to the previous ping, terminate the connection
+        if (ws.isAlive === false) {
+            console.log('Client did not respond to ping, terminating connection');
+            return ws.terminate();
+        }
+        
+        // Mark as not alive, will be reset when pong is received
+        ws.isAlive = false;
+        // Send a ping
+        ws.ping();
+    });
+}, 30000); // 30 seconds ping interval
+
+// Clean up interval when server closes
+wss.on('close', () => {
+    clearInterval(pingInterval);
+    console.log('WebSocket server closed, cleared ping interval');
+});
+
+console.log(`WebSocket server created with heartbeat enabled.`);
 
 // === Room Management & WebSocket Handling ===
 
@@ -122,6 +155,12 @@ const clientRooms = new Map(); // Track which room each client belongs to
 
 // Modify connection handler to accept request object (req) and make it async
 wss.on('connection', (ws, req) => {
+    // Initialize the heartbeat
+    ws.isAlive = true;
+    
+    // Listen for pong responses
+    ws.on('pong', heartbeat);
+    
     // Parse URL parameters
     const parsedUrl = url.parse(req.url, true); // true parses query string
     const query = parsedUrl.query;

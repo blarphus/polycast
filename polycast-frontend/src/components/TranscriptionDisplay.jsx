@@ -368,6 +368,12 @@ const TranscriptionDisplay = ({
     const wordLower = word.toLowerCase();
     console.log(`Adding "${word}" to dictionary...`);
     
+    // Immediately update the popup to show the checkmark
+    setPopupInfo(prev => ({
+      ...prev,
+      wordAddedToDictionary: true
+    }));
+    
     // Get the word data with definitions
     const wordData = wordDefinitions[wordLower];
     
