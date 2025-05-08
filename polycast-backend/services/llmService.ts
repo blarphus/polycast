@@ -5,13 +5,13 @@
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 
 // Check for API key before any imports to fail fast
-if (!process.env.GOOGLE_GEMINI_API_KEY) {
-  console.error("ERROR: GOOGLE_GEMINI_API_KEY not set; flash-card generation and translation will be disabled");
-  throw new Error("GOOGLE_GEMINI_API_KEY not set; flash-card generation and translation disabled");
+if (!process.env.GOOGLE_API_KEY) {
+  console.error("ERROR: GOOGLE_API_KEY not set; flash-card generation and translation will be disabled");
+  throw new Error("GOOGLE_API_KEY not set; flash-card generation and translation disabled");
 }
 
 // Initialize the Gemini client with API key
-const apiKey = process.env.GOOGLE_GEMINI_API_KEY;
+const apiKey = process.env.GOOGLE_API_KEY;
 const genAI = new GoogleGenerativeAI(apiKey);
 
 // Export the model - using gemini-2.0-flash as requested
