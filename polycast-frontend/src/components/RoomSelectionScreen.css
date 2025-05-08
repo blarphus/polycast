@@ -61,6 +61,29 @@
   background-color: #059669;
 }
 
+.student-join-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.student-join-row input[type="text"] {
+  flex: 1 1 120px;
+  font-size: 1.1rem;
+  padding: 0.6rem 1rem;
+  border-radius: 4px;
+  border: 1px solid #444;
+}
+
+.student-join-row .room-btn.student-btn {
+  flex-shrink: 0;
+  font-size: 1.1rem;
+  padding: 0.6rem 1.3rem;
+}
+
+
 .mode-container {
   display: flex;
   flex-direction: column;

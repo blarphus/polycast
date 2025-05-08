@@ -47,23 +47,25 @@ function RoomSelectionScreen({ onRoomSetup }) {
   return (
     <div className="student-join-container">
       <p>Enter a 5-digit room code to join as a student</p>
-      <form onSubmit={handleStudentSubmit}>
-        <input
-          type="text"
-          placeholder="5-digit room code"
-          value={roomCode}
-          onChange={(e) => setRoomCode(e.target.value)}
-          maxLength={5}
-          required
-          disabled={isLoading}
-        />
-        <button 
-          type="submit" 
-          className="room-btn student-btn"
-          disabled={isLoading}
-        >
-          {isLoading ? 'Joining...' : 'Join Room'}
-        </button>
+      <form onSubmit={handleStudentSubmit} className="student-join-form">
+        <div className="student-join-row">
+          <input
+            type="text"
+            placeholder="5-digit room code"
+            value={roomCode}
+            onChange={(e) => setRoomCode(e.target.value)}
+            maxLength={5}
+            required
+            disabled={isLoading}
+          />
+          <button 
+            type="submit" 
+            className="room-btn student-btn"
+            disabled={isLoading}
+          >
+            {isLoading ? 'Joining...' : 'Join Room'}
+          </button>
+        </div>
       </form>
       {error && <div className="error-message">{error}</div>}
     </div>
