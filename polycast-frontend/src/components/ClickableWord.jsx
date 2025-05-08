@@ -4,7 +4,7 @@ import PropTypes from 'prop-types';
 /**
  * ClickableWord component for displaying words that can be clicked to add to dictionary/flashcards
  */
-const ClickableWord = ({ word, onClick, isSelected, isStudent, segmentId }) => {
+const ClickableWord = ({ word, onClick, isStudent }) => {
   // Only make words clickable for students
   if (!isStudent) {
     return <span>{word}</span>;
@@ -51,15 +51,11 @@ const ClickableWord = ({ word, onClick, isSelected, isStudent, segmentId }) => {
 ClickableWord.propTypes = {
   word: PropTypes.string.isRequired,
   onClick: PropTypes.func.isRequired,
-  isSelected: PropTypes.bool,
-  isStudent: PropTypes.bool,
-  segmentId: PropTypes.string
+  isStudent: PropTypes.bool
 };
 
 ClickableWord.defaultProps = {
-  isSelected: false,
-  isStudent: false,
-  segmentId: ''
+  isStudent: false
 };
 
 export default ClickableWord;

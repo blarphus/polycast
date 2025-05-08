@@ -139,8 +139,11 @@ async function disambiguateWordSense(word, context, definitions) {
     }
     
     try {
-        // Create the prompt for disambiguation
-        let prompt = `Here is a sentence:\n"${context}"\n\n`;
+        // Italicize the target word in the context sentence
+        const italicizedContext = context.replace(new RegExp(`\\b${word}\\b`, 'gi'), match => `*${match}*`);
+        
+        // Create the prompt for disambiguation with the italicized context
+        let prompt = `Here is a sentence, with the target word italicized (surrounded by asterisks):\n"${italicizedContext}"\n\n`;
         prompt += `Here are possible definitions for the word "${word}":\n\n`;
         
         definitions.forEach((def, index) => {

@@ -66,9 +66,6 @@ const renderSegmentsWithClickableWords = (segments, lastPersisted, selectedWords
   }
   // Each segment on its own line
   return segments.map((segment, segIdx) => {
-    // Ensure each segment has a unique ID for context tracking
-    const segmentId = segment.id || `segment-${segIdx}-${Date.now()}`;
-    
     // Tokenize: words (with apostrophes/accents), punctuation, and spaces
     // This regex matches words, punctuation, and spaces
     const tokens = segment.text.match(/([\p{L}\p{M}\d']+|[.,!?;:]+|\s+)/gu) || [];
@@ -79,20 +76,19 @@ const renderSegmentsWithClickableWords = (segments, lastPersisted, selectedWords
           const isWord = /^[\p{L}\p{M}\d']+$/u.test(token);
           
           if (isWord) {
-            // Is this word in the selected words list?
-            const isSelected = selectedWords.some(w => w.toLowerCase() === token.toLowerCase());
-            
+            // We're not tracking previously clicked words anymore
             return (
               <ClickableWord
                 key={i}
                 word={token}
                 onClick={(word, position) => {
-                  // Pass the word and position (including segmentId) to the handler
-                  handleWordClick(word, position);
+                  // Pass the exact sentence context directly from this segment
+                  handleWordClick(word, {
+                    ...position,
+                    exactContext: segment.text, // Pass the full sentence as context
+                  });
                 }}
-                isSelected={isSelected}
                 isStudent={isStudent}
-                segmentId={segmentId}
               />
             );
           } else {
@@ -178,26 +174,18 @@ const TranscriptionDisplay = ({
     });
     
     // Find the sentence context where this word appears
-    // Add defensive checks for englishSegments
-    console.log('Word clicked:', word, 'at position:', position);
-    console.log('English segments available:', englishSegments ? englishSegments.length : 'none');
-    
-    // Store the current segment text as the context from where the word was clicked
-    // This ensures we get the correct context even when the same word appears in multiple segments
     let contextSentence = "That's it.";
     
-    // If clicked from a specific element, try to find its parent segment
-    if (position && position.segmentId) {
-      // Use the segmentId to find the exact segment that contains this word
-      const segment = englishSegments.find(seg => seg.id === position.segmentId);
-      if (segment && segment.text) {
-        contextSentence = segment.text;
-      }
+    // If we have exactContext from the clicked position, use it
+    if (position && position.exactContext) {
+      contextSentence = position.exactContext;
+      console.log(`Using exact context from clicked segment: "${contextSentence}"`);
     } else if (englishSegments && englishSegments.length > 0) {
       // Fallback: find the first segment containing the word
       contextSentence = englishSegments.find(segment => 
         segment && segment.text && segment.text.toLowerCase().includes(wordLower)
       )?.text || "That's it.";
+      console.log(`Using fallback context: "${contextSentence}"`);
     }
     
     // Log context info for debugging
