@@ -247,8 +247,9 @@ function App({ targetLanguages, onReset, roomSetup }) {
   // --- FIX: Prevent text submission error in text mode ---
   // (No code needed here, but ensure isTextMode is derived from appMode === 'text')
 
-  // Track reconnection attempts
+  // Track reconnection attempts and invalid room state
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
+  const [invalidRoom, setInvalidRoom] = useState(false); // Track if room was rejected
   const maxReconnectAttempts = 3; // Limit reconnection attempts
   
   const { sendMessage, lastMessage, readyState } = useWebSocket(socketUrl, {
@@ -269,8 +270,14 @@ function App({ targetLanguages, onReset, roomSetup }) {
       console.error('WebSocket error:', event);
       setErrorMessages(prev => [...prev, `WebSocket error: ${event.type}`]);
     },
-    // Only reconnect if we haven't exceeded max attempts
+    // Only reconnect if we haven't exceeded max attempts and the room is not invalid
     shouldReconnect: (closeEvent) => {
+      // Don't reconnect if we know the room is invalid
+      if (invalidRoom) {
+        console.log('Not reconnecting because room was rejected');
+        return false;
+      }
+      
       const shouldReconnect = reconnectAttempts < maxReconnectAttempts;
       if (shouldReconnect) {
         setReconnectAttempts(prev => prev + 1);
@@ -308,7 +315,16 @@ function App({ targetLanguages, onReset, roomSetup }) {
            }
         } else if (parsedData.type === 'error') {
           console.error('Backend Error:', parsedData.message);
-          setErrorMessages(prev => [...prev, `Backend Error: ${parsedData.message}`]);
+          setErrorMessages(prev => [...prev, `Error: ${parsedData.message}`]);
+        } else if (parsedData.type === 'room_error') {
+          console.error('Room Error:', parsedData.message);
+          setErrorMessages(prev => [...prev, `Room Error: ${parsedData.message}`]);
+          // Set invalid room flag to prevent reconnection attempts
+          setInvalidRoom(true);
+          
+          // Optionally, alert the user and redirect to the home page after a timeout
+          alert(`Room error: ${parsedData.message}`);
+          setTimeout(() => onReset(), 1000); // Go back to home screen after 1 second
         } else if (parsedData.type === 'info') {
           console.log('Backend Info:', parsedData.message);
           // Optionally display info messages somewhere

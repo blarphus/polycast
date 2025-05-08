@@ -120,6 +120,21 @@ wss.on('connection', (ws, req) => {
     const parsedUrl = url.parse(req.url, true); // true parses query string
     const query = parsedUrl.query;
     
+    // Set a timeout for joining a room (60 seconds)
+    // This prevents lingering connections that never successfully join a room
+    const joinRoomTimeout = setTimeout(() => {
+        // If the connection hasn't been added to a room by this time,
+        // and it's still open, close it
+        if (!clientRooms.has(ws) && ws.readyState === ws.OPEN) {
+            console.log('[Room] Closing connection - timed out waiting to join a room');
+            ws.send(JSON.stringify({
+                type: 'error',
+                message: 'Connection timed out waiting to join a room.'
+            }));
+            ws.close();
+        }
+    }, 60000); // 60 seconds timeout
+    
     // 1. Parse target languages
     let targetLangsArray = ['Spanish']; // Default
     try {
@@ -202,6 +217,9 @@ wss.on('connection', (ws, req) => {
                 roomCode,
                 isHost
             });
+            
+            // Clear the join room timeout since connection has successfully joined a room
+            clearTimeout(joinRoomTimeout);
             
             // Confirmation message
             ws.send(JSON.stringify({
@@ -467,6 +485,9 @@ wss.on('connection', (ws, req) => {
     });
 
     ws.on('close', async () => {
+        // Clear the join room timeout to prevent memory leaks
+        clearTimeout(joinRoomTimeout);
+        
         // Check if the client was in a room
         const clientRoom = clientRooms.get(ws);
         if (clientRoom) {
