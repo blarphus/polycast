@@ -1,5 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
+import DraggableResizableBox from './DraggableResizableBox';
+import ClickableWord from './ClickableWord';
 
 // Helper function to render segments
 const renderSegments = (segments, lastPersisted) => {
@@ -55,7 +57,7 @@ const renderHistoryStacked = (segments) => {
 };
 
 // Helper: render a segment with clickable words
-const renderSegmentsWithClickableWords = (segments, lastPersisted, selectedWords, handleWordClick) => {
+const renderSegmentsWithClickableWords = (segments, lastPersisted, selectedWords, handleWordClick, wordDefinitions) => {
   if ((!segments || segments.length === 0) && lastPersisted) {
     return <span>{lastPersisted}</span>;
   }
@@ -66,22 +68,32 @@ const renderSegmentsWithClickableWords = (segments, lastPersisted, selectedWords
   return segments.map((segment, segIdx) => {
     // Tokenize: words (with apostrophes/accents), punctuation, and spaces
     // This regex matches words, punctuation, and spaces
-    const tokens = segment.text.match(/([\p{L}\p{M}\d']+|[.,!?;:]+|\s+)/gu) || [];
+    const tokens = segment.text.match(/[\w\p{L}\p{M}'']+|[.,!?;:()\[\]{}—–-]|\s+/gu) || [segment.text];
+    
     return (
       <div key={segIdx} className={segment.isNew ? 'new-text' : ''} style={{ display: 'block', marginBottom: 2 }}>
         {tokens.map((token, i) => {
           // Only words (letters, numbers, apostrophes, accents) are clickable
-          const isWord = /^[\p{L}\p{M}\d']+$/u.test(token);
+          const isWord = /^[\w\p{L}\p{M}'']+$/u.test(token);
+          const canClick = isWord && token.length > 1; // Don't make single letters clickable
+          
+          // Use the ClickableWord component for words that can be clicked
+          if (canClick) {
+            return (
+              <ClickableWord 
+                key={i}
+                word={token}
+                onWordClick={handleWordClick}
+                wordDefinitions={wordDefinitions}
+              />
+            );
+          }
+          
+          // For non-clickable tokens (spaces, punctuation, etc.)
           return (
             <span
               key={i}
-              onClick={isWord ? (e => { e.stopPropagation(); handleWordClick(token); }) : undefined}
               style={{
-                cursor: isWord ? 'pointer' : 'default',
-                color: isWord && selectedWords.some(w => w.toLowerCase() === token.toLowerCase()) ? '#1976d2' : undefined,
-                background: isWord && selectedWords.some(w => w.toLowerCase() === token.toLowerCase()) ? 'rgba(25,118,210,0.07)' : undefined,
-                borderRadius: isWord && selectedWords.some(w => w.toLowerCase() === token.toLowerCase()) ? 3 : undefined,
-                transition: 'color 0.2s',
                 userSelect: 'text',
               }}
             >
@@ -136,25 +148,52 @@ const TranscriptionDisplay = ({
   const englishRef = useRef(null);
   const translationRefs = useRef({});
   const [fontSize, setFontSize] = useState(isTextMode ? 18 : 30); // Font size: default to 30 in audio mode
+  
+  // Dictionary popup state - Netflix-style popups for word definitions
+  const [popupInfo, setPopupInfo] = useState({
+    word: null,
+    position: { x: 0, y: 0 }
+  });
+  
   useEffect(() => {
     // Update font size default when mode changes
     setFontSize(isTextMode ? 18 : 30);
   }, [isTextMode]);
+  
   const containerRef = useRef(null);
-  const [containerSize, setContainerSize] = useState({ width: 1200, height: 600 });
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const [langBoxStates, setLangBoxStates] = useState([]);
   const lastPersistedTranslations = useRef({});
+  
+  // Timeout ref for hiding popup after delay
+  const popupTimeoutRef = useRef(null);
 
-  // Helper: add/remove word from list
-  const handleWordClick = (word) => {
-    // Don't add duplicates (case insensitive)
+  // Handle word click to show dictionary popup
+  const handleWordClick = (word, e) => {
+    // Get word info (lowercase for lookup)
     const wordLower = word.toLowerCase();
-    const isSelected = selectedWords.some(w => w.toLowerCase() === wordLower);
     
-    if (isSelected) {
-      // Remove the word if already selected
-      setSelectedWords(prev => prev.filter(w => w.toLowerCase() !== wordLower));
-    } else {
+    // Get clicked element position for popup
+    const rect = e.currentTarget.getBoundingClientRect();
+    
+    // Check if we're closing the same popup
+    if (popupInfo.word === word) {
+      setPopupInfo({ word: null, position: { x: 0, y: 0 } });
+      return;
+    }
+    
+    // Position popup below the clicked word
+    setPopupInfo({ 
+      word: word,
+      position: { 
+        x: rect.left + (rect.width / 2), // Center horizontally on word
+        y: rect.bottom + window.scrollY + 5 // Place below word
+      }
+    });
+    
+    // Add the word to dictionary if not already there
+    const isSelected = selectedWords.some(w => w.toLowerCase() === wordLower);
+    if (!isSelected) {
       // Add the word to selected words
       setSelectedWords(prev => [...prev, word]);
       
@@ -381,7 +420,7 @@ const TranscriptionDisplay = ({
           ) : (
             <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
               <span style={{ fontWeight: 400, fontSize: fontSize }}>
-                {renderSegmentsWithClickableWords(englishSegments, null, selectedWords, handleWordClick)}
+                {renderSegmentsWithClickableWords(englishSegments, null, selectedWords, handleWordClick, wordDefinitions)}
               </span>
               <div className="scroll-end" />
             </div>
@@ -396,10 +435,8 @@ const TranscriptionDisplay = ({
   const transcriptVisible = showLiveTranscript || isTextMode;
   const translationVisible = showTranslation;
 
-  // ...existing logic...
-
   return (
-    <div
+    <div className="transcription-container" ref={containerRef}
       style={{
         position: 'relative',
         width: '100%',
@@ -411,110 +448,31 @@ const TranscriptionDisplay = ({
         padding: '0 24px 24px',
         overflow: 'hidden',
         boxSizing: 'border-box',
-        gap: 0,
       }}
     >
-      {/* Transcript/English box always renders and updates first */}
-      {transcriptVisible && (
-        <div style={{ width: translationVisible ? '100%' : '100%', flex: translationVisible ? '0 0 33.5%' : '1 1 100%', minHeight: 0, display: 'flex', flexDirection: 'column', transition: 'flex 0.3s, width 0.3s' }}>{renderEnglishBox()}</div>
-      )}
-      {/* Language boxes fill the remaining space */}
-      {translationVisible && (
-        <div
-          style={{
-            width: '100%',
-            display: 'flex',
-            justifyContent: langCount === 1 ? 'center' : 'flex-start',
-            flex: '1 1 66.5%',
-            alignItems: 'stretch',
-            minHeight: 0,
-            gap: 24,
-            boxSizing: 'border-box',
-            marginTop: 24,
-          }}
-        >
-          {targetLanguages.map((lang, idx) => {
-            const scheme = colorSchemes[(idx + 1) % colorSchemes.length];
-            const layout = langBoxLayout[idx] || { x: 0, y: 0, w: 320, h: 250 };
-            const segments = translations[lang] || [];
-            return (
-              <div
-                key={lang}
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  minHeight: 0,
-                  maxHeight: '100%',
-                  overflow: 'hidden',
-                  margin: 0,
-                  background: scheme.bg,
-                  color: scheme.fg,
-                  borderTop: `4px solid ${scheme.accent}`,
-                  borderRadius: 12,
-                  boxShadow: '0 2px 12px 0 rgba(124, 98, 255, 0.07)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'flex-start',
-                  alignItems: 'stretch',
-                  padding: 0,
-                }}
-              >
-                <span style={{
-                  letterSpacing: 0.5,
-                  textAlign: 'center',
-                  fontWeight: 800,
-                  fontSize: 20,
-                  margin: '18px 0 10px 0',
-                  color: scheme.accent + 'cc',
-                  textTransform: 'uppercase',
-                  opacity: 0.92,
-                }}>
-                  {lang}
-                </span>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 16, gap: 8, overflow: 'auto', minHeight: 0 }} ref={el => translationRefs.current[lang] = el}>
-                  {isTextMode ? (
-                    <>
-                      <textarea
-                        value={textInputs[lang] ?? ''}
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          flex: 1,
-                          fontSize: fontSize,
-                          borderRadius: 6,
-                          border: `1.5px solid ${scheme.accent}`,
-                          padding: 8,
-                          resize: 'none',
-                          background: scheme.bg,
-                          color: scheme.fg,
-                          boxSizing: 'border-box',
-                          minHeight: 80,
-                        }}
-                        onChange={e => handleInputChange(lang, e.target.value)}
-                        onKeyDown={e => {
-                          if (isTextMode && e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            handleSubmit(lang);
-                          }
-                        }}
-                      />
-                      <button
-                        style={{ marginTop: 10, alignSelf: 'center', background: scheme.accent, color: '#fff', border: 'none', borderRadius: 6, padding: '6px 18px', fontWeight: 700, fontSize: 16, cursor: 'pointer' }}
-                        onClick={() => handleSubmit(lang)}
-                      >
-                        Submit
-                      </button>
-                    </>
-                  ) : (
-                    <span style={{ fontWeight: 400, fontSize: fontSize }}>
-                      {renderHistoryStacked(segments)}
-                    </span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+      {/* Live Transcript Section */}
+      {showLiveTranscript && (
+        <div style={{ width: '100%', maxHeight: '100%', overflowY: 'hidden' }}>
+          {renderEnglishBox()}
         </div>
+      )}
+
+      {/* Translations Section */}
+      {showTranslation && (
+        <div style={{ width: '100%', marginTop: 20 }}>
+          {targetLanguages.map((lang, i) => (
+            renderLanguageBox(lang, i + 1)
+          ))}
+        </div>
+      )}
+      
+      {/* Dictionary Popup */}
+      {popupInfo.word && (
+        <ClickableWord 
+          word={popupInfo.word}
+          wordDefinitions={wordDefinitions}
+          onWordClick={handleWordClick}
+        />
       )}
     </div>
   );
