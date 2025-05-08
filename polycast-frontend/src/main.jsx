@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
+import AppRouter from './AppRouter.jsx'
 import LanguageSelectorScreen from './components/LanguageSelectorScreen.jsx';
 import './components/RoomSelectionScreen.css'; // Import styles
 import './index.css'
@@ -128,7 +129,7 @@ function Main() {
 
   // Step 3: Main app
   return (
-    <App
+    <AppRouter
       targetLanguages={selectedLanguages || ['English']} // Default for students
       onReset={() => {
         setRoomSetup(null);
