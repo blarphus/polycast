@@ -152,6 +152,61 @@
   margin-bottom: 8px;
 }
 
+/* Loading state styles */
+.dict-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 180px;
+  width: 100%;
+  color: #9181e3;
+}
+
+.dict-loading-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(145, 129, 227, 0.3);
+  border-top: 3px solid #9181e3;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 12px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.dict-loading-text {
+  font-size: 14px;
+  color: #9181e3;
+}
+
+/* Matched context indicator */
+.dict-matched {
+  color: #39e58c;
+  font-weight: normal;
+  font-size: 13px;
+}
+
+/* Other meanings section */
+.dict-other-meanings {
+  margin-top: 8px;
+}
+
+.dict-other-meaning {
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: #aaa;
+}
+
+.dict-other-pos {
+  color: #9181e3;
+  font-style: italic;
+  margin-right: 4px;
+}
+
 .dict-section {
   margin-bottom: 16px;
   padding-bottom: 8px;

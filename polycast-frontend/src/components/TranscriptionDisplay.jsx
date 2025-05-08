@@ -158,7 +158,7 @@ const TranscriptionDisplay = ({
   });
 
   // Only shows the popup when a word is clicked, doesn't add the word to dictionary
-  const handleWordClick = (word, event) => {
+  const handleWordClick = async (word, event) => {
     if (!event) return;
     
     const wordLower = word.toLowerCase();
@@ -177,100 +177,227 @@ const TranscriptionDisplay = ({
     // Position to the right if there's room, otherwise to the left
     const xPos = fitsOnRight ? rect.right + 5 : rect.left - popupWidth - 5;
     
+    // Find the sentence context where this word appears
+    const contextSentence = englishSegments.find(segment => 
+      segment.text.toLowerCase().includes(wordLower)
+    )?.text || "";
+    
     setPopupInfo({
       visible: true,
       word: word,
       position: {
         x: Math.max(5, Math.min(viewportWidth - popupWidth - 5, xPos)), // Keep on screen
         y: rect.top - 5 // Position slightly above the word
-      }
+      },
+      loading: true // Set loading state while we fetch definitions
     });
     
-    // Find the sentence context where this word appears
-    const contextSentence = englishSegments.find(segment => 
-      segment.text.toLowerCase().includes(wordLower)
-    )?.text || "";
-    
-    // 1. Fetch Gemini definition with context
-    const apiUrl = `https://polycast-server.onrender.com/api/dictionary/${encodeURIComponent(word)}?context=${encodeURIComponent(contextSentence)}`;
-    console.log(`Fetching definition for "${word}" with context, from: ${apiUrl}`);
-    
-    fetch(apiUrl)
-      .then(res => res.json())
-      .then(data => {
-        console.log(`Received definition for "${word}":`, data);
-        setWordDefinitions(prev => ({
-          ...prev,
-          [word.toLowerCase()]: data
-        }));
-      })
-      .catch(err => {
-        console.error(`Error fetching definition for ${word}:`, err);
-      });
-    
-    // 2. Fetch dictionary definition from JSON files
-    const firstLetter = word.charAt(0).toLowerCase();
-    const dictUrl = `https://polycast-server.onrender.com/api/local-dictionary/${encodeURIComponent(firstLetter)}/${encodeURIComponent(word.toUpperCase())}`;
-    
-    console.log(`Fetching dictionary definition for "${word}" from: ${dictUrl}`);
-    
-    fetch(dictUrl)
-      .then(res => res.json())
-      .then(dictData => {
-        console.log(`Received dictionary definition for "${word}":`, dictData);
-        // Update the wordDefinitions to include the dictionary definition
-        setWordDefinitions(prev => {
-          const existingDefData = prev[word.toLowerCase()] || {};
-          return {
-            ...prev,
-            [word.toLowerCase()]: {
-              ...existingDefData,
-              dictionaryDefinition: dictData
-            }
-          };
+    try {
+      // Step 1: Fetch Gemini definition with context
+      const apiUrl = `https://polycast-server.onrender.com/api/dictionary/${encodeURIComponent(word)}?context=${encodeURIComponent(contextSentence)}`;
+      console.log(`Fetching definition for "${word}" with context, from: ${apiUrl}`);
+      
+      const geminiFetch = fetch(apiUrl)
+        .then(res => res.json())
+        .then(data => {
+          console.log(`Received definition for "${word}":`, data);
+          return data;
+        })
+        .catch(err => {
+          console.error(`Error fetching definition for ${word}:`, err);
+          return null;
         });
-      })
-      .catch(err => {
-        console.error(`Error fetching dictionary definition for ${word}:`, err);
-      });
+      
+      // Step 2: Fetch dictionary definition from JSON files
+      const firstLetter = word.charAt(0).toLowerCase();
+      const dictUrl = `https://polycast-server.onrender.com/api/local-dictionary/${encodeURIComponent(firstLetter)}/${encodeURIComponent(word.toUpperCase())}?context=${encodeURIComponent(contextSentence)}`;
+      
+      console.log(`Fetching dictionary definition for "${word}" from: ${dictUrl}`);
+      
+      const dictFetch = fetch(dictUrl)
+        .then(res => res.json())
+        .then(dictData => {
+          console.log(`Received dictionary definition for "${word}":`, dictData);
+          return dictData;
+        })
+        .catch(err => {
+          console.error(`Error fetching dictionary definition for ${word}:`, err);
+          return null;
+        });
+      
+      // Wait for both fetches to complete
+      const [geminiData, dictData] = await Promise.all([geminiFetch, dictFetch]);
+      
+      // Step 3: If we have multiple definitions, disambiguate using Gemini
+      let disambiguatedDefinition = null;
+      
+      if (dictData && dictData.allDefinitions && dictData.allDefinitions.length > 1) {
+        // Use the disambiguation API to find the correct sense
+        try {
+          console.log(`Disambiguating definition for "${word}" in context: "${contextSentence}"`);
+          
+          const disambiguationResponse = await fetch('https://polycast-server.onrender.com/api/disambiguate-word', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              word: word,
+              contextSentence: contextSentence,
+              definitions: dictData.allDefinitions
+            })
+          }).then(res => res.json());
+          
+          console.log(`Disambiguation result:`, disambiguationResponse);
+          disambiguatedDefinition = disambiguationResponse.disambiguatedDefinition;
+        } catch (error) {
+          console.error(`Error disambiguating definition for ${word}:`, error);
+          // Fall back to first definition if disambiguation fails
+          disambiguatedDefinition = dictData.allDefinitions[0];
+        }
+      } else if (dictData && dictData.allDefinitions && dictData.allDefinitions.length === 1) {
+        // Only one definition, no need to disambiguate
+        disambiguatedDefinition = dictData.allDefinitions[0];
+      }
+      
+      // Update the wordDefinitions state with all the data
+      setWordDefinitions(prev => ({
+        ...prev,
+        [wordLower]: {
+          ...geminiData, // Gemini API definition
+          dictionaryDefinition: dictData, // Full dictionary data
+          disambiguatedDefinition: disambiguatedDefinition, // The most relevant definition
+          contextSentence: contextSentence // Save the context for flashcards
+        }
+      }));
+      
+      // Update popup info to remove loading state
+      setPopupInfo(prev => ({
+        ...prev,
+        loading: false
+      }));
+    } catch (error) {
+      console.error(`Error processing definitions for ${word}:`, error);
+      
+      // Update popup info to remove loading state even on error
+      setPopupInfo(prev => ({
+        ...prev,
+        loading: false
+      }));
+    }
   };
   
+  // Get all existing flashcard sense IDs
+  const getAllFlashcardSenseIds = () => {
+    return Object.values(wordDefinitions)
+      .filter(def => def.wordSenseId && def.inFlashcards)
+      .map(def => def.wordSenseId);
+  };
+
   // Function to add word to dictionary when the + button is clicked
-  const handleAddWordToDictionary = (word) => {
+  const handleAddWordToDictionary = async (word) => {
     const wordLower = word.toLowerCase();
-    // Check if word is already in dictionary
-    const isSelected = selectedWords.some(w => w.toLowerCase() === wordLower);
+    // Get the word data with definitions
+    const wordData = wordDefinitions[wordLower];
     
-    if (!isSelected) {
+    if (!wordData) {
+      console.error('No definition data found for word:', word);
+      return;
+    }
+    
+    // Get the context sentence from the word data
+    const contextSentence = wordData.contextSentence || '';
+    if (!contextSentence) {
+      console.error('No context sentence found for word:', word);
+      return;
+    }
+    
+    try {
+      // Get dictionary definitions from the word data
+      const dictData = wordData.dictionaryDefinition;
+      if (!dictData || !dictData.allDefinitions || dictData.allDefinitions.length === 0) {
+        console.error('No dictionary definitions found for word:', word);
+        return;
+      }
+      
+      // Get all existing flashcard sense IDs
+      const existingFlashcardSenseIds = getAllFlashcardSenseIds();
+      
+      // Send to backend for disambiguation and flashcard check
+      console.log(`Disambiguating definition for "${word}" in context: "${contextSentence}"...`);
+      
+      const disambiguationResponse = await fetch('https://polycast-server.onrender.com/api/disambiguate-word', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          word: word,
+          contextSentence: contextSentence,
+          definitions: dictData.allDefinitions,
+          existingFlashcardSenseIds: existingFlashcardSenseIds
+        })
+      }).then(res => res.json());
+      
+      // Check if this sense already exists in flashcards
+      if (disambiguationResponse.existingFlashcard) {
+        console.log(`This sense of "${word}" already exists in flashcards. No new card needed.`);
+        return;
+      }
+      
+      // Get the disambiguated definition and word sense ID
+      const disambiguatedDefinition = disambiguationResponse.disambiguatedDefinition;
+      const wordSenseId = disambiguationResponse.wordSenseId;
+      
+      if (!disambiguatedDefinition || !wordSenseId) {
+        console.error('Failed to disambiguate definition for word:', word);
+        return;
+      }
+      
       // Add the word to selected words
-      setSelectedWords(prev => [...prev, word]);
+      setSelectedWords(prev => {
+        if (prev.some(w => w.toLowerCase() === wordLower)) {
+          return prev; // Already in the list
+        }
+        return [...prev, word];
+      });
       
-      // Generate image for the flashcard
-      const imagePrompt = `Create a visually engaging, wordless flashcard image in the style of Charley Harper. Use bold shapes, minimal detail, and mid-century modern aesthetics to depict the concept in a memorable and metaphorical way. Avoid text or labels. Again, use no text. The word to illustrate is: "${word}".`;
+      // Generate the image prompt based on the specific definition
+      const definition = disambiguatedDefinition.definition;
+      const partOfSpeech = disambiguatedDefinition.partOfSpeech;
       
-      console.log(`Generating image for word: ${word}`);
+      const imagePrompt = `Create a visually engaging, wordless flashcard image in the style of Charley Harper. Use bold shapes, minimal detail, and mid-century modern aesthetics to depict this specific meaning of the word "${word}" (${partOfSpeech}): "${definition}". Avoid text or labels. Create a metaphorical image representation of this exact meaning.`;
       
-      fetch(`https://polycast-server.onrender.com/api/generate-image?prompt=${encodeURIComponent(imagePrompt)}`, {
+      console.log(`Generating image for specific sense of word: ${word} (${partOfSpeech})`);
+      
+      const imageResponse = await fetch(`https://polycast-server.onrender.com/api/generate-image?prompt=${encodeURIComponent(imagePrompt)}`, {
         mode: 'cors'
       })
         .then(res => {
           if (!res.ok) throw new Error(`Failed with status: ${res.status}`);
           return res.json();
-        })
-        .then(data => {
-          console.log(`Image generated for: ${word}`);
-          // We need to update wordDefinitions to include the image URL
-          setWordDefinitions(prev => ({
-            ...prev,
-            [word.toLowerCase()]: {
-              ...prev[word.toLowerCase()],
-              imageUrl: data.url
-            }
-          }));
-        })
-        .catch(err => {
-          console.error(`Error generating image for ${word}:`, err);
         });
+      
+      console.log(`Image generated for: ${word} (sense ID: ${wordSenseId})`);
+      
+      // Create the flashcard with the single best definition
+      setWordDefinitions(prev => {
+        const existingData = prev[wordLower] || {};
+        return {
+          ...prev,
+          [wordLower]: {
+            ...existingData,
+            imageUrl: imageResponse.url,
+            wordSenseId: wordSenseId,
+            contextSentence: contextSentence,
+            disambiguatedDefinition: disambiguatedDefinition,
+            inFlashcards: true, // Mark that this word is now in flashcards with this sense
+            cardCreatedAt: new Date().toISOString()
+          }
+        };
+      });
+    } catch (error) {
+      console.error(`Error creating flashcard for ${word}:`, error);
     }
   };
 

@@ -903,6 +903,7 @@ process.on('SIGTERM', () => {
 // Endpoint to get definition from local JSON dictionary files
 app.get('/api/local-dictionary/:letter/:word', (req, res) => {
     const { letter, word } = req.params;
+    const contextSentence = req.query.context || '';
     
     // Validate letter is a single character a-z
     if (!/^[a-z]$/.test(letter)) {
@@ -924,8 +925,42 @@ app.get('/api/local-dictionary/:letter/:word', (req, res) => {
         // Look up the word in the dictionary
         // The word parameter should be uppercase to match the JSON format
         if (dictionaryData[word]) {
-            // Return the definition
-            return res.json(dictionaryData[word]);
+            const wordData = dictionaryData[word];
+            
+            // Format the MEANINGS into an array of definitions with their part of speech
+            const definitions = [];
+            
+            if (wordData.MEANINGS) {
+                Object.keys(wordData.MEANINGS).forEach(key => {
+                    const meaningPair = wordData.MEANINGS[key];
+                    if (Array.isArray(meaningPair) && meaningPair.length >= 2) {
+                        definitions.push({
+                            partOfSpeech: meaningPair[0],
+                            definition: meaningPair[1]
+                        });
+                    }
+                });
+            }
+            
+            // If context was provided, use LLM to disambiguate the meaning
+            let disambiguatedDefinition = null;
+            
+            if (contextSentence && definitions.length > 1) {
+                // Response will include all definitions and the disambiguated one marked
+                return res.json({
+                    word: word,
+                    allDefinitions: definitions,
+                    contextSentence: contextSentence,
+                    rawData: wordData // Include the original data for reference
+                });
+            } else {
+                // Just return all definitions without disambiguation
+                return res.json({
+                    word: word,
+                    allDefinitions: definitions,
+                    rawData: wordData
+                });
+            }
         } else {
             // Word not found in the dictionary
             return res.status(404).json({ error: `Word '${word}' not found in the dictionary` });
@@ -935,5 +970,132 @@ app.get('/api/local-dictionary/:letter/:word', (req, res) => {
         return res.status(500).json({ error: 'Error reading dictionary data' });
     }
 });
+
+// New endpoint for disambiguating word definitions using Gemini
+app.post('/api/disambiguate-word', async (req, res) => {
+    try {
+        const { word, contextSentence, definitions, existingFlashcardSenseIds = [] } = req.body;
+        
+        if (!word || !contextSentence || !definitions || !Array.isArray(definitions)) {
+            return res.status(400).json({ 
+                error: 'Missing required parameters (word, contextSentence, definitions)' 
+            });
+        }
+        
+        console.log(`\n[WORD SENSE DISAMBIGUATION] Processing '${word}' in context: "${contextSentence}"`);
+        console.log(`[WORD SENSE DISAMBIGUATION] Found ${definitions.length} possible definitions in dictionary`);
+        
+        // Create a prompt for Gemini to disambiguate the word sense
+        let prompt = `The word "${word}" appears in the following sentence:\n\n"${contextSentence}"\n\nHere are possible definitions of "${word}":\n\n`;
+        
+        // Add each definition to the prompt
+        definitions.forEach((def, index) => {
+            prompt += `${index + 1}. (${def.partOfSpeech}) ${def.definition}\n`;
+        });
+        
+        prompt += `\nWhich definition best fits the usage of "${word}" in this sentence? Return only the matching definition exactly as it appears.`;
+        
+        console.log(`[WORD SENSE DISAMBIGUATION] Sending prompt to Gemini for disambiguation`);
+        
+        // Call Gemini API (using the existing LLM service)
+        const response = await llmService.generateText(prompt, { temperature: 0.1 });
+        
+        // Find the most closely matching definition from the response
+        const bestMatch = findBestMatchingDefinition(response, definitions);
+        
+        if (bestMatch) {
+            console.log(`[WORD SENSE DISAMBIGUATION] Gemini identified definition: (${bestMatch.partOfSpeech}) ${bestMatch.definition}`);
+            
+            // Create a unique sense ID for this definition
+            const definitionHash = bestMatch.definition.substring(0, 8).replace(/\W+/g, '');
+            const wordSenseId = `${word.toLowerCase()}_${bestMatch.partOfSpeech}_${definitionHash}`;
+            
+            // Check if we already have a flashcard for this sense
+            if (existingFlashcardSenseIds.includes(wordSenseId)) {
+                console.log(`[WORD SENSE DISAMBIGUATION] ⚠️ This sense of '${word}' already exists in flashcards. No new card needed.`);
+                return res.json({
+                    word,
+                    contextSentence,
+                    disambiguatedDefinition: bestMatch,
+                    wordSenseId,
+                    existingFlashcard: true,
+                    rawLlmResponse: response
+                });
+            } else {
+                console.log(`[WORD SENSE DISAMBIGUATION] ✓ New sense of '${word}' identified! Creating new flashcard with ID: ${wordSenseId}`);
+                return res.json({
+                    word,
+                    contextSentence,
+                    disambiguatedDefinition: bestMatch,
+                    wordSenseId,
+                    existingFlashcard: false,
+                    rawLlmResponse: response
+                });
+            }
+        } else {
+            console.log(`[WORD SENSE DISAMBIGUATION] ⚠️ Failed to identify best matching definition`);
+            return res.json({
+                word,
+                contextSentence,
+                allDefinitions: definitions,
+                disambiguatedDefinition: null,
+                rawLlmResponse: response,
+                error: 'Could not determine best definition match'
+            });
+        }
+    } catch (error) {
+        console.error('[WORD SENSE DISAMBIGUATION] Error:', error);
+        return res.status(500).json({ error: 'Error disambiguating definition' });
+    }
+});
+
+// Helper function to find the best matching definition from the LLM response
+function findBestMatchingDefinition(llmResponse, definitions) {
+    if (!llmResponse || !definitions || !definitions.length) {
+        return null;
+    }
+    
+    // Try to find exact matches first
+    for (const def of definitions) {
+        const fullDefinition = `(${def.partOfSpeech}) ${def.definition}`;
+        if (llmResponse.includes(fullDefinition)) {
+            return def;
+        }
+    }
+    
+    // If no exact match, use partial matching on the definition text
+    let bestMatch = null;
+    let highestSimilarity = 0;
+    
+    for (const def of definitions) {
+        // Simple similarity check - how much of the definition is in the response
+        const similarity = calculateSimilarity(llmResponse, def.definition);
+        
+        if (similarity > highestSimilarity) {
+            highestSimilarity = similarity;
+            bestMatch = def;
+        }
+    }
+    
+    return bestMatch;
+}
+
+// Simple function to calculate text similarity
+function calculateSimilarity(text1, text2) {
+    const text1Lower = text1.toLowerCase();
+    const text2Lower = text2.toLowerCase();
+    
+    // Count how many words from text2 appear in text1
+    const words = text2Lower.split(/\s+/);
+    let matches = 0;
+    
+    for (const word of words) {
+        if (word.length > 3 && text1Lower.includes(word)) { // Only check words longer than 3 chars
+            matches++;
+        }
+    }
+    
+    return matches / words.length; // Return percentage of matching words
+}
 
 module.exports = { server, wss };
