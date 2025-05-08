@@ -660,14 +660,63 @@ app.get('/api/translate/:language/:text', async (req, res) => {
     }
 });
 
-// Dictionary API route
+// Dictionary API route - provides a contextual definition for a word
 app.get('/api/dictionary/:word', async (req, res) => {
     try {
         const { word } = req.params;
         const context = req.query.context || '';
-        console.log(`[Dictionary API] Getting definition for: ${word}${context ? ' with context' : ''}`);
-        const definition = await llmService.getWordDefinition(word, context);
-        res.json(definition);
+        console.log(`[Dictionary API] Getting definition for: ${word}${context ? ' with context: "' + context + '"' : ''}`);
+        
+        // Create a prompt that asks for a single contextual definition
+        const prompt = `You are an expert language teacher helping a student understand a word in its specific context.
+
+The word "${word}" appears in this context: "${context}"
+
+Your task is to provide the SINGLE best definition that applies to how this word is used in this specific context.
+
+Output ONLY a JSON object with these fields:
+{
+  "translation": "Spanish translation of the word as used in this specific context",
+  "partOfSpeech": "The part of speech of the word in this context (noun, verb, adjective, etc.)",
+  "definition": "A clear and concise definition appropriate for how the word is used in this context only",
+  "example": "A simple example sentence showing a similar usage to the context"
+}
+
+Do NOT provide multiple definitions or explanations outside the JSON.`;
+        
+        // Log prompt for debugging
+        console.log('[Dictionary API] Prompt:', prompt.substring(0, 200) + '...');
+        
+        // Generate the response using Gemini with low temperature for consistency
+        const llmResponse = await generateTextWithGemini(prompt, 0.2);
+        
+        try {
+            // Extract JSON from response
+            const jsonMatch = llmResponse.match(/\{[\s\S]*?\}/);
+            if (jsonMatch) {
+                const jsonStr = jsonMatch[0];
+                const parsedResponse = JSON.parse(jsonStr);
+                
+                // Format for backward compatibility with existing frontend
+                const formattedResponse = {
+                    translation: parsedResponse.translation || '',
+                    partOfSpeech: parsedResponse.partOfSpeech || '',
+                    definition: parsedResponse.definition || '',
+                    definitions: [{
+                        text: parsedResponse.definition || '',
+                        example: parsedResponse.example || ''
+                    }],
+                    isContextual: true
+                };
+                
+                res.json(formattedResponse);
+            } else {
+                throw new Error('Could not extract JSON from LLM response');
+            }
+        } catch (parseError) {
+            console.error('[Dictionary API] Error parsing response:', parseError);
+            res.status(500).json({ error: 'Failed to parse definition', raw: llmResponse });
+        }
     } catch (error) {
         console.error("Dictionary API error:", error);
         res.status(500).json({ error: error.message });
@@ -901,7 +950,7 @@ process.on('SIGTERM', () => {
 // === Dictionary API Endpoints ===
 
 // Endpoint to get definition from local JSON dictionary files
-app.get('/api/local-dictionary/:letter/:word', (req, res) => {
+app.get('/api/local-dictionary/:letter/:word', async (req, res) => {
     const { letter, word } = req.params;
     const contextSentence = req.query.context || '';
     
@@ -910,64 +959,72 @@ app.get('/api/local-dictionary/:letter/:word', (req, res) => {
         return res.status(400).json({ error: 'Letter parameter must be a single letter a-z' });
     }
     
-    // Build the path to the dictionary file
-    const dictionaryFilePath = path.join(__dirname, 'dictionary-data', `${letter}.json`);
-    
-    // Check if the file exists
-    if (!fs.existsSync(dictionaryFilePath)) {
-        return res.status(404).json({ error: `Dictionary file for letter '${letter}' not found` });
-    }
-    
     try {
-        // Read and parse the JSON file
-        const dictionaryData = JSON.parse(fs.readFileSync(dictionaryFilePath, 'utf8'));
+        // Create a prompt that asks for a dictionary-style definition and examples, but ONLY for the specific context
+        const prompt = `You are creating dictionary entries for non-native English speakers who are learning English. 
+    
+Your job is to explain the English word "${word}" in a simple, clear way that helps beginners understand it.
+The word appears in this context: "${context}". Your definition and example should be specific to how the word is used in this context ONLY.
+Your response must be in JSON format with these fields:
+{
+  "translation": "Spanish translation of the word as used in this specific context",
+  "partOfSpeech": "The part of speech (noun, verb, adjective, etc.) of the word in this context",
+  "frequencyRating": "A number from 1 to 5 representing how common this word is in everyday English in this sense",
+  "definition": "VERY SIMPLE and SHORT explanation in simple English for how the word is used in this context (1-2 short sentences max)",
+  "example": "A simple example sentence in English that uses this word in a similar way to the context."
+}
+
+IMPORTANT: ONLY provide the definition of the word as it is used in the context sentence. DO NOT provide multiple definitions or alternative meanings.
+Only return the JSON object, nothing else.`;
         
-        // Look up the word in the dictionary
-        // The word parameter should be uppercase to match the JSON format
-        if (dictionaryData[word]) {
-            const wordData = dictionaryData[word];
+        // Log the prompt for debugging
+        console.log('--- LLM Definition Prompt ---');
+        console.log(prompt);
+        console.log('--- End LLM Definition Prompt ---');
+        
+        // If this is a test or development environment, return mock data
+        if (process.env.NODE_ENV === 'test' || process.env.MOCK_LLM === 'true') {
+            console.log('Using mock LLM data for dictionary');
+            return res.json(mockDictionaryResponse(word));
+        }
+        
+        // Generate the response directly with Gemini
+        const llmResponse = await generateTextWithGemini(prompt, 0.3);
+        
+        // Parse the JSON response
+        try {
+            // Extract JSON object if it's embedded in text
+            const jsonMatch = llmResponse.match(/\{[\s\S]*?\}/); // Find first JSON-like object
             
-            // Format the MEANINGS into an array of definitions with their part of speech
-            const definitions = [];
-            
-            if (wordData.MEANINGS) {
-                Object.keys(wordData.MEANINGS).forEach(key => {
-                    const meaningPair = wordData.MEANINGS[key];
-                    if (Array.isArray(meaningPair) && meaningPair.length >= 2) {
-                        definitions.push({
-                            partOfSpeech: meaningPair[0],
-                            definition: meaningPair[1]
-                        });
-                    }
-                });
-            }
-            
-            // If context was provided, use LLM to disambiguate the meaning
-            let disambiguatedDefinition = null;
-            
-            if (contextSentence && definitions.length > 1) {
-                // Response will include all definitions and the disambiguated one marked
-                return res.json({
-                    word: word,
-                    allDefinitions: definitions,
-                    contextSentence: contextSentence,
-                    rawData: wordData // Include the original data for reference
-                });
+            if (jsonMatch) {
+                const jsonStr = jsonMatch[0];
+                console.log(`Extracted JSON response for ${word}:`, jsonStr);
+                
+                const parsedResponse = JSON.parse(jsonStr);
+                
+                // Normalize the response format
+                const normalizedResponse = {
+                    translation: parsedResponse.translation || '',
+                    partOfSpeech: parsedResponse.partOfSpeech || '',
+                    frequencyRating: parsedResponse.frequencyRating || 3,
+                    definitions: [{
+                        text: parsedResponse.definition || '',
+                        example: parsedResponse.example || ''
+                    }],
+                    isContextual: true
+                };
+                
+                res.json(normalizedResponse);
             } else {
-                // Just return all definitions without disambiguation
-                return res.json({
-                    word: word,
-                    allDefinitions: definitions,
-                    rawData: wordData
-                });
+                throw new Error('Could not extract JSON from LLM response');
             }
-        } else {
-            // Word not found in the dictionary
-            return res.status(404).json({ error: `Word '${word}' not found in the dictionary` });
+        } catch (parseError) {
+            console.error(`Error parsing LLM response for ${word}:`, parseError);
+            throw new Error('Failed to parse LLM response');
         }
     } catch (error) {
-        console.error(`Error reading dictionary file for letter '${letter}':`, error);
-        return res.status(500).json({ error: 'Error reading dictionary data' });
+        console.error(`Error getting definition for ${word}:`, error);
+        res.status(500).json({ error: 'Failed to get definition', message: error.message });
     }
 });
 
