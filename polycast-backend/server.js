@@ -1225,12 +1225,13 @@ function calculateSimilarity(text1, text2) {
  */
 async function generateTextWithGemini(prompt, temperature = 0.7) {
     try {
-        // Make sure we have initialized the Gemini model through llmService
-        // This calls the same initialization used in other llmService functions
-        if (!llmService._isInitialized) {
-            // See if we can call an existing function to make sure model is initialized
-            await llmService.translateText('test', 'Spanish'); // This will initialize if needed
+        // Make sure we have the Google API key available
+        if (!process.env.GOOGLE_API_KEY) {
+            throw new Error('Google API Key (GOOGLE_API_KEY) is not configured');
         }
+        
+        // We'll initialize directly rather than going through llmService
+        // to avoid unnecessary test translations
         
         console.log(`[GEMINI] Generating text with prompt: ${prompt.substring(0, 50)}...`);
         

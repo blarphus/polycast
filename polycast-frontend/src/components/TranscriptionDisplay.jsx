@@ -177,10 +177,24 @@ const TranscriptionDisplay = ({
     // Position to the right if there's room, otherwise to the left
     const xPos = fitsOnRight ? rect.right + 5 : rect.left - popupWidth - 5;
     
-    // Find the sentence context where this word appears
-    let contextSentence = englishSegments.find(segment => 
-      segment.text.toLowerCase().includes(wordLower)
-    )?.text || "";
+    // Get the element that was clicked
+    const clickedElement = event.currentTarget;
+    
+    // Find the parent segment element (which is the div containing the clicked word)
+    let segmentElement = clickedElement.closest('div');
+    let segmentText = segmentElement?.textContent || "";
+    
+    // Use the segment text as context rather than just finding the first occurrence
+    let contextSentence = segmentText || "";
+    
+    // If we couldn't get context from the clicked element, fall back to finding it in englishSegments
+    if (!contextSentence) {
+      contextSentence = englishSegments.find(segment => 
+        segment.text.toLowerCase().includes(wordLower)
+      )?.text || "";
+    }
+    
+    console.log(`Using context for "${word}": "${contextSentence}"`, { from: segmentText ? 'clicked element' : 'segments search' });
     
     // Format the context with the target word emphasized with asterisks for Gemini
     // (we'll use a case-insensitive replace to maintain the original casing of the word)
