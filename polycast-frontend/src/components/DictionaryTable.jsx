@@ -67,11 +67,9 @@ const DictionaryTable = ({ wordDefinitions, onRemoveWord }) => {
       <table style={{ width: '100%', borderCollapse: 'collapse', color: '#fff' }}>
         <thead>
           <tr style={{ backgroundColor: 'rgba(124, 98, 255, 0.2)' }}>
-            <th style={{ padding: 12, textAlign: 'left' }}>Word</th>
-            <th style={{ padding: 12, textAlign: 'left' }}>Part&nbsp;of&nbsp;Speech</th>
-            <th style={{ padding: 12, textAlign: 'left' }}>Spanish</th>
-            <th style={{ padding: 12, textAlign: 'left' }}>English</th>
-            <th style={{ padding: 12, textAlign: 'left' }}>Context</th>
+            <th style={{ padding: 12, textAlign: 'left' }}>Word / Part of Speech</th>
+            <th style={{ padding: 12, textAlign: 'left' }}>Definition</th>
+            <th style={{ padding: 12, textAlign: 'left' }}>Example Sentence</th>
             {onRemoveWord && <th style={{ padding: 12 }}>Action</th>}
           </tr>
         </thead>
@@ -86,29 +84,21 @@ const DictionaryTable = ({ wordDefinitions, onRemoveWord }) => {
             } = entry;
 
             const englishDef = disambiguatedDefinition?.definition ?? 'N/A';
-            const spanishDef =
-              disambiguatedDefinition?.spanish_equivalent ??
-              disambiguatedDefinition?.translation ??
-              'N/A';
 
             return (
               <tr
                 key={wordSenseId}
                 style={{ borderBottom: '1px solid rgba(124, 98, 255, 0.15)' }}
               >
-                {/* Word */}
-                <td style={{ padding: 12, fontWeight: 600, color: '#4ad991' }}>{word}</td>
-
-                {/* POS */}
-                <td style={{ padding: 12 }}>{partOfSpeech ?? 'N/A'}</td>
-
-                {/* Spanish Definition */}
-                <td style={{ padding: 12 }}>{spanishDef}</td>
+                {/* Word / Part of Speech */}
+                <td style={{ padding: 12, fontWeight: 600, color: '#4ad991' }}>
+                  {word} {partOfSpeech && `(${partOfSpeech})`}
+                </td>
 
                 {/* English Definition */}
                 <td style={{ padding: 12 }}>{englishDef}</td>
 
-                {/* Context sentence */}
+                {/* Context sentence (Example) */}
                 <td style={{ padding: 12, fontStyle: 'italic' }}>
                   {contextSentence ?? 'N/A'}
                 </td>
