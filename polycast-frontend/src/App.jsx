@@ -36,11 +36,13 @@ function App({ targetLanguages, onReset, roomSetup }) {
 
   const [messageHistory, setMessageHistory] = useState([]);
   const [isRecording, setIsRecording] = useState(false);
-  const [englishSegments, setEnglishSegments] = useState(
-    roomSetup.isHost
-      ? []
-      : [{ text: "testing time, baby. let's go", id: 'preload-1', speaker: 'Host', timestamp: Date.now() }]
-  ); 
+  // Initialize with empty array for both host and student to ensure proper updates
+  const [englishSegments, setEnglishSegments] = useState([]);
+  
+  // Add logging to track when segments are updated
+  useEffect(() => {
+    console.log('English segments updated:', englishSegments);
+  }, [englishSegments]); 
   const [translations, setTranslations] = useState({}); // Structure: { lang: [{ text: string, isNew: boolean }] }
   const [errorMessages, setErrorMessages] = useState([]); 
   const [showLiveTranscript, setShowLiveTranscript] = useState(true); 
@@ -303,18 +305,21 @@ function App({ targetLanguages, onReset, roomSetup }) {
         // Check message type and update state accordingly
         if (parsedData.type === 'recognized') {
           // Replace any existing interim segment with the final one
-          setEnglishSegments(prevSegments => [
-            // Find the index of the last segment (which might be an interim one)
-            // Keep all segments *except* the last one if it was interim, then add final.
-            // OR simpler: just mark all as old and add final.
-            ...prevSegments.map(seg => ({ ...seg, isNew: false })),
-            { text: parsedData.data, isNew: true }
+          console.log('Received recognized speech from server:', parsedData.data);
+          // Always replace the segments entirely with the new data for better sync
+          setEnglishSegments([
+            { text: parsedData.data, isNew: true, id: `segment-${Date.now()}`, timestamp: Date.now() }
           ]);
         } else if (parsedData.type === 'recognizing_interim') { 
            // Only update if toggle is on
            if (showLiveTranscript) {
-             setEnglishSegments([{ text: parsedData.data, isNew: false }]); 
+             console.log('Received interim speech from server:', parsedData.data);
+             setEnglishSegments([{ text: parsedData.data, isNew: false, id: `interim-${Date.now()}`, timestamp: Date.now() }]); 
            }
+        } else if (parsedData.type === 'host_transcript') {
+          // Special case for receiving transcripts from the host
+          console.log('Received transcript from host:', parsedData.data);
+          setEnglishSegments([{ text: parsedData.data, isNew: true, id: `host-${Date.now()}`, timestamp: Date.now(), speaker: 'Host' }]);
         } else if (parsedData.type === 'error') {
           console.error('Backend Error:', parsedData.message);
           setErrorMessages(prev => [...prev, `Backend Error: ${parsedData.message}`]);
@@ -323,18 +328,17 @@ function App({ targetLanguages, onReset, roomSetup }) {
           // Optionally display info messages somewhere
         } else if (parsedData.type === 'translation') {
           // Handle single translation (non-batch)
+          console.log('Received translation:', parsedData.lang, parsedData.data);
+          
+          // Force clear any previous state to ensure consistency
           setTranslations(prevTranslations => {
             const newTranslations = { ...prevTranslations };
             const lang = parsedData.lang;
-            const currentLangSegments = newTranslations[lang] || [];
-            // Only keep the most recent 3 segments
-            const updatedSegments = [
-              ...currentLangSegments.map(seg => ({ ...seg, isNew: false })),
-              { text: parsedData.data, isNew: true }
-            ];
-            newTranslations[lang] = updatedSegments.slice(-3);
+            // Replace content entirely rather than appending
+            newTranslations[lang] = [{ text: parsedData.data, isNew: true, id: `trans-${Date.now()}` }];
             return newTranslations;
           });
+          
           // Update textInputs in text mode
           if (appMode === 'text') {
             setTextInputs(inputs => ({
@@ -342,23 +346,40 @@ function App({ targetLanguages, onReset, roomSetup }) {
               [parsedData.lang]: parsedData.data
             }));
           }
-        } else if (parsedData.type === 'translations_batch') {
-          console.log('Received Translation Batch:', parsedData.data);
-          // Update multiple translations
+          
+          // Log the current translations state for debugging
+          console.log('Updated translations state:', JSON.stringify(translations));
+        } else if (parsedData.type === 'host_translation') {
+          // Special case for receiving translations from the host
+          console.log('Received translation from host:', parsedData.lang, parsedData.data);
+          
           setTranslations(prevTranslations => {
             const newTranslations = { ...prevTranslations };
-            for (const lang in parsedData.data) {
-              if (parsedData.data.hasOwnProperty(lang)) {
-                const currentLangSegments = newTranslations[lang] || [];
-                const updatedSegments = [
-                  ...currentLangSegments.map(seg => ({ ...seg, isNew: false })),
-                  { text: parsedData.data[lang], isNew: true }
-                ];
-                newTranslations[lang] = updatedSegments.slice(-3);
-              }
-            }
+            const lang = parsedData.lang;
+            newTranslations[lang] = [{ text: parsedData.data, isNew: true, id: `host-trans-${Date.now()}` }];
             return newTranslations;
           });
+        } else if (parsedData.type === 'translations_batch') {
+          console.log('Received Translation Batch:', parsedData.data);
+          // Update multiple translations - completely replace with new data
+          setTranslations(prevTranslations => {
+            const newTranslations = {}; // Start fresh to avoid stale translations
+            for (const lang in parsedData.data) {
+              if (parsedData.data.hasOwnProperty(lang)) {
+                // Create a single new entry for each language
+                newTranslations[lang] = [{ 
+                  text: parsedData.data[lang], 
+                  isNew: true,
+                  id: `batch-${lang}-${Date.now()}`
+                }];
+                console.log(`Updated translation for ${lang}:`, parsedData.data[lang]);
+              }
+            }
+            return newTranslations; // Complete replacement of all translations
+          });
+          
+          // Log the updated state
+          console.log('Translations after batch update:', JSON.stringify(translations));
         } else {
             console.warn('Received unknown message type:', parsedData.type);
         }
