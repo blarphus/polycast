@@ -167,12 +167,24 @@ const TranscriptionDisplay = ({
     if (event) {
       // Calculate position for popup
       const rect = event.currentTarget.getBoundingClientRect();
+      
+      // Position popup right next to the word
+      const viewportWidth = window.innerWidth;
+      const popupWidth = 380; // Match width from CSS
+      
+      // Calculate optimal position to avoid going off screen
+      const spaceOnRight = viewportWidth - rect.right;
+      const fitsOnRight = spaceOnRight >= popupWidth + 10;
+      
+      // Position to the right if there's room, otherwise to the left
+      const xPos = fitsOnRight ? rect.right + 5 : rect.left - popupWidth - 5;
+      
       setPopupInfo({
         visible: true,
         word: word,
         position: {
-          x: rect.left,
-          y: rect.top - 10 // Position slightly above the word
+          x: Math.max(5, Math.min(viewportWidth - popupWidth - 5, xPos)), // Keep on screen
+          y: rect.top - 5 // Position slightly above the word
         }
       });
     }

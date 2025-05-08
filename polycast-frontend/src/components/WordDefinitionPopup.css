@@ -1,18 +1,18 @@
 .word-definition-popup {
-  position: absolute;
-  width: 280px;
+  position: fixed;
+  width: 380px;
   max-height: 400px;
-  background-color: rgba(40, 40, 40, 0.92);
+  background-color: rgba(35, 35, 35, 0.95);
   backdrop-filter: blur(5px);
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  border-radius: 4px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
   color: #fff;
   font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-  padding: 16px;
-  z-index: 1000;
+  padding: 14px 16px;
+  z-index: 9999;
   overflow-y: auto;
-  transform: translateY(-100%);
   transition: opacity 0.2s;
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .popup-close-btn {
@@ -53,12 +53,15 @@
   font-size: 18px;
   font-weight: 700;
   color: #fff;
+  display: block;
+  margin-bottom: 6px;
 }
 
 .popup-phonetic {
   font-size: 12px;
   color: #bbb;
   margin-top: 2px;
+  display: inline-block;
 }
 
 .popup-audio-btn {
@@ -80,60 +83,58 @@
 }
 
 .popup-section {
-  margin-bottom: 12px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 10px;
+  padding-bottom: 8px;
 }
 
 .popup-section:last-child {
-  border-bottom: none;
   margin-bottom: 0;
   padding-bottom: 0;
 }
 
 .popup-section-title {
-  font-size: 12px;
-  color: #aaa;
-  margin-bottom: 6px;
-  font-weight: 500;
+  font-size: 13px;
+  color: #999;
+  margin-bottom: 3px;
+  font-weight: 600;
+  text-transform: none;
 }
 
 .popup-synonyms {
   font-size: 14px;
-  color: #4ad991;
+  color: #ccc;
+  line-height: 1.4;
+  margin-top: 2px;
+  margin-bottom: 4px;
 }
 
 .popup-examples {
   font-size: 14px;
-  color: #ddd;
+  color: #ccc;
 }
 
 .popup-example {
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   line-height: 1.4;
+  color: #ccc;
+  font-weight: 400;
 }
 
 .popup-example:last-child {
   margin-bottom: 0;
 }
 
-.popup-meaning {
-  margin-bottom: 8px;
-}
-
-.popup-meaning:last-child {
-  margin-bottom: 0;
-}
-
-.popup-part-of-speech {
-  font-size: 13px;
-  color: #7c62ff;
-  font-style: italic;
-  margin-right: 5px;
-}
-
-.popup-definition {
+.popup-translation {
   font-size: 14px;
   line-height: 1.5;
-  color: #fff;
+  color: #ccc;
+  margin-top: 2px;
+}
+
+.popup-header {
+  margin-bottom: 10px;
+}
+
+.popup-header .popup-section-title {
+  margin-bottom: 2px;
 }
