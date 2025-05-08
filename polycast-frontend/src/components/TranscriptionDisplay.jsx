@@ -157,94 +157,95 @@ const TranscriptionDisplay = ({
     position: { x: 0, y: 0 }
   });
 
-  // Helper: add/remove word from list
+  // Only shows the popup when a word is clicked, doesn't add the word to dictionary
   const handleWordClick = (word, event) => {
-    // Don't add duplicates (case insensitive)
+    if (!event) return;
+    
     const wordLower = word.toLowerCase();
+    
+    // Calculate position for popup
+    const rect = event.currentTarget.getBoundingClientRect();
+    
+    // Position popup right next to the word
+    const viewportWidth = window.innerWidth;
+    const popupWidth = 380; // Match width from CSS
+    
+    // Calculate optimal position to avoid going off screen
+    const spaceOnRight = viewportWidth - rect.right;
+    const fitsOnRight = spaceOnRight >= popupWidth + 10;
+    
+    // Position to the right if there's room, otherwise to the left
+    const xPos = fitsOnRight ? rect.right + 5 : rect.left - popupWidth - 5;
+    
+    setPopupInfo({
+      visible: true,
+      word: word,
+      position: {
+        x: Math.max(5, Math.min(viewportWidth - popupWidth - 5, xPos)), // Keep on screen
+        y: rect.top - 5 // Position slightly above the word
+      }
+    });
+    
+    // Find the sentence context where this word appears
+    const contextSentence = englishSegments.find(segment => 
+      segment.text.toLowerCase().includes(wordLower)
+    )?.text || "";
+    
+    // 1. Fetch Gemini definition with context
+    const apiUrl = `https://polycast-server.onrender.com/api/dictionary/${encodeURIComponent(word)}?context=${encodeURIComponent(contextSentence)}`;
+    console.log(`Fetching definition for "${word}" with context, from: ${apiUrl}`);
+    
+    fetch(apiUrl)
+      .then(res => res.json())
+      .then(data => {
+        console.log(`Received definition for "${word}":`, data);
+        setWordDefinitions(prev => ({
+          ...prev,
+          [word.toLowerCase()]: data
+        }));
+      })
+      .catch(err => {
+        console.error(`Error fetching definition for ${word}:`, err);
+      });
+    
+    // 2. Fetch dictionary definition from JSON files
+    const firstLetter = word.charAt(0).toLowerCase();
+    const dictUrl = `https://polycast-server.onrender.com/api/local-dictionary/${encodeURIComponent(firstLetter)}/${encodeURIComponent(word.toUpperCase())}`;
+    
+    console.log(`Fetching dictionary definition for "${word}" from: ${dictUrl}`);
+    
+    fetch(dictUrl)
+      .then(res => res.json())
+      .then(dictData => {
+        console.log(`Received dictionary definition for "${word}":`, dictData);
+        // Update the wordDefinitions to include the dictionary definition
+        setWordDefinitions(prev => {
+          const existingDefData = prev[word.toLowerCase()] || {};
+          return {
+            ...prev,
+            [word.toLowerCase()]: {
+              ...existingDefData,
+              dictionaryDefinition: dictData
+            }
+          };
+        });
+      })
+      .catch(err => {
+        console.error(`Error fetching dictionary definition for ${word}:`, err);
+      });
+  };
+  
+  // Function to add word to dictionary when the + button is clicked
+  const handleAddWordToDictionary = (word) => {
+    const wordLower = word.toLowerCase();
+    // Check if word is already in dictionary
     const isSelected = selectedWords.some(w => w.toLowerCase() === wordLower);
     
-    // Show popup with definition on click
-    if (event) {
-      // Calculate position for popup
-      const rect = event.currentTarget.getBoundingClientRect();
-      
-      // Position popup right next to the word
-      const viewportWidth = window.innerWidth;
-      const popupWidth = 380; // Match width from CSS
-      
-      // Calculate optimal position to avoid going off screen
-      const spaceOnRight = viewportWidth - rect.right;
-      const fitsOnRight = spaceOnRight >= popupWidth + 10;
-      
-      // Position to the right if there's room, otherwise to the left
-      const xPos = fitsOnRight ? rect.right + 5 : rect.left - popupWidth - 5;
-      
-      setPopupInfo({
-        visible: true,
-        word: word,
-        position: {
-          x: Math.max(5, Math.min(viewportWidth - popupWidth - 5, xPos)), // Keep on screen
-          y: rect.top - 5 // Position slightly above the word
-        }
-      });
-    }
-    
-    if (isSelected) {
-      // Remove the word if already selected
-      setSelectedWords(prev => prev.filter(w => w.toLowerCase() !== wordLower));
-    } else {
+    if (!isSelected) {
       // Add the word to selected words
       setSelectedWords(prev => [...prev, word]);
       
-      // Find the sentence context where this word appears
-      const contextSentence = englishSegments.find(segment => 
-        segment.text.toLowerCase().includes(wordLower)
-      )?.text || "";
-      
-      // 1. Fetch Gemini definition with context
-      const apiUrl = `https://polycast-server.onrender.com/api/dictionary/${encodeURIComponent(word)}?context=${encodeURIComponent(contextSentence)}`;
-      console.log(`Preloading definition for "${word}" with context, from: ${apiUrl}`);
-      
-      fetch(apiUrl)
-        .then(res => res.json())
-        .then(data => {
-          console.log(`Preloaded definition for "${word}":`, data);
-          setWordDefinitions(prev => ({
-            ...prev,
-            [word.toLowerCase()]: data
-          }));
-        })
-        .catch(err => {
-          console.error(`Error preloading definition for ${word}:`, err);
-        });
-      
-      // 2. Fetch dictionary definition from JSON files
-      const firstLetter = word.charAt(0).toLowerCase();
-      const dictUrl = `https://polycast-server.onrender.com/api/local-dictionary/${encodeURIComponent(firstLetter)}/${encodeURIComponent(word.toUpperCase())}`;
-      
-      console.log(`Fetching dictionary definition for "${word}" from: ${dictUrl}`);
-      
-      fetch(dictUrl)
-        .then(res => res.json())
-        .then(dictData => {
-          console.log(`Received dictionary definition for "${word}":`, dictData);
-          // Update the wordDefinitions to include the dictionary definition
-          setWordDefinitions(prev => {
-            const existingDefData = prev[word.toLowerCase()] || {};
-            return {
-              ...prev,
-              [word.toLowerCase()]: {
-                ...existingDefData,
-                dictionaryDefinition: dictData
-              }
-            };
-          });
-        })
-        .catch(err => {
-          console.error(`Error fetching dictionary definition for ${word}:`, err);
-        });
-        
-      // Generate image for the flashcard at the same time
+      // Generate image for the flashcard
       const imagePrompt = `Create a visually engaging, wordless flashcard image in the style of Charley Harper. Use bold shapes, minimal detail, and mid-century modern aesthetics to depict the concept in a memorable and metaphorical way. Avoid text or labels. Again, use no text. The word to illustrate is: "${word}".`;
       
       console.log(`Generating image for word: ${word}`);
@@ -485,6 +486,8 @@ const TranscriptionDisplay = ({
           definition={wordDefinitions[popupInfo.word.toLowerCase()]}
           dictDefinition={wordDefinitions[popupInfo.word.toLowerCase()]?.dictionaryDefinition}
           position={popupInfo.position}
+          isInDictionary={selectedWords.some(w => w.toLowerCase() === popupInfo.word.toLowerCase())}
+          onAddToDictionary={handleAddWordToDictionary}
           onClose={() => setPopupInfo(prev => ({ ...prev, visible: false }))}
         />
       )}

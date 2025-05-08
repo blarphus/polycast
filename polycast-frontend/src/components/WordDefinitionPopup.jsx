@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import './WordDefinitionPopup.css';
 
-const WordDefinitionPopup = ({ word, definition, dictDefinition, position, onClose }) => {
+const WordDefinitionPopup = ({ word, definition, dictDefinition, position, onClose, onAddToDictionary, isInDictionary }) => {
+  const [showTooltip, setShowTooltip] = useState(false);
   if (!word || (!definition && !dictDefinition)) return null;
   
   // Ensure definition data exists and handle all possible dictionary response formats
@@ -67,7 +68,25 @@ const WordDefinitionPopup = ({ word, definition, dictDefinition, position, onClo
       
       <div className="dict-content">
         <div className="dict-english-side">
-          <div className="dict-word-display">{word}</div>
+          <div className="dict-word-row">
+            <div className="dict-word-display">{word}</div>
+            {!isInDictionary && (
+              <div 
+                className="dict-add-btn"
+                onClick={() => onAddToDictionary && onAddToDictionary(word)}
+                onMouseEnter={() => setShowTooltip(true)}
+                onMouseLeave={() => setShowTooltip(false)}
+              >
+                +
+                {showTooltip && (
+                  <div className="dict-tooltip">Add to Dictionary</div>
+                )}
+              </div>
+            )}
+            {isInDictionary && (
+              <div className="dict-added-indicator">✓</div>
+            )}
+          </div>
           {partOfSpeech && (
             <div className="dict-part-of-speech">{partOfSpeech}</div>
           )}
@@ -112,7 +131,13 @@ WordDefinitionPopup.propTypes = {
     x: PropTypes.number.isRequired,
     y: PropTypes.number.isRequired
   }).isRequired,
-  onClose: PropTypes.func.isRequired
+  onClose: PropTypes.func.isRequired,
+  onAddToDictionary: PropTypes.func,
+  isInDictionary: PropTypes.bool
+};
+
+WordDefinitionPopup.defaultProps = {
+  isInDictionary: false
 };
 
 export default WordDefinitionPopup;
