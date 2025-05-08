@@ -16,9 +16,17 @@ const FlashcardReview = ({ userId }) => {
     const fetchFlashcards = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`/api/flashcards?userId=${userId}&due=true`);
+        console.log(`Fetching due flashcards for userId: ${userId}`);
+        const url = new URL('https://polycast-server.onrender.com/api/flashcards');
+        url.searchParams.append('userId', userId);
+        url.searchParams.append('due', 'true');
+        console.log(`Fetching from URL: ${url.toString()}`);
+        
+        const response = await fetch(url.toString());
+        console.log(`Flashcard review response status: ${response.status} ${response.statusText}`);
+        
         if (!response.ok) {
-          throw new Error('Failed to fetch flashcards');
+          throw new Error(`Failed to fetch flashcards: ${response.status} ${response.statusText}`);
         }
         const data = await response.json();
         setFlashcards(data.flashcards || []);
@@ -46,7 +54,9 @@ const FlashcardReview = ({ userId }) => {
 
     try {
       setLoading(true);
-      const response = await fetch('/api/flashcards/mark', {
+      console.log(`Marking flashcard for word "${currentCard.word}" with rating: ${rating}`);
+      
+      const response = await fetch('https://polycast-server.onrender.com/api/flashcards/mark', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
