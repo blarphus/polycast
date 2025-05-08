@@ -156,12 +156,12 @@ async function disambiguateWordSense(word, context, definitions) {
  */
 async function generateFlashcardContent(word, definition, context) {
     if (!genAI) {
-        // Fallback content if Gemini is not available
         console.log(`[DICTIONARY_DEBUG] Gemini not available for flashcard content generation for "${word}". Using fallback content.`);
         return {
             displayDefinition: definition.definition,
-            exampleSentence: context,
-            clozeSentence: context.replace(new RegExp(`\\b${word}\\b`, 'i'), '___')
+            exampleSentence: context || `Example with ${word}`,
+            clozeSentence: context ? context.replace(new RegExp(`\\b${word}\\b`, 'i'), '___') : `The word ___ means ${definition.definition.substring(0, 30)}...`,
+            synonyms: ''
         };
     }
     
@@ -169,63 +169,43 @@ async function generateFlashcardContent(word, definition, context) {
         console.log(`[DICTIONARY_DEBUG] Generating flashcard content for "${word}" with definition: "${definition.definition}"`);
         const model = genAI.getGenerativeModel({ model: "gemini-pro" });
         
-        const prompt = `The word is "${word}". The selected definition is:
-"${definition.partOfSpeech}: ${definition.definition}."
+        // Simplified prompt structure that focuses on just getting a simple definition
+        const prompt = `Provide a simple, clear definition of the English word "${word}" for language learners.
 
-Create a learner-friendly flashcard with:
-1. A short explanation (can rephrase the sense)
-2. A full sentence that uses the word in this sense
-3. A fill-in-the-blank version of the sentence
+The dictionary definition is: "${definition.partOfSpeech}: ${definition.definition}."
 
-Original context: "${context}"
-
-Return JSON in this format:
-{
-  "displayDefinition": "...",
-  "exampleSentence": "...",
-  "clozeSentence": "..."
-}`;
-
+Please respond with 1-2 sentences only - focus on clarity for non-native English speakers.`;
+        
         console.log(`[DICTIONARY_DEBUG] Flashcard generation prompt for "${word}":\n${prompt}`);
         
+        // Get response from Gemini
         const result = await model.generateContent(prompt);
         const response = result.response.text().trim();
-        
         console.log(`[DICTIONARY_DEBUG] Gemini flashcard response for "${word}":\n${response}`);
         
-        try {
-            // Parse the JSON from the response
-            const jsonMatch = response.match(/```json\n([\s\S]*?)\n```/) || 
-                             response.match(/{[\s\S]*?}/);
-            
-            const jsonContent = jsonMatch ? jsonMatch[0] : response;
-            console.log(`[DICTIONARY_DEBUG] Extracted JSON content for "${word}":\n${jsonContent}`);
-            
-            const flashcardContent = JSON.parse(jsonContent.replace(/```json|```/g, ''));
-            console.log(`[DICTIONARY_DEBUG] Parsed flashcard content for "${word}":`, flashcardContent);
-            
-            return {
-                displayDefinition: flashcardContent.displayDefinition,
-                exampleSentence: flashcardContent.exampleSentence,
-                clozeSentence: flashcardContent.clozeSentence
-            };
-        } catch (jsonError) {
-            console.error('[DICTIONARY_DEBUG] Error parsing Gemini JSON:', jsonError);
-            console.log(`[DICTIONARY_DEBUG] Raw response that failed to parse: ${response}`);
-            // Fallback if JSON parsing fails
-            return {
-                displayDefinition: definition.definition,
-                exampleSentence: context,
-                clozeSentence: context.replace(new RegExp(`\\b${word}\\b`, 'i'), '___')
-            };
-        }
+        // No need for JSON parsing - use the text directly
+        const displayDefinition = response.substring(0, 200); // Keep it reasonably short
+        
+        // Create a cloze sentence by replacing the word with blanks
+        const clozeSentence = context 
+            ? context.replace(new RegExp(`\\b${word}\\b`, 'i'), '___') 
+            : `The word ___ means ${definition.definition.substring(0, 30)}...`;
+        
+        return {
+            displayDefinition: displayDefinition,
+            exampleSentence: context || `Example: ${word} is used to describe something.`,
+            clozeSentence: clozeSentence,
+            synonyms: '' // Leave empty for now
+        };
     } catch (error) {
         console.error('[DICTIONARY_DEBUG] Error generating flashcard content:', error);
-        // Fallback content
+        
+        // Fallback content when there's an error
         return {
             displayDefinition: definition.definition,
-            exampleSentence: context,
-            clozeSentence: context.replace(new RegExp(`\\b${word}\\b`, 'i'), '___')
+            exampleSentence: context || `Example with ${word}`,
+            clozeSentence: context ? context.replace(new RegExp(`\\b${word}\\b`, 'i'), '___') : `The word ___ means ${definition.definition.substring(0, 30)}...`,
+            synonyms: ''
         };
     }
 }

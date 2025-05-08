@@ -159,10 +159,15 @@ const TranscriptionDisplay = ({
     console.log('Word clicked:', word, 'at position:', position);
     const wordLower = word.toLowerCase();
     
+    // Make sure position is valid to prevent errors
+    const safePosition = position && typeof position.x === 'number' && typeof position.y === 'number' 
+      ? position 
+      : { x: window.innerWidth / 2, y: window.innerHeight / 2 }; // Fallback to center of screen
+    
     // Set popup to loading state
     setPopupInfo({
       word,
-      position,
+      position: safePosition,
       isLoading: true,
       definition: null
     });
