@@ -35,7 +35,7 @@ function App({ targetLanguages, onReset, roomSetup }) {
   const [textInputs, setTextInputs] = useState({}); // Lifted state
   const [showNotification, setShowNotification] = useState(false);
   const [notificationOpacity, setNotificationOpacity] = useState(1);
-  const [autoSend, setAutoSend] = useState(true); // Controls auto-sending of audio chunks
+  const [autoSend, setAutoSend] = useState(roomSetup && roomSetup.isHost ? false : true); // Off by default for host, on for students
   const [showNoiseLevel, setShowNoiseLevel] = useState(false); // Controls visibility of noise level display
   const notificationTimeoutRef = useRef(null);
   const modeRef = useRef(appMode === 'text');
