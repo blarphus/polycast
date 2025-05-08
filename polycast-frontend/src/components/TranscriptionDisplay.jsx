@@ -56,52 +56,37 @@ const renderHistoryStacked = (segments) => {
   );
 };
 
-// Helper: render a segment with clickable words
-const renderSegmentsWithClickableWords = (segments, lastPersisted, selectedWords, handleWordClick, isStudent = false) => {
+// INLINE RENDERING: English transcript segments with clickable words
+// Replace any use of renderSegmentsWithClickableWords with this block:
+const renderEnglishSegmentsWithClickableWords = (segments, isStudent, handleWordClick, lastPersisted) => {
   if ((!segments || segments.length === 0) && lastPersisted) {
     return <span>{lastPersisted}</span>;
   }
   if (!segments || segments.length === 0) {
     return <p>Waiting...</p>;
   }
-  // Each segment on its own line
   return segments.map((segment, segIdx) => {
-    // Skip invalid segments
-    if (!segment || !segment.text) {
-      return null;
-    }
-    
-    // Tokenize: words (with apostrophes/accents), punctuation, and spaces
-    // This regex matches words, punctuation, and spaces
+    if (!segment || !segment.text) return null;
     const tokens = segment.text.match(/([\p{L}\p{M}\d']+|[.,!?;:]+|\s+)/gu) || [];
-    
     return (
       <div key={segIdx} className={segment.isNew ? 'new-text' : ''} style={{ display: 'block', marginBottom: 2 }}>
         {tokens.map((token, i) => {
-          // Only words (letters, numbers, apostrophes, accents) are clickable
           const isWord = /^[\p{L}\p{M}\d']+$/u.test(token);
-          
           if (isWord) {
-            // Create a closure that captures THIS segment's text as context
-            const currentSegmentText = segment.text;
-            
             return (
               <ClickableWord
                 key={i}
                 word={token}
                 onClick={(word, position) => {
-                  // Always use the exact context from THIS segment
-                  console.log(`Word clicked in segment: "${currentSegmentText}"`);
                   handleWordClick(word, {
                     ...position,
-                    exactContext: currentSegmentText // Pass the captured context from this closure
+                    exactContext: segment.text // Always use the current segment
                   });
                 }}
                 isStudent={isStudent}
               />
             );
           } else {
-            // Return non-word tokens (punctuation, spaces) as regular spans
             return <span key={i}>{token}</span>;
           }
         })}
@@ -109,6 +94,7 @@ const renderSegmentsWithClickableWords = (segments, lastPersisted, selectedWords
     );
   });
 };
+
 
 // Assign a unique color scheme for each language box
 const colorSchemes = [
