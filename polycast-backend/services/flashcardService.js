@@ -51,6 +51,119 @@ async function loadDictionary(letter) {
 }
 
 /**
+ * Simple lemmatization for English words
+ * @param {string} word - The word to lemmatize
+ * @returns {string[]} Array of possible lemmas
+ */
+function lemmatize(word) {
+    word = word.toLowerCase().trim();
+    const lemmas = new Set([word]); // Always include the original word
+    
+    // Common plural endings
+    if (word.endsWith('s')) {
+        lemmas.add(word.slice(0, -1)); // Remove 's'
+        if (word.endsWith('ies')) {
+            lemmas.add(word.slice(0, -3) + 'y'); // flies -> fly
+        } else if (word.endsWith('es')) {
+            lemmas.add(word.slice(0, -2)); // boxes -> box
+        }
+    }
+    
+    // Common verb endings
+    if (word.endsWith('ing')) {
+        lemmas.add(word.slice(0, -3)); // running -> run
+        lemmas.add(word.slice(0, -3) + 'e'); // writing -> write
+        if (word.length > 4 && word[word.length - 4] === word[word.length - 5]) {
+            lemmas.add(word.slice(0, -4)); // running -> run (doubled consonant)
+        }
+    } else if (word.endsWith('ed')) {
+        lemmas.add(word.slice(0, -2)); // walked -> walk
+        lemmas.add(word.slice(0, -1)); // used -> use
+        if (word.length > 3 && word[word.length - 3] === word[word.length - 4]) {
+            lemmas.add(word.slice(0, -3)); // stopped -> stop (doubled consonant)
+        }
+    }
+    
+    // Common adjective endings
+    if (word.endsWith('er')) {
+        lemmas.add(word.slice(0, -2)); // bigger -> big
+        lemmas.add(word.slice(0, -2) + 'e'); // wider -> wide
+    } else if (word.endsWith('est')) {
+        lemmas.add(word.slice(0, -3)); // biggest -> big
+        lemmas.add(word.slice(0, -3) + 'e'); // widest -> wide
+    }
+    
+    console.log(`[DICTIONARY_DEBUG] Lemmatized "${word}" into: ${Array.from(lemmas).join(', ')}`);
+    return Array.from(lemmas);
+}
+
+/**
+ * Generate a definition for a word using Gemini when the dictionary fails
+ * @param {string} word - The word to generate a definition for
+ * @returns {Object} An object with extracted definitions
+ */
+async function generateDefinitionWithGemini(word) {
+    if (!genAI) {
+        console.log(`[DICTIONARY_DEBUG] Cannot generate definition for "${word}": Gemini API not initialized`);
+        return null;
+    }
+    
+    try {
+        console.log(`[DICTIONARY_DEBUG] Generating definition for "${word}" using Gemini`);
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+        
+        const prompt = `Please provide a comprehensive definition for the word "${word}".
+
+Format your response as a JSON object with the following structure:
+{
+  "definitions": [
+    {
+      "partOfSpeech": "[noun/verb/adjective/adverb/etc]",
+      "definition": "[clear, concise definition]"
+    },
+    ...
+  ]
+}
+
+Include different meanings and parts of speech if applicable.`;
+        
+        const result = await model.generateContent(prompt);
+        const response = result.response.text().trim();
+        console.log(`[DICTIONARY_DEBUG] Gemini generated definition for "${word}": ${response.substring(0, 100)}...`);
+        
+        // Parse the JSON response
+        try {
+            // Extract the JSON object from the response (it might be wrapped in code blocks)
+            const jsonMatch = response.match(/\{[\s\S]*\}/);
+            const jsonStr = jsonMatch ? jsonMatch[0] : response;
+            const parsedDefinition = JSON.parse(jsonStr);
+            
+            if (parsedDefinition && parsedDefinition.definitions && parsedDefinition.definitions.length > 0) {
+                console.log(`[DICTIONARY_DEBUG] Successfully parsed Gemini definition for "${word}"`);
+                return {
+                    type: 'gemini-generated',
+                    definitions: parsedDefinition.definitions
+                };
+            }
+        } catch (parseError) {
+            console.error(`[DICTIONARY_DEBUG] Error parsing Gemini definition for "${word}": ${parseError.message}`);
+        }
+        
+        // Fallback if parsing fails: generate a simpler definition
+        return {
+            type: 'gemini-generated',
+            definitions: [{
+                partOfSpeech: "unknown",
+                definition: `Definition for "${word}" (AI-generated): ${response.substring(0, 200)}`
+            }]
+        };
+    } catch (error) {
+        console.error(`[DICTIONARY_DEBUG] Error generating definition for "${word}" with Gemini: ${error.message}`);
+        return null;
+    }
+}
+
+/**
  * Look up a word in the dictionary
  * @param {string} word - The word to look up
  * @returns {Object|null} The word's dictionary entry or null if not found
@@ -63,7 +176,7 @@ async function lookupWord(word) {
     const dictionary = await loadDictionary(firstLetter);
     if (!dictionary) {
         console.log(`[DICTIONARY_DEBUG] Dictionary for letter "${firstLetter}" not found or could not be loaded`);
-        return null;
+        return await generateDefinitionWithGemini(word); // Fallback to Gemini
     }
     
     // First try the exact lowercase match
@@ -90,10 +203,55 @@ async function lookupWord(word) {
         }
     }
     
-    console.log(`[DICTIONARY_DEBUG] Final lookup result for "${word}": ${result ? 'Found' : 'Not found'}`);
+    // If still not found, try lemmatization
+    if (!result) {
+        console.log(`[DICTIONARY_DEBUG] Word "${word}" not found, trying lemmatization`);
+        const lemmas = lemmatize(word);
+        
+        // Try each lemma
+        for (const lemma of lemmas) {
+            if (lemma === word) continue; // Skip the original word, already tried
+            
+            console.log(`[DICTIONARY_DEBUG] Trying lemma: "${lemma}"`);
+            const lemmaFirstLetter = lemma.charAt(0);
+            
+            // If lemma starts with a different letter, load that dictionary
+            let lemmaDictionary = dictionary;
+            if (lemmaFirstLetter !== firstLetter) {
+                lemmaDictionary = await loadDictionary(lemmaFirstLetter);
+                if (!lemmaDictionary) continue; // Skip if dictionary not available
+            }
+            
+            // Try exact match for lemma
+            if (lemmaDictionary[lemma]) {
+                result = lemmaDictionary[lemma];
+                console.log(`[DICTIONARY_DEBUG] Found match with lemma: "${lemma}"`);
+                break;
+            }
+            
+            // Try case-insensitive match
+            const lemmaLower = lemma.toLowerCase();
+            const lemmaDictionaryKeys = Object.keys(lemmaDictionary);
+            for (const key of lemmaDictionaryKeys) {
+                if (key.toLowerCase() === lemmaLower) {
+                    result = lemmaDictionary[key];
+                    console.log(`[DICTIONARY_DEBUG] Found case-insensitive match with lemma: "${lemma}" -> "${key}"`);
+                    break;
+                }
+            }
+            
+            if (result) break; // Found with this lemma, exit the loop
+        }
+    }
     
-    // Print all definitions for the word if found
-    if (result) {
+    // If still not found after lemmatization, use Gemini to generate a definition
+    if (!result) {
+        console.log(`[DICTIONARY_DEBUG] Word "${word}" not found even after lemmatization, using Gemini`);
+        result = await generateDefinitionWithGemini(word);
+    } else {
+        console.log(`[DICTIONARY_DEBUG] Final lookup result for "${word}": Found`);
+        
+        // Print all definitions for the word if found
         try {
             const definitions = extractDefinitions(result);
             console.log(`[DICTIONARY_DEBUG] All definitions for "${word}":`, JSON.stringify(definitions, null, 2));
@@ -106,20 +264,69 @@ async function lookupWord(word) {
 }
 
 /**
- * Extract definitions from a dictionary entry
- * @param {Object} entry - Dictionary entry
+ * Extract definitions from a dictionary entry or Gemini-generated definition
+ * @param {Object} entry - Dictionary entry or Gemini-generated definition object
  * @returns {Array} Array of definition objects with partOfSpeech and definition
  */
 function extractDefinitions(entry) {
-    if (!entry || !entry.MEANINGS) return [];
+    if (!entry) return [];
     
     const definitions = [];
-    Object.entries(entry.MEANINGS).forEach(([key, value]) => {
-        definitions.push({
-            partOfSpeech: value[0],
-            definition: value[1]
+    
+    // Handle Gemini-generated definitions (from our new function)
+    if (entry.type === 'gemini-generated' && entry.definitions && Array.isArray(entry.definitions)) {
+        // These are already in the correct format
+        return entry.definitions;
+    }
+    
+    // Handle the original dictionary format with MEANINGS
+    if (entry.MEANINGS) {
+        Object.entries(entry.MEANINGS).forEach(([key, value]) => {
+            definitions.push({
+                partOfSpeech: value[0],
+                definition: value[1]
+            });
         });
-    });
+    }
+    
+    // If entry is a verb with 'defArr' property, extract from that
+    if (entry.defArr && Array.isArray(entry.defArr)) {
+        entry.defArr.forEach(def => {
+            if (def && def.definition) {
+                definitions.push({
+                    partOfSpeech: "Verb",
+                    definition: def.definition
+                });
+            }
+        });
+    }
+    
+    // If entry has 'shortdef' property, extract from that
+    if (entry.shortdef && Array.isArray(entry.shortdef)) {
+        entry.shortdef.forEach(def => {
+            definitions.push({
+                partOfSpeech: entry.fl || "unknown",
+                definition: def
+            });
+        });
+    }
+    
+    // If entry has 'definitions' property, extract from that
+    if (entry.definitions && Array.isArray(entry.definitions)) {
+        entry.definitions.forEach(def => {
+            if (typeof def === 'string') {
+                definitions.push({
+                    partOfSpeech: entry.partOfSpeech || "unknown",
+                    definition: def
+                });
+            } else if (typeof def === 'object' && def.definition) {
+                definitions.push({
+                    partOfSpeech: def.partOfSpeech || entry.partOfSpeech || "unknown",
+                    definition: def.definition
+                });
+            }
+        });
+    }
     
     return definitions;
 }
