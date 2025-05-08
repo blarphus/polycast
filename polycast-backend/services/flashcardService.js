@@ -139,8 +139,6 @@ async function disambiguateWordSense(word, context, definitions) {
     }
     
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-        
         // Create the prompt for disambiguation
         let prompt = `Here is a sentence:\n"${context}"\n\n`;
         prompt += `Here are possible definitions for the word "${word}":\n\n`;
@@ -154,6 +152,8 @@ async function disambiguateWordSense(word, context, definitions) {
         // Log the entire prompt for debugging
         console.log(`[DICTIONARY_DEBUG] Gemini disambiguation prompt for "${word}":\n${prompt}`);
         
+        // Initialize the correct model
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
         const result = await model.generateContent(prompt);
         const response = result.response.text().trim();
         
@@ -197,7 +197,7 @@ async function generateFlashcardContent(word, definition, context) {
     
     try {
         console.log(`[DICTIONARY_DEBUG] Generating flashcard content for "${word}" with definition: "${definition.definition}"`);
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
         
         // Simplified prompt structure that focuses on just getting a simple definition
         const prompt = `Provide a simple, clear definition of the English word "${word}" for language learners.
