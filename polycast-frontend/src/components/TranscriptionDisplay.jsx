@@ -327,10 +327,41 @@ const TranscriptionDisplay = ({
     const wordLower = word.toLowerCase();
     const wordData = wordDefinitions[wordLower];
     
+    // Basic check (backward compatibility)
     if (!wordData) return selectedWords.some(w => w.toLowerCase() === wordLower);
     
-    // Use regex to check if this exact context sentence contains the word
-    // We need to compare the current context with saved ones
+    // Get the part of speech from the contextual word if possible
+    let currentPoS = null;
+    
+    // Try to determine part of speech from the context
+    if (wordData.disambiguatedDefinition) {
+      currentPoS = wordData.disambiguatedDefinition.partOfSpeech;
+    } else if (wordData.dictionaryDefinition && wordData.dictionaryDefinition.partOfSpeech) {
+      currentPoS = wordData.dictionaryDefinition.partOfSpeech;
+    }
+    
+    // With our new storage format, check if this word has multiple senses
+    if (wordData.hasMultipleSenses && wordData.allSenses) {
+      // Check each stored sense for this word
+      for (const senseKey of wordData.allSenses) {
+        const sense = wordDefinitions[senseKey];
+        if (!sense || !sense.inFlashcards) continue;
+        
+        // Check if contexts are similar - this matches by sentence contexts
+        const contextMatch = sense.contextSentence && 
+                           contextSentence && 
+                           (contextSentence.includes(sense.contextSentence) || 
+                            sense.contextSentence.includes(contextSentence));
+                            
+        // If contexts match or parts of speech match for this specific case
+        if (contextMatch || (currentPoS && sense.partOfSpeech === currentPoS)) {
+          return true;
+        }
+      }
+      return false;
+    }
+    
+    // Fallback for legacy format: check all entries for matching contexts
     for (const entry of Object.values(wordDefinitions)) {
       if (entry.contextSentence && 
           entry.contextSentence.toLowerCase().includes(wordLower) &&
@@ -360,6 +391,7 @@ const TranscriptionDisplay = ({
     const currentWordData = wordDefinitions[wordLower];
     if (!currentWordData) return false;
     
+    // Extract current definition and part of speech
     const currentDefinition = currentWordData.disambiguatedDefinition || 
                              (currentWordData.dictionaryDefinition && 
                               currentWordData.dictionaryDefinition.allDefinitions && 
@@ -368,9 +400,56 @@ const TranscriptionDisplay = ({
 
     if (!currentDefinition) return false;
     
-    // Try to find a matching context sentence or definition
+    const currentPartOfSpeech = currentDefinition.partOfSpeech || 
+                              (currentWordData.dictionaryDefinition && currentWordData.dictionaryDefinition.partOfSpeech) ||
+                              currentWordData.partOfSpeech;
+    
+    // With our new storage format, check if this word has multiple senses
+    if (currentWordData.hasMultipleSenses && currentWordData.allSenses) {
+      // Check each stored sense for this word
+      for (const senseKey of currentWordData.allSenses) {
+        const sense = wordDefinitions[senseKey];
+        if (!sense || !sense.inFlashcards) continue;
+        
+        // Check context similarity
+        const contextMatch = sense.contextSentence && 
+                           (contextSentence.includes(sense.contextSentence) || 
+                            sense.contextSentence.includes(contextSentence));
+        
+        if (contextMatch) {
+          console.log(`Found matching context for ${word}: "${contextSentence}" matches "${sense.contextSentence}"`);
+          return true;
+        }
+        
+        // If context doesn't match, check part of speech and definition
+        if (sense.partOfSpeech && currentPartOfSpeech && 
+            sense.partOfSpeech === currentPartOfSpeech) {
+          
+          // Get definition texts
+          const defText1 = currentDefinition.definition || '';
+          const defText2 = sense.disambiguatedDefinition?.definition || '';
+          
+          // Check similarity
+          const similarDefinition = (defText1 && defText2 && 
+                                  (defText1.includes(defText2) || 
+                                   defText2.includes(defText1) ||
+                                   defText1.substring(0, 25) === defText2.substring(0, 25)));
+          
+          if (similarDefinition) {
+            console.log(`Found matching definition for ${word} (${sense.partOfSpeech}): ${defText1} matches ${defText2}`);
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+    
+    // Fallback for legacy format: check all entries for context and definition matches
     for (const entry of Object.values(wordDefinitions)) {
       if (entry.inFlashcards !== true) continue;
+      
+      // Check if this is a specific sense entry of a different word
+      if (entry.word && entry.word !== wordLower) continue;
       
       // First check context - if sentences are similar, likely same meaning
       const contextMatch = entry.contextSentence && 
@@ -390,13 +469,13 @@ const TranscriptionDisplay = ({
       if (!entryDefinition) continue;
       
       // Check if the part of speech matches
-      const posMatch = currentDefinition.partOfSpeech === entryDefinition.partOfSpeech;
+      const posMatch = currentPartOfSpeech === (entryDefinition.partOfSpeech || entry.partOfSpeech);
       
-      // Check if the definition text matches (with some similarity tolerance)
+      // Check if the definition text matches
       const defText1 = currentDefinition.definition || '';
       const defText2 = entryDefinition.definition || '';
       
-      // Very simple similarity check - this could be enhanced
+      // Simple similarity check
       const similarDefinition = (defText1 && defText2 && 
                                 (defText1.includes(defText2) || 
                                  defText2.includes(defText1) ||
@@ -549,18 +628,33 @@ const TranscriptionDisplay = ({
         console.log(`Image generated for: ${word} (sense ID: ${wordSenseId})`);
         
         // Update the WordDefinitions state to include the flashcard data
+        // We'll use the wordSenseId as a key to store different senses separately
         setWordDefinitions(prev => {
-          const existingData = prev[wordLower] || {};
+          // Store this specific sense with a unique key that includes the word and part of speech
+          const senseKey = `${wordLower}_${partOfSpeech}`;
+          
+          // Create a copy of existing word data to preserve any previous word senses
+          const existingWordData = prev[wordLower] || {};
+          
           return {
             ...prev,
+            // Store the basic word data under the word key
             [wordLower]: {
-              ...existingData,
+              ...existingWordData,
+              // Add basic info
+              hasMultipleSenses: true, // Flag that this word has multiple senses
+              allSenses: [...(existingWordData.allSenses || []), senseKey] // Track all senses of this word
+            },
+            // Store the specific sense under a unique key
+            [senseKey]: {
+              word: wordLower,
               imageUrl: imageResponse.url,
               wordSenseId: wordSenseId,
               contextSentence: contextSentence,
               disambiguatedDefinition: disambiguatedDefinition,
               inFlashcards: true, // Mark that this word is now in flashcards with this sense
-              cardCreatedAt: new Date().toISOString()
+              cardCreatedAt: new Date().toISOString(),
+              partOfSpeech: partOfSpeech
             }
           };
         });
@@ -574,18 +668,32 @@ const TranscriptionDisplay = ({
         console.log(`Successfully added "${word}" to dictionary with definition: ${definition}`);
       } catch (imageError) {
         console.error(`Error generating image for ${word}:`, imageError);
-        // Still update state without image
+        // Still update state without image using the same pattern
         setWordDefinitions(prev => {
-          const existingData = prev[wordLower] || {};
+          // Store this specific sense with a unique key that includes the word and part of speech
+          const senseKey = `${wordLower}_${partOfSpeech}`;
+          
+          // Create a copy of existing word data to preserve any previous word senses
+          const existingWordData = prev[wordLower] || {};
+          
           return {
             ...prev,
+            // Store the basic word data under the word key
             [wordLower]: {
-              ...existingData,
+              ...existingWordData,
+              // Add basic info
+              hasMultipleSenses: true, // Flag that this word has multiple senses
+              allSenses: [...(existingWordData.allSenses || []), senseKey] // Track all senses of this word
+            },
+            // Store the specific sense under a unique key
+            [senseKey]: {
+              word: wordLower,
               wordSenseId: wordSenseId,
               contextSentence: contextSentence,
               disambiguatedDefinition: disambiguatedDefinition,
               inFlashcards: true, // Mark that this word is now in flashcards with this sense
-              cardCreatedAt: new Date().toISOString()
+              cardCreatedAt: new Date().toISOString(),
+              partOfSpeech: partOfSpeech
             }
           };
         });
