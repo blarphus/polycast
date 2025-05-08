@@ -456,7 +456,7 @@ const TranscriptionDisplay = ({
           alignItems: 'stretch',
           padding: 0,
           width: '100%',
-          marginTop: 16,
+          marginTop: 8, // Reduced from 16px to 8px for tighter spacing
           overflow: 'hidden',
         }}
       >
@@ -541,11 +541,11 @@ const TranscriptionDisplay = ({
         position: 'relative',
         width: '100%',
         height: 'calc(100vh - 244px)',
-        margin: '20px auto 0',
+        margin: '10px auto 0', // Reduced from 20px to 10px
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        padding: '0 24px 24px',
+        padding: '0 24px 12px', // Reduced bottom padding from 24px to 12px
         overflow: 'hidden',
         boxSizing: 'border-box',
       }}
@@ -559,7 +559,7 @@ const TranscriptionDisplay = ({
 
       {/* Translations Section */}
       {showTranslation && (
-        <div style={{ width: '100%', marginTop: 20 }}>
+        <div style={{ width: '100%', marginTop: 6 }}> {/* Reduced from 20px to 6px */}
           {targetLanguages.map((lang, i) => (
             renderLanguageBox(lang, i + 1)
           ))}
