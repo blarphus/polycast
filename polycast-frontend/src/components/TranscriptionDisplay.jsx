@@ -181,7 +181,7 @@ const TranscriptionDisplay = ({
         });
         
       // Generate image for the flashcard at the same time
-      const imagePrompt = `Create a visually engaging, wordless flashcard image in the style of Charley Harper. Use bold shapes, minimal detail, and mid-century modern aesthetics to depict the concept in a memorable and metaphorical way. Avoid text or labels. Again, use no text. The word to illustrate is: "${word}". Use the following context sentence to determine the correct meaning and visual depiction: "${contextSentence}"`;
+      const imagePrompt = `Create a visually engaging, wordless flashcard image in the style of Charley Harper. Use bold shapes, minimal detail, and mid-century modern aesthetics to depict the concept in a memorable and metaphorical way. Avoid text or labels. Again, use no text. The word to illustrate is: "${word}".`;
       
       console.log(`Generating image for word: ${word}`);
       
