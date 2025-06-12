@@ -3604,18 +3604,28 @@ In ${this.targetLanguage}:
       }
     }
 
-    // Always connect to signaling server early to get occupied profiles
-    this.connectToSignalingServerForProfileCheck().catch(console.error);
+    // Check for occupied profiles for the initial profile selection screen
+    if (this.appState === 'languageSelection') {
+      this.connectToSignalingServerForProfileCheck().catch(console.error);
+    }
 
     // Auto-start camera since we default to video mode
     if (this.leftPanelMode === 'video') {
-      this.startWebcam();
-      // Start speech recognition automatically if mic is unmuted
-      if (!this.isVideoMicMuted) {
-        setTimeout(() => {
-          this.initVideoSpeechRecognition();
-        }, 1000);
+      // Connect to signaling server for video calling if not already connected
+      if (!this.signalingSocket || !this.signalingSocket.connected) {
+        this.connectToSignalingServer().catch(console.error);
       }
+      
+      // Delay camera startup to ensure DOM is fully rendered
+      setTimeout(() => {
+        this.startWebcam();
+        // Start speech recognition automatically if mic is unmuted
+        if (!this.isVideoMicMuted) {
+          setTimeout(() => {
+            this.initVideoSpeechRecognition();
+          }, 1000);
+        }
+      }, 500);
     }
   }
 
@@ -5002,8 +5012,14 @@ In ${this.targetLanguage}:
             ${SUPPORTED_LANGUAGES.map((lang) => html`<option value=${lang}>${lang}</option>`)}
           </select>
         </div>
-        <button class="start-button" @click=${this.handleStartConversation}>
-          Start Conversation
+        <button 
+          class="start-button" 
+          @click=${this.handleStartConversation}
+          ?disabled=${this.occupiedProfiles.includes(this.currentProfile)}
+        >
+          ${this.occupiedProfiles.includes(this.currentProfile) 
+            ? 'Profile Currently In Use' 
+            : 'Start Conversation'}
         </button>
       </div>
     `;
@@ -6923,13 +6939,10 @@ In ${this.targetLanguage}:
           console.log('📋 Got occupied profiles:', data.profiles);
           this.occupiedProfiles = data.profiles;
           
-          // If current profile is occupied, reset to first available profile
+          // Only warn about occupied profiles, don't auto-switch during profile check
           if (this.occupiedProfiles.includes(this.currentProfile)) {
-            const availableProfiles = this.profiles.filter(profile => !this.occupiedProfiles.includes(profile));
-            if (availableProfiles.length > 0) {
-              this.currentProfile = availableProfiles[0];
-              console.log(`📋 Current profile occupied, switched to: ${this.currentProfile}`);
-            }
+            console.log(`⚠️ Profile ${this.currentProfile} is currently occupied by another user`);
+            // The UI will show this in the dropdown and prevent selection
           }
           
           this.requestUpdate();
@@ -6980,6 +6993,15 @@ In ${this.targetLanguage}:
           console.log('📞 Connected to signaling server via proxy');
           console.log('🔗 Socket ID:', this.signalingSocket?.id);
           console.log('🚀 Transport:', this.signalingSocket?.io.engine.transport.name);
+          
+          // Immediately register profile when connected
+          this.signalingSocket?.emit('register-profile', {
+            profile: this.currentProfile,
+            nativeLanguage: this.nativeLanguage,
+            targetLanguage: this.targetLanguage,
+          });
+          console.log(`👤 Registered profile: ${this.currentProfile}`);
+          
           resolve();
         });
 
