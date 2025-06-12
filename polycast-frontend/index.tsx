@@ -25,16 +25,14 @@ import type {
   WordPopupData,
   TranscriptMessage,
   DictionaryEntry,
-  Flashcard,
   FlashcardExampleSentence,
+  Flashcard,
   EvaluationData,
-} from './types.js';
+} from './types';
+import { SUPPORTED_LANGUAGES, PROFILES } from './constants';
 
 const SpeechRecognitionAPI =
   (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-const SUPPORTED_LANGUAGES = ['English', 'Spanish', 'Portuguese'];
-const PROFILES = ['Joshua', 'Cat', 'Dog', 'Mouse', 'Lizard'];
 
 @customElement('gdm-live-audio')
 export class GdmLiveAudio extends LitElement {
@@ -95,7 +93,7 @@ export class GdmLiveAudio extends LitElement {
   @state() targetLanguage: string = SUPPORTED_LANGUAGES[2]; // Default, will be overwritten by profile
   @state() appState: 'languageSelection' | 'conversation' = 'languageSelection';
   @state() currentProfile: string;
-  private readonly profiles: string[] = PROFILES;
+  private readonly profiles: readonly string[] = PROFILES;
 
   @state() private rightPanelWidth: number;
   @state() private isDraggingPanel = false;
