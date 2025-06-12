@@ -2881,8 +2881,45 @@ export class GdmLiveAudio extends LitElement {
     }
   }
 
-  private getRegularSystemInstruction(): string {
+  // Custom OpenAI Assistant ID
+  private readonly CUSTOM_ASSISTANT_ID = 'asst_rNKJwS0S74t5S9naD02h1RSF';
+
+  private async fetchAssistantInstructions(): Promise<string> {
+    try {
+      console.log('🤖 Fetching custom assistant instructions...');
+      
+      // We'll need to call this through the backend since browsers can't make direct OpenAI API calls
+      // For now, let's add a fallback until we set up the backend endpoint
+      const response = await fetch('/api/assistant-details', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          assistantId: this.CUSTOM_ASSISTANT_ID,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Retrieved assistant instructions:', data.instructions);
+        return data.instructions || this.getFallbackInstructions();
+      } else {
+        console.warn('⚠️ Failed to fetch assistant instructions, using fallback');
+        return this.getFallbackInstructions();
+      }
+    } catch (error) {
+      console.warn('⚠️ Error fetching assistant instructions:', error);
+      return this.getFallbackInstructions();
+    }
+  }
+
+  private getFallbackInstructions(): string {
     return `I am a language learner who speaks ${this.nativeLanguage} and is trying to learn ${this.targetLanguage}. Please conduct our conversation primarily in ${this.targetLanguage}. When I ask for definitions or translations, provide definitions in ${this.nativeLanguage} and translations from ${this.targetLanguage} to ${this.nativeLanguage}.`;
+  }
+
+  private async getRegularSystemInstruction(): Promise<string> {
+    return await this.fetchAssistantInstructions();
   }
 
   private getDiagnosticSystemInstruction(): string {
@@ -3023,7 +3060,8 @@ In ${this.targetLanguage}:
       systemInstructionText = this.getDiagnosticSystemInstruction();
       this.status = `Starting diagnostic session for ${this.currentProfile}...`;
     } else {
-      systemInstructionText = this.getRegularSystemInstruction();
+      this.status = `Fetching custom assistant configuration...`;
+      systemInstructionText = await this.getRegularSystemInstruction();
       this.status = `Initializing session for ${this.currentProfile}...`;
     }
 

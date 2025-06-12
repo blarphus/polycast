@@ -394,6 +394,45 @@ app.post('/api/words-batch', async (req, res) => {
     }
 });
 
+// Assistant details API endpoint
+app.post('/api/assistant-details', async (req, res) => {
+    try {
+        const { assistantId } = req.body;
+        
+        if (!assistantId) {
+            return res.status(400).json({ error: 'Assistant ID is required' });
+        }
+        
+        console.log(`🤖 Fetching details for assistant: ${assistantId}`);
+        
+        // Create OpenAI client
+        const openai = new OpenAI({ apiKey });
+        
+        // Fetch assistant details
+        const assistant = await openai.beta.assistants.retrieve(assistantId);
+        
+        console.log(`✅ Retrieved assistant: ${assistant.name || 'Unnamed'}`);
+        console.log(`📝 Instructions length: ${assistant.instructions?.length || 0} characters`);
+        
+        res.json({
+            id: assistant.id,
+            name: assistant.name,
+            instructions: assistant.instructions,
+            model: assistant.model,
+            description: assistant.description,
+        });
+    } catch (error) {
+        console.error('❌ Error fetching assistant details:', error);
+        if (error.status === 404) {
+            res.status(404).json({ error: 'Assistant not found' });
+        } else if (error.status === 401) {
+            res.status(401).json({ error: 'Invalid API key or unauthorized' });
+        } else {
+            res.status(500).json({ error: 'Failed to fetch assistant details' });
+        }
+    }
+});
+
 // Audio processing functions for backend
 class AudioProcessor {
     static resampleAudio(inputBuffer, inputSampleRate, outputSampleRate) {
