@@ -7,19 +7,19 @@
 // tslint:disable:ban-malformed-import-paths
 // tslint:dsiable:no-new-decorators
 
-import {LitElement, css, html} from 'lit';
-import {customElement, property} from 'lit/decorators.js';
-import {Analyser} from './analyser';
+import { LitElement, css, html } from 'lit';
+import { customElement, property } from 'lit/decorators.js';
+import { Analyser } from './analyser';
 
 import * as THREE from 'three';
-import {EXRLoader} from 'three/addons/loaders/EXRLoader.js';
-import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
-import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
-import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
-import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 // import {FXAAShader} from 'three/addons/shaders/FXAAShader.js'; // FXAA currently not used
-import {fs as backdropFS, vs as backdropVS} from './backdrop-shader';
-import {vs as sphereVS} from './sphere-shader';
+import { fs as backdropFS, vs as backdropVS } from './backdrop-shader';
+import { vs as sphereVS } from './sphere-shader';
 
 /**
  * 3D live audio visual.
@@ -91,23 +91,23 @@ export class GdmLiveAudioVisuals3D extends LitElement {
       // Dispose passes if necessary
     }
   }
-  
+
   public triggerResize() {
     // This method might be called before the component is fully initialized
     // or if its canvas is not yet available.
     if (this.canvas && this.camera && this.composer && this.backdrop && this.renderer) {
-        this.onWindowResize();
+      this.onWindowResize();
     } else {
-        // console.warn('Visualizer triggerResize called but component not fully ready.');
-        // It's possible init hasn't run yet if parent resized it very early.
-        // Deferring slightly can help if init is pending.
-        requestAnimationFrame(() => {
-          if (this.canvas && this.camera && this.composer && this.backdrop && this.renderer) {
-            this.onWindowResize();
-          } else {
-            console.warn('Visualizer triggerResize still not ready after defer.');
-          }
-        });
+      // console.warn('Visualizer triggerResize called but component not fully ready.');
+      // It's possible init hasn't run yet if parent resized it very early.
+      // Deferring slightly can help if init is pending.
+      requestAnimationFrame(() => {
+        if (this.canvas && this.camera && this.composer && this.backdrop && this.renderer) {
+          this.onWindowResize();
+        } else {
+          console.warn('Visualizer triggerResize still not ready after defer.');
+        }
+      });
     }
   }
 
@@ -117,20 +117,19 @@ export class GdmLiveAudioVisuals3D extends LitElement {
     const width = this.canvas.clientWidth;
     const height = this.canvas.clientHeight;
 
-    if (width === 0 || height === 0) return; 
+    if (width === 0 || height === 0) return;
 
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
 
-    const dPR = this.renderer.getPixelRatio(); 
+    const dPR = this.renderer.getPixelRatio();
 
     const backdropMaterial = this.backdrop.material as THREE.RawShaderMaterial;
     backdropMaterial.uniforms.resolution.value.set(width * dPR, height * dPR);
-    
+
     this.renderer.setSize(width, height);
     this.composer.setSize(width, height);
   }
-
 
   private init() {
     const scene = new THREE.Scene();
@@ -140,33 +139,36 @@ export class GdmLiveAudioVisuals3D extends LitElement {
       new THREE.IcosahedronGeometry(10, 5),
       new THREE.RawShaderMaterial({
         uniforms: {
-          resolution: {value: new THREE.Vector2(this.canvas.clientWidth * window.devicePixelRatio, this.canvas.clientHeight * window.devicePixelRatio)},
-          rand: {value: 0},
+          resolution: {
+            value: new THREE.Vector2(
+              this.canvas.clientWidth * window.devicePixelRatio,
+              this.canvas.clientHeight * window.devicePixelRatio
+            ),
+          },
+          rand: { value: 0 },
         },
         vertexShader: backdropVS,
         fragmentShader: backdropFS,
         glslVersion: THREE.GLSL3,
-      }),
+      })
     );
     this.backdrop.material.side = THREE.BackSide;
     scene.add(this.backdrop);
 
     this.camera = new THREE.PerspectiveCamera(
       75,
-      this.canvas.clientWidth / this.canvas.clientHeight, 
+      this.canvas.clientWidth / this.canvas.clientHeight,
       0.1,
-      1000,
+      1000
     );
-    this.camera.position.set(2, -2, 8); 
-
+    this.camera.position.set(2, -2, 8);
 
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
-      antialias: true, 
+      antialias: true,
     });
     this.renderer.setSize(this.canvas.clientWidth, this.canvas.clientHeight);
     this.renderer.setPixelRatio(window.devicePixelRatio);
-
 
     const geometry = new THREE.IcosahedronGeometry(1, 10);
     const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
@@ -179,27 +181,24 @@ export class GdmLiveAudioVisuals3D extends LitElement {
       emissiveIntensity: 1.5,
     });
 
-    new EXRLoader().load(
-      '/piz_compressed.exr',
-      (texture: THREE.Texture) => {
-        texture.mapping = THREE.EquirectangularReflectionMapping;
-        const exrCubeRenderTarget = pmremGenerator.fromEquirectangular(texture);
-        sphereMaterial.envMap = exrCubeRenderTarget.texture;
-        if (this.sphere) this.sphere.visible = true;
-        
-        if (texture && typeof texture.dispose === 'function') {
-          texture.dispose(); 
-        }
-        if (pmremGenerator && typeof pmremGenerator.dispose === 'function') {
-          pmremGenerator.dispose();
-        }
-      },
-    );
+    new EXRLoader().load('/piz_compressed.exr', (texture: THREE.Texture) => {
+      texture.mapping = THREE.EquirectangularReflectionMapping;
+      const exrCubeRenderTarget = pmremGenerator.fromEquirectangular(texture);
+      sphereMaterial.envMap = exrCubeRenderTarget.texture;
+      if (this.sphere) this.sphere.visible = true;
+
+      if (texture && typeof texture.dispose === 'function') {
+        texture.dispose();
+      }
+      if (pmremGenerator && typeof pmremGenerator.dispose === 'function') {
+        pmremGenerator.dispose();
+      }
+    });
 
     sphereMaterial.onBeforeCompile = (shader) => {
-      shader.uniforms.time = {value: 0};
-      shader.uniforms.inputData = {value: new THREE.Vector4()};
-      shader.uniforms.outputData = {value: new THREE.Vector4()};
+      shader.uniforms.time = { value: 0 };
+      shader.uniforms.inputData = { value: new THREE.Vector4() };
+      shader.uniforms.outputData = { value: new THREE.Vector4() };
 
       sphereMaterial.userData.shader = shader;
       shader.vertexShader = sphereVS;
@@ -207,26 +206,25 @@ export class GdmLiveAudioVisuals3D extends LitElement {
 
     this.sphere = new THREE.Mesh(geometry, sphereMaterial);
     scene.add(this.sphere);
-    this.sphere.visible = false; 
+    this.sphere.visible = false;
 
     const renderPass = new RenderPass(scene, this.camera);
 
     const bloomPass = new UnrealBloomPass(
       new THREE.Vector2(this.canvas.clientWidth, this.canvas.clientHeight),
-      5, 
-      0.5, 
-      0, 
+      5,
+      0.5,
+      0
     );
-
 
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(renderPass);
     this.composer.addPass(bloomPass);
-    
+
     this.onWindowResize = this.onWindowResize.bind(this);
     window.addEventListener('resize', this.onWindowResize);
-    
-    this.onWindowResize(); 
+
+    this.onWindowResize();
 
     this.animation();
   }
@@ -236,12 +234,11 @@ export class GdmLiveAudioVisuals3D extends LitElement {
 
     if (!this.inputAnalyser || !this.outputAnalyser || !this.composer || !this.sphere) return;
 
-
     this.inputAnalyser.update();
     this.outputAnalyser.update();
 
     const t = performance.now();
-    const dt = (t - this.prevTime) / (1000 / 60); 
+    const dt = (t - this.prevTime) / (1000 / 60);
     this.prevTime = t;
 
     const backdropMaterial = this.backdrop.material as THREE.RawShaderMaterial;
@@ -249,9 +246,7 @@ export class GdmLiveAudioVisuals3D extends LitElement {
 
     const sphereMaterial = this.sphere.material as THREE.MeshStandardMaterial;
     if (sphereMaterial.userData.shader) {
-      this.sphere.scale.setScalar(
-        1 + (0.2 * this.outputAnalyser.data[1]) / 255,
-      );
+      this.sphere.scale.setScalar(1 + (0.2 * this.outputAnalyser.data[1]) / 255);
 
       const f = 0.001;
       this.rotation.x += (dt * f * 0.5 * this.outputAnalyser.data[1]) / 255;
@@ -259,17 +254,12 @@ export class GdmLiveAudioVisuals3D extends LitElement {
       this.rotation.y += (dt * f * 0.25 * this.inputAnalyser.data[2]) / 255;
       this.rotation.y += (dt * f * 0.25 * this.outputAnalyser.data[2]) / 255;
 
-      const euler = new THREE.Euler(
-        this.rotation.x,
-        this.rotation.y,
-        this.rotation.z,
-      );
+      const euler = new THREE.Euler(this.rotation.x, this.rotation.y, this.rotation.z);
       const quaternion = new THREE.Quaternion().setFromEuler(euler);
-      const vector = new THREE.Vector3(0, 0, this.camera.position.z); 
+      const vector = new THREE.Vector3(0, 0, this.camera.position.z);
       vector.applyQuaternion(quaternion);
-      
-      this.camera.lookAt(this.sphere.position);
 
+      this.camera.lookAt(this.sphere.position);
 
       sphereMaterial.userData.shader.uniforms.time.value +=
         (dt * 0.1 * this.outputAnalyser.data[0]) / 255;
@@ -277,13 +267,13 @@ export class GdmLiveAudioVisuals3D extends LitElement {
         (1 * this.inputAnalyser.data[0]) / 255,
         (0.1 * this.inputAnalyser.data[1]) / 255,
         (10 * this.inputAnalyser.data[2]) / 255,
-        0,
+        0
       );
       sphereMaterial.userData.shader.uniforms.outputData.value.set(
         (2 * this.outputAnalyser.data[0]) / 255,
         (0.1 * this.outputAnalyser.data[1]) / 255,
         (10 * this.outputAnalyser.data[2]) / 255,
-        0,
+        0
       );
     }
 
@@ -298,13 +288,13 @@ export class GdmLiveAudioVisuals3D extends LitElement {
     if (this.outputNode && !this.outputAnalyser) {
       this.outputAnalyser = new Analyser(this.outputNode);
     }
-    
+
     requestAnimationFrame(() => {
-        if (this.canvas.clientWidth > 0 && this.canvas.clientHeight > 0) {
-           this.init();
-        } else {
-            setTimeout(() => this.init(), 50); 
-        }
+      if (this.canvas.clientWidth > 0 && this.canvas.clientHeight > 0) {
+        this.init();
+      } else {
+        setTimeout(() => this.init(), 50);
+      }
     });
   }
 

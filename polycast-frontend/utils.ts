@@ -1,8 +1,8 @@
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
-*/
-import {Blob} from '@google/genai';
+ */
+import { Blob } from '@google/genai';
 
 function encode(bytes) {
   let binary = '';
@@ -41,13 +41,9 @@ async function decodeAudioData(
   data: Uint8Array,
   ctx: AudioContext,
   sampleRate: number,
-  numChannels: number,
+  numChannels: number
 ): Promise<AudioBuffer> {
-  const buffer = ctx.createBuffer(
-    numChannels,
-    data.length / 2 / numChannels,
-    sampleRate,
-  );
+  const buffer = ctx.createBuffer(numChannels, data.length / 2 / numChannels, sampleRate);
 
   const dataInt16 = new Int16Array(data.buffer);
   const l = dataInt16.length;
@@ -60,9 +56,7 @@ async function decodeAudioData(
     buffer.copyToChannel(dataFloat32, 0);
   } else {
     for (let i = 0; i < numChannels; i++) {
-      const channel = dataFloat32.filter(
-        (_, index) => index % numChannels === i,
-      );
+      const channel = dataFloat32.filter((_, index) => index % numChannels === i);
       buffer.copyToChannel(channel, i);
     }
   }
@@ -70,4 +64,4 @@ async function decodeAudioData(
   return buffer;
 }
 
-export {createBlob, decode, decodeAudioData, encode};
+export { createBlob, decode, decodeAudioData, encode };

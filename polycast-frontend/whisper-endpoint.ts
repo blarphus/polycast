@@ -108,17 +108,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 // For development/testing, you can use a mock endpoint:
 export async function mockTranscribeEndpoint(audioBlob: Blob): Promise<{ text: string }> {
   // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+
   // Return mock transcription
   const mockResponses = [
-    "Hello, this is a test transcription",
-    "The quick brown fox jumps over the lazy dog",
-    "Testing the video mode transcription",
-    "This is working great!",
+    'Hello, this is a test transcription',
+    'The quick brown fox jumps over the lazy dog',
+    'Testing the video mode transcription',
+    'This is working great!',
   ];
-  
+
   const randomResponse = mockResponses[Math.floor(Math.random() * mockResponses.length)];
-  
+
   return { text: randomResponse };
-} 
+}

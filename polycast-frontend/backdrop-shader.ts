@@ -1,7 +1,7 @@
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 const vs = `precision highp float;
 
 in vec3 position;
@@ -37,4 +37,4 @@ void main() {
 }
 `;
 
-export {fs, vs};
+export { fs, vs };

@@ -31,7 +31,7 @@ export class DictionaryPopup extends LitElement {
       z-index: 1000;
       min-width: 250px;
       max-width: 380px;
-      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
       color: #e0e0e0;
       font-size: 14px;
       line-height: 1.5;
@@ -70,27 +70,68 @@ export class DictionaryPopup extends LitElement {
 
   private onToggle() {
     if (!this.popupData) return;
-    this.dispatchEvent(new CustomEvent('toggle-dictionary', {
-      detail: this.popupData,
-      bubbles: true,
-      composed: true,
-    }));
+    this.dispatchEvent(
+      new CustomEvent('toggle-dictionary', {
+        detail: this.popupData,
+        bubbles: true,
+        composed: true,
+      })
+    );
   }
 
   render() {
     if (!this.popupData) return html``;
     return html`
-      <div class="popup-overlay" @click=${() => this.dispatchEvent(new CustomEvent('close-popup', { bubbles: true, composed: true }))} role="presentation"></div>
-      <div class="word-popup" style="top:${this.popupData.y}px; left:${this.popupData.x}px;" role="dialog">
-        <button @click=${() => this.dispatchEvent(new CustomEvent('close-popup', { bubbles: true, composed: true }))} class="popup-close-btn" aria-label="Close">&times;</button>
+      <div
+        class="popup-overlay"
+        @click=${() =>
+          this.dispatchEvent(new CustomEvent('close-popup', { bubbles: true, composed: true }))}
+        role="presentation"
+      ></div>
+      <div
+        class="word-popup"
+        style="top:${this.popupData.y}px; left:${this.popupData.x}px;"
+        role="dialog"
+      >
+        <button
+          @click=${() =>
+            this.dispatchEvent(new CustomEvent('close-popup', { bubbles: true, composed: true }))}
+          class="popup-close-btn"
+          aria-label="Close"
+        >
+          &times;
+        </button>
         <div class="word-popup-header">
-          <span class="popup-selected-word">${this.popupData.displayWord || this.popupData.word}</span>
-          <button class="dictionary-toggle-btn ${this.inDictionary ? 'added' : ''}" @click=${this.onToggle} ?disabled=${this.disableToggle} title="Toggle dictionary">${this.inDictionary ? '✓' : '+'}</button>
+          <span class="popup-selected-word"
+            >${this.popupData.displayWord || this.popupData.word}</span
+          >
+          <button
+            class="dictionary-toggle-btn ${this.inDictionary ? 'added' : ''}"
+            @click=${this.onToggle}
+            ?disabled=${this.disableToggle}
+            title="Toggle dictionary"
+          >
+            ${this.inDictionary ? '✓' : '+'}
+          </button>
         </div>
-        ${this.loading ? html`<p>Loading details...</p>` : this.error ? html`<p>${this.error}</p>` : html`
-          ${this.popupData.translation ? html`<div><span class="popup-label">Translation (to ${this.nativeLanguage})</span><span class="popup-content-text">${this.popupData.translation}</span></div>` : ''}
-          ${this.popupData.definition ? html`<div><span class="popup-label">Definition (in ${this.nativeLanguage})</span><span class="popup-content-text">${this.popupData.definition}</span></div>` : ''}
-        `}
+        ${this.loading
+          ? html`<p>Loading details...</p>`
+          : this.error
+            ? html`<p>${this.error}</p>`
+            : html`
+                ${this.popupData.translation
+                  ? html`<div>
+                      <span class="popup-label">Translation (to ${this.nativeLanguage})</span
+                      ><span class="popup-content-text">${this.popupData.translation}</span>
+                    </div>`
+                  : ''}
+                ${this.popupData.definition
+                  ? html`<div>
+                      <span class="popup-label">Definition (in ${this.nativeLanguage})</span
+                      ><span class="popup-content-text">${this.popupData.definition}</span>
+                    </div>`
+                  : ''}
+              `}
       </div>
     `;
   }

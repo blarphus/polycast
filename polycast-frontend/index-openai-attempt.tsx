@@ -4,20 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {GoogleGenAI, LiveServerMessage, Modality, Session } from '@google/genai';
-import {LitElement, css, html} from 'lit';
-import {customElement, state} from 'lit/decorators.js';
-import {createBlob, decode, decodeAudioData} from './utils';
+import { GoogleGenAI, LiveServerMessage, Modality, Session } from '@google/genai';
+import { LitElement, css, html } from 'lit';
+import { customElement, state } from 'lit/decorators.js';
+import { createBlob, decode, decodeAudioData } from './utils';
 import './visual-3d';
 import type { GdmLiveAudioVisuals3D } from './visual-3d';
-import { 
-  fetchWordDetailsFromApi, 
-  fetchWordFrequencyFromApi, 
-  fetchExampleSentencesFromApi, 
-  fetchEvaluationFromApi 
+import {
+  fetchWordDetailsFromApi,
+  fetchWordFrequencyFromApi,
+  fetchExampleSentencesFromApi,
+  fetchEvaluationFromApi,
 } from './gemini-api-service';
-import {OpenAIVoiceSession, VoiceSessionConfig} from './openai-voice-service';
-
+import { OpenAIVoiceSession, VoiceSessionConfig } from './openai-voice-service';
 
 interface WordPopupData {
   word: string;
@@ -68,11 +67,10 @@ export interface EvaluationData {
   cefrLevel: string;
 }
 
-
-const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+const SpeechRecognitionAPI =
+  (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 const SUPPORTED_LANGUAGES = ['English', 'Spanish', 'Portuguese'];
 const PROFILES = ['Joshua', 'Cat', 'Dog', 'Mouse', 'Lizard'];
-
 
 @customElement('gdm-live-audio')
 export class GdmLiveAudio extends LitElement {
@@ -85,14 +83,13 @@ export class GdmLiveAudio extends LitElement {
   @state() popupData: WordPopupData | null = null;
   @state() isPopupLoading = false;
   @state() popupError: string | null = null;
-  
+
   @state() dictionaryEntries = new Map<string, DictionaryEntry>();
   @state() isFetchingFrequencyFor: string | null = null; // Kept for UI loading state on button
   @state() isFetchingSentencesFor: string | null = null; // Kept for UI loading state on button
 
-
-  @state() userInterimTranscript = ''; 
-  private finalUserTranscript = ''; 
+  @state() userInterimTranscript = '';
+  private finalUserTranscript = '';
 
   @state() private isModelSpeaking = false;
   @state() private isSpeechRecognitionActive = false;
@@ -101,7 +98,8 @@ export class GdmLiveAudio extends LitElement {
   @state() activeTab: 'transcript' | 'dictionary' | 'flashcards' | 'evaluate' = 'transcript';
   @state() expandedDictionaryWords = new Set<string>();
   @state() dictionarySearchTerm = '';
-  @state() dictionarySortOrder: 'alphabetical' | 'frequency_asc' | 'frequency_desc' | 'date_added' = 'alphabetical';
+  @state() dictionarySortOrder: 'alphabetical' | 'frequency_asc' | 'frequency_desc' | 'date_added' =
+    'alphabetical';
 
   @state() flashcards: Flashcard[] = [];
   @state() flashcardQueue: string[] = [];
@@ -114,7 +112,6 @@ export class GdmLiveAudio extends LitElement {
   @state() appState: 'languageSelection' | 'conversation' = 'languageSelection';
   @state() currentProfile: string;
   private readonly profiles: string[] = PROFILES;
-
 
   @state() private rightPanelWidth: number;
   @state() private isDraggingPanel = false;
@@ -135,12 +132,14 @@ export class GdmLiveAudio extends LitElement {
   // OpenAI Voice Session instead of Gemini
   private openaiVoiceSession: OpenAIVoiceSession | null = null;
   private client: GoogleGenAI; // Keep for API service calls (dictionary, evaluation)
-  
+
   // Audio contexts for visualization
-  private inputAudioContext = new (window.AudioContext ||
-    (window as any).webkitAudioContext)({sampleRate: 16000});
-  private outputAudioContext = new (window.AudioContext ||
-    (window as any).webkitAudioContext)({sampleRate: 24000});
+  private inputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
+    sampleRate: 16000,
+  });
+  private outputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
+    sampleRate: 24000,
+  });
   @state() inputNode = this.inputAudioContext.createGain();
   @state() outputNode = this.outputAudioContext.createGain();
 
@@ -167,11 +166,11 @@ export class GdmLiveAudio extends LitElement {
       height: 100%;
       padding: 20px;
       box-sizing: border-box;
-      background-color: #1a1423; 
+      background-color: #1a1423;
       text-align: center;
     }
     .language-selection-screen h2 {
-      color: #bca0dc; 
+      color: #bca0dc;
       margin-bottom: 30px;
       font-size: 1.8em;
     }
@@ -183,15 +182,15 @@ export class GdmLiveAudio extends LitElement {
     .language-selection-group label {
       display: block;
       margin-bottom: 8px;
-      color: #a093c4; 
+      color: #a093c4;
       font-size: 1em;
     }
     .language-selection-group select {
       width: 100%;
       padding: 12px 15px;
-      background-color: #2a2139; 
+      background-color: #2a2139;
       color: #e0e0e0;
-      border: 1px solid #3c3152; 
+      border: 1px solid #3c3152;
       border-radius: 6px;
       font-size: 1em;
       cursor: pointer;
@@ -201,7 +200,7 @@ export class GdmLiveAudio extends LitElement {
       font-size: 1.1em;
       font-weight: bold;
       color: white;
-      background-color: #8a5cf5; 
+      background-color: #8a5cf5;
       border: none;
       border-radius: 6px;
       cursor: pointer;
@@ -209,7 +208,7 @@ export class GdmLiveAudio extends LitElement {
       margin-top: 20px;
     }
     .language-selection-screen .start-button:hover {
-      background-color: #794ee2; 
+      background-color: #794ee2;
     }
 
     .app-container {
@@ -247,8 +246,12 @@ export class GdmLiveAudio extends LitElement {
     }
 
     @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+      0% {
+        transform: rotate(0deg);
+      }
+      100% {
+        transform: rotate(360deg);
+      }
     }
 
     .left-panel {
@@ -258,7 +261,7 @@ export class GdmLiveAudio extends LitElement {
       flex-direction: column;
       overflow: hidden;
     }
-    
+
     .panel-divider {
       width: 5px;
       background-color: #3c3152;
@@ -277,13 +280,13 @@ export class GdmLiveAudio extends LitElement {
       box-sizing: border-box;
       overflow: hidden;
     }
-    
+
     .tabs {
       display: flex;
-      background-color: #2a2139; 
+      background-color: #2a2139;
       border-bottom: 1px solid #3c3152;
-      padding: 0px 15px; 
-      padding-top: 10px; 
+      padding: 0px 15px;
+      padding-top: 10px;
       flex-shrink: 0;
     }
 
@@ -296,7 +299,9 @@ export class GdmLiveAudio extends LitElement {
       color: #a093c4;
       cursor: pointer;
       font-size: 0.9em;
-      transition: background-color 0.2s, color 0.2s;
+      transition:
+        background-color 0.2s,
+        color 0.2s;
     }
 
     .tab.active {
@@ -354,9 +359,15 @@ export class GdmLiveAudio extends LitElement {
     }
 
     @keyframes pulse {
-      0% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7); }
-      70% { box-shadow: 0 0 0 10px rgba(231, 76, 60, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); }
+      0% {
+        box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7);
+      }
+      70% {
+        box-shadow: 0 0 0 10px rgba(231, 76, 60, 0);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(231, 76, 60, 0);
+      }
     }
 
     .reset-button {
@@ -691,7 +702,9 @@ export class GdmLiveAudio extends LitElement {
       padding: 20px;
       margin-bottom: 15px;
       cursor: pointer;
-      transition: transform 0.2s, box-shadow 0.2s;
+      transition:
+        transform 0.2s,
+        box-shadow 0.2s;
       perspective: 1000px;
       min-height: 150px;
       display: flex;
@@ -845,14 +858,17 @@ export class GdmLiveAudio extends LitElement {
   constructor() {
     super();
     this.currentProfile = this.profiles[0];
-    
+
     // Set initial panel width
-    this.rightPanelWidth = Math.min(600, Math.max(this.minRightPanelWidth, window.innerWidth * 0.4));
-    
+    this.rightPanelWidth = Math.min(
+      600,
+      Math.max(this.minRightPanelWidth, window.innerWidth * 0.4)
+    );
+
     // Bind event handlers
     this.boundHandlePanelDragMove = this.handlePanelDragMove.bind(this);
     this.boundHandlePanelDragEnd = this.handlePanelDragEnd.bind(this);
-    
+
     // Initialize client for API service calls (keep Gemini for dictionary, etc.)
     this.initClient();
   }
@@ -872,12 +888,14 @@ export class GdmLiveAudio extends LitElement {
       this.openaiVoiceSession.disconnect();
       this.openaiVoiceSession = null;
     }
-    
+
     if (this.speechRecognition) {
-      try { this.speechRecognition.abort(); } catch(e) {}
+      try {
+        this.speechRecognition.abort();
+      } catch (e) {}
       this.speechRecognition = null;
     }
-    
+
     document.removeEventListener('mousemove', this.boundHandlePanelDragMove);
     document.removeEventListener('mouseup', this.boundHandlePanelDragEnd);
   }
@@ -888,9 +906,9 @@ export class GdmLiveAudio extends LitElement {
       this.updateError('GEMINI_API_KEY not found in environment');
       return;
     }
-    
+
     try {
-      this.client = new GoogleGenAI({apiKey});
+      this.client = new GoogleGenAI({ apiKey });
     } catch (e: any) {
       console.error('Failed to initialize Gemini client:', e);
       this.updateError('Failed to initialize API client');
@@ -901,15 +919,17 @@ export class GdmLiveAudio extends LitElement {
     this.isInitializingSession = true;
     this.requestUpdate();
 
-    const instructions = this.isDiagnosticSessionActive 
+    const instructions = this.isDiagnosticSessionActive
       ? this.getDiagnosticSystemInstruction()
       : this.getRegularSystemInstruction();
 
-    this.updateStatus(`Initializing ${this.isDiagnosticSessionActive ? 'diagnostic' : 'conversation'} session...`);
+    this.updateStatus(
+      `Initializing ${this.isDiagnosticSessionActive ? 'diagnostic' : 'conversation'} session...`
+    );
 
     try {
       this.openaiVoiceSession = new OpenAIVoiceSession();
-      
+
       // Set up event handlers
       this.openaiVoiceSession.onTranscriptUpdate = (transcript: string, isComplete: boolean) => {
         if (isComplete) {
@@ -917,7 +937,7 @@ export class GdmLiveAudio extends LitElement {
           if (transcript.trim()) {
             this.transcriptHistory = [
               ...this.transcriptHistory,
-              { speaker: 'model', text: transcript.trim(), id: `model-${crypto.randomUUID()}` }
+              { speaker: 'model', text: transcript.trim(), id: `model-${crypto.randomUUID()}` },
             ];
           }
         }
@@ -945,9 +965,11 @@ export class GdmLiveAudio extends LitElement {
       this.openaiVoiceSession.onConnectionChange = (connected: boolean) => {
         if (connected) {
           this.isInitializingSession = false;
-          this.updateStatus(this.isDiagnosticSessionActive 
-            ? `Diagnostic session started with ${this.currentProfile}. Please follow the tutor's instructions.`
-            : 'Conversation session opened.');
+          this.updateStatus(
+            this.isDiagnosticSessionActive
+              ? `Diagnostic session started with ${this.currentProfile}. Please follow the tutor's instructions.`
+              : 'Conversation session opened.'
+          );
         } else {
           this.updateStatus('Session disconnected');
         }
@@ -963,16 +985,15 @@ export class GdmLiveAudio extends LitElement {
           type: 'server_vad',
           threshold: 0.5,
           prefix_padding_ms: 300,
-          silence_duration_ms: 200
-        }
+          silence_duration_ms: 200,
+        },
       };
 
       await this.openaiVoiceSession.connect(config);
-
     } catch (e: any) {
       this.isInitializingSession = false;
       this.requestUpdate();
-      console.error("Failed to initialize OpenAI voice session:", e);
+      console.error('Failed to initialize OpenAI voice session:', e);
       this.updateError(`Failed to initialize session: ${e.message}`);
     }
   }
@@ -1030,16 +1051,18 @@ Remember: You're having a real conversation, not giving a language lesson. Be na
       case 'Lizard':
         return 'You are calm, observant, and patient. You like talking about warm places, watching and waiting, and ancient wisdom.';
       default:
-        return 'You are friendly and helpful, adapting your conversation style to match the user\'s interests.';
+        return "You are friendly and helpful, adapting your conversation style to match the user's interests.";
     }
   }
 
   private startRecording() {
     if (!this.openaiVoiceSession || !this.openaiVoiceSession.connected) {
-      this.updateError("Session not initialized. Please reset or ensure the session started correctly.");
+      this.updateError(
+        'Session not initialized. Please reset or ensure the session started correctly.'
+      );
       return;
     }
-    
+
     this.inputAudioContext.resume();
     this.outputAudioContext.resume();
     this.isRecording = true;
@@ -1053,7 +1076,7 @@ Remember: You're having a real conversation, not giving a language lesson. Be na
 
   private async reset() {
     this.stopRecording();
-    
+
     if (this.openaiVoiceSession) {
       this.openaiVoiceSession.disconnect();
       this.openaiVoiceSession = null;
@@ -1072,7 +1095,7 @@ Remember: You're having a real conversation, not giving a language lesson. Be na
     this.expandedDictionaryWords.clear();
 
     await this.initClient();
-    
+
     this.requestUpdate();
   }
 
@@ -1087,31 +1110,42 @@ Remember: You're having a real conversation, not giving a language lesson. Be na
     return html`
       <div class="app-container">
         ${this.isInitializingSession ? this.renderLoadingOverlay() : ''}
-        
-        <div class="left-panel" style="flex: 1 1 ${window.innerWidth - this.rightPanelWidth - this.dividerWidth}px; min-width: ${this.minLeftPanelWidth}px;">
-          <gdm-live-audio-visuals-3d .inputNode=${this.inputNode} .outputNode=${this.outputNode}></gdm-live-audio-visuals-3d>
-          
+
+        <div
+          class="left-panel"
+          style="flex: 1 1 ${window.innerWidth -
+          this.rightPanelWidth -
+          this.dividerWidth}px; min-width: ${this.minLeftPanelWidth}px;"
+        >
+          <gdm-live-audio-visuals-3d
+            .inputNode=${this.inputNode}
+            .outputNode=${this.outputNode}
+          ></gdm-live-audio-visuals-3d>
+
           <div class="controls">
-            <button class="mic-button ${this.isRecording ? 'recording' : ''}" 
-                    @click=${this.toggleRecording}
-                    ?disabled=${this.isInitializingSession}>
+            <button
+              class="mic-button ${this.isRecording ? 'recording' : ''}"
+              @click=${this.toggleRecording}
+              ?disabled=${this.isInitializingSession}
+            >
               ${this.isRecording ? '⏹️' : '🎤'}
             </button>
-            <button class="reset-button" @click=${this.reset} ?disabled=${this.isInitializingSession}>
+            <button
+              class="reset-button"
+              @click=${this.reset}
+              ?disabled=${this.isInitializingSession}
+            >
               Reset
             </button>
           </div>
-          
-          <div class="status ${this.error ? 'error' : ''}">
-            ${this.error || this.status}
-          </div>
+
+          <div class="status ${this.error ? 'error' : ''}">${this.error || this.status}</div>
         </div>
 
         <div class="panel-divider" @mousedown=${this.handlePanelDragStart}></div>
 
         <div class="right-panel" style="width: ${this.rightPanelWidth}px; flex-shrink: 0;">
-          ${this.renderTabs()}
-          ${this.renderTabContent()}
+          ${this.renderTabs()} ${this.renderTabContent()}
         </div>
 
         ${this.popupData ? this.renderPopup() : ''}
@@ -1123,43 +1157,46 @@ Remember: You're having a real conversation, not giving a language lesson. Be na
     return html`
       <div class="language-selection-screen">
         <h2>🌍 Welcome to Polycast AI</h2>
-        
+
         <div class="language-selection-group">
           <label for="profile-select">Choose your conversation partner:</label>
-          <select id="profile-select" .value=${this.currentProfile} 
-                  @change=${(e: Event) => {
-                    this.currentProfile = (e.target as HTMLSelectElement).value;
-                    this.updateLanguagesForProfile();
-                  }}>
-            ${this.profiles.map(profile => 
-              html`<option value=${profile}>${profile}</option>`
-            )}
+          <select
+            id="profile-select"
+            .value=${this.currentProfile}
+            @change=${(e: Event) => {
+              this.currentProfile = (e.target as HTMLSelectElement).value;
+              this.updateLanguagesForProfile();
+            }}
+          >
+            ${this.profiles.map((profile) => html`<option value=${profile}>${profile}</option>`)}
           </select>
         </div>
 
         <div class="language-selection-group">
           <label for="native-language-select">Your native language:</label>
-          <select id="native-language-select" .value=${this.nativeLanguage} 
-                  @change=${(e: Event) => this.nativeLanguage = (e.target as HTMLSelectElement).value}>
-            ${SUPPORTED_LANGUAGES.map(lang => 
-              html`<option value=${lang}>${lang}</option>`
-            )}
+          <select
+            id="native-language-select"
+            .value=${this.nativeLanguage}
+            @change=${(e: Event) => (this.nativeLanguage = (e.target as HTMLSelectElement).value)}
+          >
+            ${SUPPORTED_LANGUAGES.map((lang) => html`<option value=${lang}>${lang}</option>`)}
           </select>
         </div>
 
         <div class="language-selection-group">
           <label for="target-language-select">Language you want to practice:</label>
-          <select id="target-language-select" .value=${this.targetLanguage} 
-                  @change=${(e: Event) => this.targetLanguage = (e.target as HTMLSelectElement).value}>
-            ${SUPPORTED_LANGUAGES.filter(lang => lang !== this.nativeLanguage).map(lang => 
-              html`<option value=${lang}>${lang}</option>`
+          <select
+            id="target-language-select"
+            .value=${this.targetLanguage}
+            @change=${(e: Event) => (this.targetLanguage = (e.target as HTMLSelectElement).value)}
+          >
+            ${SUPPORTED_LANGUAGES.filter((lang) => lang !== this.nativeLanguage).map(
+              (lang) => html`<option value=${lang}>${lang}</option>`
             )}
           </select>
         </div>
 
-        <button class="start-button" @click=${this.startConversation}>
-          Start Conversation
-        </button>
+        <button class="start-button" @click=${this.startConversation}>Start Conversation</button>
       </div>
     `;
   }
@@ -1179,20 +1216,28 @@ Remember: You're having a real conversation, not giving a language lesson. Be na
   private renderTabs() {
     return html`
       <div class="tabs">
-        <button class="tab ${this.activeTab === 'transcript' ? 'active' : ''}" 
-                @click=${() => this.activeTab = 'transcript'}>
+        <button
+          class="tab ${this.activeTab === 'transcript' ? 'active' : ''}"
+          @click=${() => (this.activeTab = 'transcript')}
+        >
           Transcript
         </button>
-        <button class="tab ${this.activeTab === 'dictionary' ? 'active' : ''}" 
-                @click=${() => this.activeTab = 'dictionary'}>
+        <button
+          class="tab ${this.activeTab === 'dictionary' ? 'active' : ''}"
+          @click=${() => (this.activeTab = 'dictionary')}
+        >
           Dictionary
         </button>
-        <button class="tab ${this.activeTab === 'flashcards' ? 'active' : ''}" 
-                @click=${() => this.activeTab = 'flashcards'}>
+        <button
+          class="tab ${this.activeTab === 'flashcards' ? 'active' : ''}"
+          @click=${() => (this.activeTab = 'flashcards')}
+        >
           Flashcards
         </button>
-        <button class="tab ${this.activeTab === 'evaluate' ? 'active' : ''}" 
-                @click=${() => this.activeTab = 'evaluate'}>
+        <button
+          class="tab ${this.activeTab === 'evaluate' ? 'active' : ''}"
+          @click=${() => (this.activeTab = 'evaluate')}
+        >
           Evaluate
         </button>
       </div>
@@ -1216,30 +1261,43 @@ Remember: You're having a real conversation, not giving a language lesson. Be na
         <div class="transcript-controls">
           <div class="font-size-control">
             <label>Font Size:</label>
-            <input type="range" min="12" max="32" .value=${this.transcriptFontSize.toString()}
-                   @input=${(e: Event) => this.transcriptFontSize = parseInt((e.target as HTMLInputElement).value)}>
+            <input
+              type="range"
+              min="12"
+              max="32"
+              .value=${this.transcriptFontSize.toString()}
+              @input=${(e: Event) =>
+                (this.transcriptFontSize = parseInt((e.target as HTMLInputElement).value))}
+            />
             <span>${this.transcriptFontSize}px</span>
           </div>
         </div>
-        
+
         <div class="transcript-messages">
-          ${this.transcriptHistory.map(msg => html`
-            <div class="transcript-message ${msg.speaker}" 
-                 style="font-size: ${this.transcriptFontSize}px;">
-              <div class="speaker-label">${msg.speaker}</div>
-              <div class="message-text" @click=${(e: Event) => this.handleWordClick(e, msg.text)}>
-                ${this.renderMessageWithClickableWords(msg.text)}
+          ${this.transcriptHistory.map(
+            (msg) => html`
+              <div
+                class="transcript-message ${msg.speaker}"
+                style="font-size: ${this.transcriptFontSize}px;"
+              >
+                <div class="speaker-label">${msg.speaker}</div>
+                <div class="message-text" @click=${(e: Event) => this.handleWordClick(e, msg.text)}>
+                  ${this.renderMessageWithClickableWords(msg.text)}
+                </div>
               </div>
-            </div>
-          `)}
-          
-          ${this.userInterimTranscript ? html`
-            <div class="transcript-message user interim-transcript" 
-                 style="font-size: ${this.transcriptFontSize}px;">
-              <div class="speaker-label">user</div>
-              <div class="message-text">${this.userInterimTranscript}</div>
-            </div>
-          ` : ''}
+            `
+          )}
+          ${this.userInterimTranscript
+            ? html`
+                <div
+                  class="transcript-message user interim-transcript"
+                  style="font-size: ${this.transcriptFontSize}px;"
+                >
+                  <div class="speaker-label">user</div>
+                  <div class="message-text">${this.userInterimTranscript}</div>
+                </div>
+              `
+            : ''}
         </div>
       </div>
     `;
@@ -1249,23 +1307,32 @@ Remember: You're having a real conversation, not giving a language lesson. Be na
     return html`
       <div class="dictionary-content">
         <div class="dictionary-controls">
-          <input type="search" class="dictionary-search"
-                 placeholder="Search words..."
-                 .value=${this.dictionarySearchTerm}
-                 @input=${(e: Event) => this.dictionarySearchTerm = (e.target as HTMLInputElement).value}>
+          <input
+            type="search"
+            class="dictionary-search"
+            placeholder="Search words..."
+            .value=${this.dictionarySearchTerm}
+            @input=${(e: Event) =>
+              (this.dictionarySearchTerm = (e.target as HTMLInputElement).value)}
+          />
         </div>
-        
+
         <div class="dictionary-list">
-          ${Array.from(this.dictionaryEntries.values()).map(entry => html`
-            <div class="dictionary-entry">
-              <div class="dictionary-header" @click=${() => this.toggleDictionaryWordExpansion(entry.word)}>
-                <div>
-                  <div class="dictionary-word">${entry.word}</div>
-                  <div class="dictionary-translation">${entry.translation}</div>
+          ${Array.from(this.dictionaryEntries.values()).map(
+            (entry) => html`
+              <div class="dictionary-entry">
+                <div
+                  class="dictionary-header"
+                  @click=${() => this.toggleDictionaryWordExpansion(entry.word)}
+                >
+                  <div>
+                    <div class="dictionary-word">${entry.word}</div>
+                    <div class="dictionary-translation">${entry.translation}</div>
+                  </div>
                 </div>
               </div>
-            </div>
-          `)}
+            `
+          )}
         </div>
       </div>
     `;
@@ -1274,17 +1341,17 @@ Remember: You're having a real conversation, not giving a language lesson. Be na
   private renderFlashcardsTab() {
     return html`
       <div class="flashcards-content">
-        <div class="flashcard-queue-info">
-          ${this.flashcards.length} flashcards available
-        </div>
-        
-        ${this.flashcards.map(card => html`
-          <div class="flashcard">
-            <div class="flashcard-word">${card.dictionaryEntry.word}</div>
-            <div class="flashcard-translation">${card.dictionaryEntry.translation}</div>
-            <div class="flashcard-definition">${card.dictionaryEntry.definition}</div>
-          </div>
-        `)}
+        <div class="flashcard-queue-info">${this.flashcards.length} flashcards available</div>
+
+        ${this.flashcards.map(
+          (card) => html`
+            <div class="flashcard">
+              <div class="flashcard-word">${card.dictionaryEntry.word}</div>
+              <div class="flashcard-translation">${card.dictionaryEntry.translation}</div>
+              <div class="flashcard-definition">${card.dictionaryEntry.definition}</div>
+            </div>
+          `
+        )}
       </div>
     `;
   }
@@ -1292,68 +1359,68 @@ Remember: You're having a real conversation, not giving a language lesson. Be na
   private renderEvaluateTab() {
     return html`
       <div class="evaluation-content">
-        <button class="evaluation-button" 
-                @click=${this.evaluateConversation}
-                ?disabled=${this.isEvaluating || this.transcriptHistory.length === 0}>
+        <button
+          class="evaluation-button"
+          @click=${this.evaluateConversation}
+          ?disabled=${this.isEvaluating || this.transcriptHistory.length === 0}
+        >
           ${this.isEvaluating ? 'Evaluating...' : 'Evaluate My Performance'}
         </button>
-        
-        ${this.evaluationResult ? html`
-          <div class="evaluation-result">
-            <div class="cefr-level">CEFR Level: ${this.evaluationResult.cefrLevel}</div>
-            <div class="improvement-areas">
-              <h4>Areas for Improvement:</h4>
-              ${this.evaluationResult.improvementAreas.map(area => html`
-                <div class="improvement-area">
-                  <div class="improvement-category">${area.category}</div>
-                  <div class="improvement-description">${area.description}</div>
+
+        ${this.evaluationResult
+          ? html`
+              <div class="evaluation-result">
+                <div class="cefr-level">CEFR Level: ${this.evaluationResult.cefrLevel}</div>
+                <div class="improvement-areas">
+                  <h4>Areas for Improvement:</h4>
+                  ${this.evaluationResult.improvementAreas.map(
+                    (area) => html`
+                      <div class="improvement-area">
+                        <div class="improvement-category">${area.category}</div>
+                        <div class="improvement-description">${area.description}</div>
+                      </div>
+                    `
+                  )}
                 </div>
-              `)}
-            </div>
-          </div>
-        ` : ''}
-        
-        ${this.evaluationError ? html`
-          <div class="evaluation-error">${this.evaluationError}</div>
-        ` : ''}
+              </div>
+            `
+          : ''}
+        ${this.evaluationError
+          ? html` <div class="evaluation-error">${this.evaluationError}</div> `
+          : ''}
       </div>
     `;
   }
 
   private renderPopup() {
     if (!this.popupData) return '';
-    
+
     return html`
-      <div class="word-popup" 
-           style="left: ${this.popupData.x}px; top: ${this.popupData.y}px;">
+      <div class="word-popup" style="left: ${this.popupData.x}px; top: ${this.popupData.y}px;">
         <button class="popup-close" @click=${this.closePopup}>×</button>
-        
-        ${this.isPopupLoading ? html`
-          <div class="popup-loading">Loading...</div>
-        ` : ''}
-        
-        ${this.popupError ? html`
-          <div class="popup-error">${this.popupError}</div>
-        ` : ''}
-        
-        ${!this.isPopupLoading && !this.popupError ? html`
-          <div class="popup-word">${this.popupData.word}</div>
-          <div class="popup-translation">${this.popupData.translation}</div>
-          <div class="popup-definition">${this.popupData.definition}</div>
-          <div class="popup-part-of-speech">${this.popupData.partOfSpeech}</div>
-          
-          <div class="popup-buttons">
-            <button class="popup-button" @click=${() => this.addToDictionary(this.popupData!)}>
-              Add to Dictionary
-            </button>
-          </div>
-        ` : ''}
+
+        ${this.isPopupLoading ? html` <div class="popup-loading">Loading...</div> ` : ''}
+        ${this.popupError ? html` <div class="popup-error">${this.popupError}</div> ` : ''}
+        ${!this.isPopupLoading && !this.popupError
+          ? html`
+              <div class="popup-word">${this.popupData.word}</div>
+              <div class="popup-translation">${this.popupData.translation}</div>
+              <div class="popup-definition">${this.popupData.definition}</div>
+              <div class="popup-part-of-speech">${this.popupData.partOfSpeech}</div>
+
+              <div class="popup-buttons">
+                <button class="popup-button" @click=${() => this.addToDictionary(this.popupData!)}>
+                  Add to Dictionary
+                </button>
+              </div>
+            `
+          : ''}
       </div>
     `;
   }
 
   private renderMessageWithClickableWords(text: string) {
-    return text.split(' ').map(word => {
+    return text.split(' ').map((word) => {
       const cleanWord = word.replace(/[^\w\s]/g, '').toLowerCase();
       return html`<span class="word" data-word="${cleanWord}">${word}</span> `;
     });
@@ -1396,7 +1463,7 @@ Remember: You're having a real conversation, not giving a language lesson. Be na
         this.targetLanguage = settings.targetLanguage || SUPPORTED_LANGUAGES[2];
         this.transcriptFontSize = settings.transcriptFontSize || 26;
         this.rightPanelWidth = settings.rightPanelWidth || this.rightPanelWidth;
-        
+
         if (settings.dictionaryEntries) {
           this.dictionaryEntries = new Map(settings.dictionaryEntries);
         }
@@ -1421,7 +1488,7 @@ Remember: You're having a real conversation, not giving a language lesson. Be na
       rightPanelWidth: this.rightPanelWidth,
       dictionaryEntries: Array.from(this.dictionaryEntries.entries()),
       flashcards: this.flashcards,
-      flashcardQueue: this.flashcardQueue
+      flashcardQueue: this.flashcardQueue,
     };
     localStorage.setItem('polycast-settings', JSON.stringify(settings));
   }
@@ -1449,7 +1516,7 @@ Remember: You're having a real conversation, not giving a language lesson. Be na
 
   private async showWordPopup(word: string, sentence: string, event: Event) {
     const rect = (event.target as HTMLElement).getBoundingClientRect();
-    
+
     this.popupData = {
       word,
       sentence,
@@ -1458,15 +1525,20 @@ Remember: You're having a real conversation, not giving a language lesson. Be na
       partOfSpeech: '',
       x: rect.left,
       y: rect.bottom + 5,
-      targetWidth: rect.width
+      targetWidth: rect.width,
     };
-    
+
     this.isPopupLoading = true;
     this.popupError = null;
-    
+
     try {
-      const result = await fetchWordDetailsFromApi(word, sentence, this.targetLanguage, this.nativeLanguage);
-      
+      const result = await fetchWordDetailsFromApi(
+        word,
+        sentence,
+        this.targetLanguage,
+        this.nativeLanguage
+      );
+
       if ('error' in result) {
         this.popupError = result.error;
       } else {
@@ -1474,13 +1546,13 @@ Remember: You're having a real conversation, not giving a language lesson. Be na
           ...this.popupData,
           translation: result.translation,
           definition: result.definition,
-          partOfSpeech: result.partOfSpeech
+          partOfSpeech: result.partOfSpeech,
         };
       }
     } catch (error) {
       this.popupError = 'Failed to fetch word details';
     }
-    
+
     this.isPopupLoading = false;
     this.requestUpdate();
   }
@@ -1499,9 +1571,9 @@ Remember: You're having a real conversation, not giving a language lesson. Be na
       partOfSpeech: data.partOfSpeech,
       sentenceContext: data.sentence,
       frequency: null,
-      dateAdded: Date.now()
+      dateAdded: Date.now(),
     };
-    
+
     this.dictionaryEntries.set(data.word.toLowerCase(), entry);
     this.saveSettings();
     this.closePopup();
@@ -1560,7 +1632,7 @@ Remember: You're having a real conversation, not giving a language lesson. Be na
 
   private handlePanelDragMove(e: MouseEvent) {
     if (!this.isDraggingPanel) return;
-    
+
     const deltaX = this.dragStartX - e.clientX;
     const newRightPanelWidth = Math.max(
       this.minRightPanelWidth,
@@ -1569,7 +1641,7 @@ Remember: You're having a real conversation, not giving a language lesson. Be na
         this.initialRightPanelWidth + deltaX
       )
     );
-    
+
     this.rightPanelWidth = newRightPanelWidth;
     this.requestUpdate();
   }
@@ -1585,9 +1657,9 @@ Remember: You're having a real conversation, not giving a language lesson. Be na
   // Language mapping utility
   private mapLanguageToBcp47(language: string): string {
     const mappings: { [key: string]: string } = {
-      'English': 'en-US',
-      'Spanish': 'es-ES', 
-      'Portuguese': 'pt-BR'
+      English: 'en-US',
+      Spanish: 'es-ES',
+      Portuguese: 'pt-BR',
     };
     return mappings[language] || 'en-US';
   }

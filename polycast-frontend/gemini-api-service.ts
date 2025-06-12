@@ -12,11 +12,11 @@ const MODEL_NAME = 'gemini-2.5-flash-preview-04-17';
 // GEMINI_API_KEY will be sourced from process.env by the execution environment
 let ai: GoogleGenAI;
 try {
-    ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+  ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 } catch (e) {
-    console.error("Failed to initialize GoogleGenAI in service:", e);
-    // Handle cases where GEMINI_API_KEY might not be available or client init fails
-    // For now, functions will check if 'ai' is initialized.
+  console.error('Failed to initialize GoogleGenAI in service:', e);
+  // Handle cases where GEMINI_API_KEY might not be available or client init fails
+  // For now, functions will check if 'ai' is initialized.
 }
 
 interface WordDetails {
@@ -32,30 +32,29 @@ interface WordDetailsError {
 }
 
 interface WordFrequencyResult {
-    frequency: number;
-    rank?: number;
+  frequency: number;
+  rank?: number;
 }
 interface WordFrequencyError {
-    error: string;
+  error: string;
 }
 
 // Import the smart tiered loading service
 import { getWordFrequency, preloadCoreLanguage, getCacheStats } from './wordfreq-service';
 
 interface ExampleSentencesResult {
-    sentences: FlashcardExampleSentence[];
+  sentences: FlashcardExampleSentence[];
 }
 interface ExampleSentencesError {
-    error: string;
+  error: string;
 }
 
 interface EvaluationResult {
-    evaluation: EvaluationData;
+  evaluation: EvaluationData;
 }
 interface EvaluationError {
-    error: string;
+  error: string;
 }
-
 
 export async function fetchWordDetailsFromApi(
   word: string,
@@ -63,7 +62,7 @@ export async function fetchWordDetailsFromApi(
   targetLanguage: string,
   nativeLanguage: string
 ): Promise<WordDetails | WordDetailsError> {
-  if (!ai) return { error: "Gemini API client not initialized in service." };
+  if (!ai) return { error: 'Gemini API client not initialized in service.' };
   try {
     const prompt = `For the word "${word}" (which is in ${targetLanguage}) in the context of the ${targetLanguage} sentence "${sentence}", provide:
 1. The part of speech for the word in this ${targetLanguage} context (e.g., noun, verb, adjective).
@@ -80,8 +79,8 @@ Do not include any other text, labels, or formatting. Just the five pieces of in
       model: MODEL_NAME,
       contents: prompt,
     });
-    
-    const responseText = response.text?.trim() || "";
+
+    const responseText = response.text?.trim() || '';
     const parts = responseText.split('//');
 
     if (parts.length === 5) {
@@ -93,7 +92,9 @@ Do not include any other text, labels, or formatting. Just the five pieces of in
         definition: parts[4].trim() || 'N/A',
       };
     } else {
-      console.error(`Unexpected format from API for word details ("${word}"): ${responseText}. Expected 5 parts, got ${parts.length}.`);
+      console.error(
+        `Unexpected format from API for word details ("${word}"): ${responseText}. Expected 5 parts, got ${parts.length}.`
+      );
       return { error: `Failed to parse details for "${word}". Unexpected format.` };
     }
   } catch (e: any) {
@@ -109,18 +110,20 @@ export async function fetchWordFrequencyFromApi(
   try {
     // First try to get frequency from smart tiered wordfreq data
     const freqResult = await getWordFrequency(word, targetLanguage);
-    
+
     if (freqResult) {
       const rankInfo = freqResult.rank ? ` rank #${freqResult.rank}` : '';
-      console.log(`📊 Found frequency for "${word}" in tiered data: ${freqResult.userFrequency} (internal: ${freqResult.frequency.toFixed(1)},${rankInfo})`);
+      console.log(
+        `📊 Found frequency for "${word}" in tiered data: ${freqResult.userFrequency} (internal: ${freqResult.frequency.toFixed(1)},${rankInfo})`
+      );
       return { frequency: freqResult.userFrequency, rank: freqResult.rank };
     }
-    
+
     // Word not found in any tier - fallback to Gemini API
     console.log(`⚠️ Word "${word}" not found in tiered wordfreq data, using Gemini API fallback`);
-    
-    if (!ai) return { error: "Gemini API client not initialized in service." };
-    
+
+    if (!ai) return { error: 'Gemini API client not initialized in service.' };
+
     const prompt = `Rate the commonness of the ${targetLanguage} word "${word}" on a scale of 1 to 5. Use the following scale:
 1: Highly rare or technical; almost never appears outside specific fields.
 2: Somewhat uncommon; appears occasionally in books or niche conversations.
@@ -133,33 +136,33 @@ Respond with ONLY the number (1, 2, 3, 4, or 5). Do not include any other text o
       model: MODEL_NAME,
       contents: prompt,
     });
-    
+
     const responseText = response.text?.trim();
     if (!responseText) {
-      return { error: "Empty response from Gemini API" };
+      return { error: 'Empty response from Gemini API' };
     }
-    
+
     const apiFrequency = parseInt(responseText, 10);
     if (isNaN(apiFrequency) || apiFrequency < 1 || apiFrequency > 5) {
       console.warn(`Invalid frequency for "${word}" in ${targetLanguage}: ${responseText}`);
-      return { error: `Invalid frequency value: ${responseText}`};
+      return { error: `Invalid frequency value: ${responseText}` };
     }
     return { frequency: apiFrequency };
   } catch (e: any) {
     console.error(`Error fetching frequency for "${word}" in ${targetLanguage}:`, e);
-    return { error: (e as Error).message || `Error fetching frequency for "${word}".`};
+    return { error: (e as Error).message || `Error fetching frequency for "${word}".` };
   }
 }
 
 export async function fetchExampleSentencesFromApi(
-  word: string, 
-  sentenceContext: string, 
-  definition: string, 
+  word: string,
+  sentenceContext: string,
+  definition: string,
   partOfSpeech: string,
   targetLanguage: string,
   nativeLanguage: string
 ): Promise<ExampleSentencesResult | ExampleSentencesError> {
-  if (!ai) return { error: "Gemini API client not initialized in service." };
+  if (!ai) return { error: 'Gemini API client not initialized in service.' };
   try {
     const prompt = `For the ${targetLanguage} word "${word}", which appeared in the ${targetLanguage} sentence "${sentenceContext}" (its definition in ${nativeLanguage} is "${definition}", and its part of speech in ${targetLanguage} is "${partOfSpeech}"), please generate exactly three distinct example sentences in ${targetLanguage}. Each example sentence must use the word "${word}" with this specific meaning and part of speech. 
 For each of these ${targetLanguage} sentences, also provide its translation into ${nativeLanguage}.
@@ -172,49 +175,67 @@ Do not include any markdown formatting like \`\`\`json or \`\`\` in your respons
       model: MODEL_NAME,
       contents: prompt,
       config: {
-        responseMimeType: "application/json",
-      }
+        responseMimeType: 'application/json',
+      },
     });
-    
-    let jsonStr = response.text?.trim() || "";
+
+    let jsonStr = response.text?.trim() || '';
     const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
     const match = jsonStr.match(fenceRegex);
     if (match && match[2]) {
       jsonStr = match[2].trim();
     }
-    
+
     let rawSentences: any[];
     try {
       const parsedJson = JSON.parse(jsonStr);
       if (!Array.isArray(parsedJson)) {
-        console.warn(`Example sentences API response for word "${word}" was not an array:`, parsedJson);
+        console.warn(
+          `Example sentences API response for word "${word}" was not an array:`,
+          parsedJson
+        );
         return { sentences: [] };
       }
       rawSentences = parsedJson;
     } catch (e) {
-      console.error(`Failed to parse JSON response for example sentences (word: "${word}"):`, e, "Raw string:", jsonStr);
+      console.error(
+        `Failed to parse JSON response for example sentences (word: "${word}"):`,
+        e,
+        'Raw string:',
+        jsonStr
+      );
       return { sentences: [] }; // Return empty on parse error
     }
 
     const mappedSentences: FlashcardExampleSentence[] = rawSentences
-      .map(s_raw => {
-        if (s_raw && typeof s_raw === 'object' && 
-            typeof s_raw.englishSentence === 'string' && 
-            typeof s_raw.portugueseTranslation === 'string') {
+      .map((s_raw) => {
+        if (
+          s_raw &&
+          typeof s_raw === 'object' &&
+          typeof s_raw.englishSentence === 'string' &&
+          typeof s_raw.portugueseTranslation === 'string'
+        ) {
           return {
-            english: s_raw.englishSentence, 
-            portugueseTranslation: s_raw.portugueseTranslation, 
+            english: s_raw.englishSentence,
+            portugueseTranslation: s_raw.portugueseTranslation,
           };
         }
-        return null; 
+        return null;
       })
-      .filter(s_mapped => s_mapped !== null && s_mapped.english.trim() !== '' && s_mapped.portugueseTranslation.trim() !== '') as FlashcardExampleSentence[];
-    
+      .filter(
+        (s_mapped) =>
+          s_mapped !== null &&
+          s_mapped.english.trim() !== '' &&
+          s_mapped.portugueseTranslation.trim() !== ''
+      ) as FlashcardExampleSentence[];
+
     if (mappedSentences.length === 0 && rawSentences.length > 0) {
-      console.warn(`For word "${word}", API returned ${rawSentences.length} items, but none were valid/complete after mapping. Original:`, rawSentences);
+      console.warn(
+        `For word "${word}", API returned ${rawSentences.length} items, but none were valid/complete after mapping. Original:`,
+        rawSentences
+      );
     }
     return { sentences: mappedSentences.slice(0, 3) };
-
   } catch (e: any) {
     console.error(`Error during API call for example sentences (word: "${word}"):`, e);
     return { error: (e as Error).message || `API error fetching example sentences for "${word}".` };
@@ -237,13 +258,13 @@ export async function fetchEvaluationFromApi(
   targetLanguage: string,
   nativeLanguage: string
 ): Promise<EvaluationResult | EvaluationError> {
-  if (!ai) return { error: "Gemini API client not initialized in service." };
+  if (!ai) return { error: 'Gemini API client not initialized in service.' };
   if (transcriptHistory.length === 0) {
-    return { error: "Transcript is empty." };
+    return { error: 'Transcript is empty.' };
   }
 
   const formattedTranscript = transcriptHistory
-    .map(msg => `[${msg.speaker.toUpperCase()}]: ${msg.text}`)
+    .map((msg) => `[${msg.speaker.toUpperCase()}]: ${msg.text}`)
     .join('\n\n');
 
   const prompt = `You are an AI language evaluation assistant. The user is a native ${nativeLanguage} speaker learning ${targetLanguage}.
@@ -269,37 +290,49 @@ Only return the JSON object. Do not include any markdown formatting like \`\`\`j
       model: MODEL_NAME,
       contents: prompt,
       config: {
-        responseMimeType: "application/json",
-      }
+        responseMimeType: 'application/json',
+      },
     });
 
-    let jsonStr = response.text?.trim() || "";
+    let jsonStr = response.text?.trim() || '';
     const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s;
     const match = jsonStr.match(fenceRegex);
     if (match && match[2]) {
       jsonStr = match[2].trim();
     }
-    
-    const rawResult = JSON.parse(jsonStr) as { 
-      improvementAreas?: { category?: string, description?: string }[],
-      cefrLevel?: string 
+
+    const rawResult = JSON.parse(jsonStr) as {
+      improvementAreas?: { category?: string; description?: string }[];
+      cefrLevel?: string;
     };
 
-    if (rawResult && Array.isArray(rawResult.improvementAreas) && typeof rawResult.cefrLevel === 'string') {
+    if (
+      rawResult &&
+      Array.isArray(rawResult.improvementAreas) &&
+      typeof rawResult.cefrLevel === 'string'
+    ) {
       const evaluation: EvaluationData = {
-          improvementAreas: rawResult.improvementAreas.map(area => ({
-              category: area.category || "N/A",
-              description: area.description || "N/A"
-          })).filter(area => area.category !== "N/A" && area.category.trim() !== "" && area.description !== "N/A" && area.description.trim() !== ""), 
-          cefrLevel: rawResult.cefrLevel || "N/A"
+        improvementAreas: rawResult.improvementAreas
+          .map((area) => ({
+            category: area.category || 'N/A',
+            description: area.description || 'N/A',
+          }))
+          .filter(
+            (area) =>
+              area.category !== 'N/A' &&
+              area.category.trim() !== '' &&
+              area.description !== 'N/A' &&
+              area.description.trim() !== ''
+          ),
+        cefrLevel: rawResult.cefrLevel || 'N/A',
       };
       return { evaluation };
     } else {
-      console.error("Invalid JSON structure received from evaluation API:", rawResult);
-      return { error: "Invalid data structure received from evaluation service." };
+      console.error('Invalid JSON structure received from evaluation API:', rawResult);
+      return { error: 'Invalid data structure received from evaluation service.' };
     }
   } catch (e: any) {
-    console.error("Error evaluating transcript via API:", e);
-    return { error: (e as Error).message || "API error during evaluation." };
+    console.error('Error evaluating transcript via API:', e);
+    return { error: (e as Error).message || 'API error during evaluation.' };
   }
 }

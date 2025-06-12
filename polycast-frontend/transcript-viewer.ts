@@ -49,21 +49,24 @@ export class TranscriptViewer extends LitElement {
 
   private renderMessage(text: string) {
     const tokens = text.split(/(\s+)/);
-    return tokens.map(token => {
+    return tokens.map((token) => {
       if (token.trim() === '') return token;
       const key = token.replace(/[.,!?;:()"']/g, '').toLowerCase();
       const known = this.knownWordForms.has(key);
       return html`<span
         class="clickable-word ${known ? 'known-word' : ''}"
         @click=${(e: MouseEvent) => {
-          this.dispatchEvent(new CustomEvent('word-click', {
-            detail: { word: token, sentence: text, event: e },
-            bubbles: true,
-            composed: true,
-          }));
-        }}>
-          ${token}
-        </span>`;
+          this.dispatchEvent(
+            new CustomEvent('word-click', {
+              detail: { word: token, sentence: text, event: e },
+              bubbles: true,
+              composed: true,
+            })
+          );
+        }}
+      >
+        ${token}
+      </span>`;
     });
   }
 
@@ -71,13 +74,20 @@ export class TranscriptViewer extends LitElement {
     return html`
       <div class="transcript-messages-container">
         <div class="transcript-messages">
-          ${this.transcriptHistory.map((msg, index, arr) => html`
-            <p
-              class="transcript-message ${msg.speaker === 'user' ? 'user' : ''} ${index === arr.length - 1 ? 'latest' : ''}"
-              style="font-size: ${this.transcriptFontSize}px;"
-              data-speaker=${msg.speaker}
-            >${this.renderMessage(msg.text)}</p>
-          `)}
+          ${this.transcriptHistory.map(
+            (msg, index, arr) => html`
+              <p
+                class="transcript-message ${msg.speaker === 'user' ? 'user' : ''} ${index ===
+                arr.length - 1
+                  ? 'latest'
+                  : ''}"
+                style="font-size: ${this.transcriptFontSize}px;"
+                data-speaker=${msg.speaker}
+              >
+                ${this.renderMessage(msg.text)}
+              </p>
+            `
+          )}
         </div>
       </div>
     `;

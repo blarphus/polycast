@@ -12,24 +12,29 @@ import './transcript-viewer';
 import './dictionary-popup';
 import './flashcard-manager';
 import type { GdmLiveAudioVisuals3D } from './visual-3d';
-import { 
-  fetchWordDetailsFromApi, 
-  fetchWordFrequencyFromApi, 
-  fetchExampleSentencesFromApi, 
-  fetchEvaluationFromApi 
+import {
+  fetchWordDetailsFromApi,
+  fetchWordFrequencyFromApi,
+  fetchExampleSentencesFromApi,
+  fetchEvaluationFromApi,
 } from './gemini-api-service';
 import { MicVAD, utils } from '@ricky0123/vad-web';
 import { io, Socket } from 'socket.io-client';
 
-import type { WordPopupData, TranscriptMessage, DictionaryEntry, Flashcard, FlashcardExampleSentence, EvaluationData } from './types.js';
+import type {
+  WordPopupData,
+  TranscriptMessage,
+  DictionaryEntry,
+  Flashcard,
+  FlashcardExampleSentence,
+  EvaluationData,
+} from './types.js';
 
-const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-
+const SpeechRecognitionAPI =
+  (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
 const SUPPORTED_LANGUAGES = ['English', 'Spanish', 'Portuguese'];
 const PROFILES = ['Joshua', 'Cat', 'Dog', 'Mouse', 'Lizard'];
-
 
 @customElement('gdm-live-audio')
 export class GdmLiveAudio extends LitElement {
@@ -44,14 +49,13 @@ export class GdmLiveAudio extends LitElement {
   @state() popupData: WordPopupData | null = null;
   @state() isPopupLoading = false;
   @state() popupError: string | null = null;
-  
+
   @state() dictionaryEntries = new Map<string, DictionaryEntry>();
   @state() isFetchingFrequencyFor: string | null = null; // Kept for UI loading state on button
   @state() isFetchingSentencesFor: string | null = null; // Kept for UI loading state on button
 
-
-  @state() userInterimTranscript = ''; 
-  private finalUserTranscript = ''; 
+  @state() userInterimTranscript = '';
+  private finalUserTranscript = '';
 
   @state() private isModelSpeaking = false;
   @state() private isSpeechRecognitionActive = false;
@@ -60,19 +64,30 @@ export class GdmLiveAudio extends LitElement {
   @state() activeTab: 'transcript' | 'dictionary' | 'flashcards' | 'evaluate' = 'transcript';
   @state() expandedDictionaryWords = new Set<string>();
   @state() dictionarySearchTerm = '';
-  @state() dictionarySortOrder: 'frequency_desc' | 'frequency_asc' | 'alphabetical' | 'alphabetical_reverse' | 'date_added_desc' | 'date_added_asc' = 'frequency_desc';
+  @state() dictionarySortOrder:
+    | 'frequency_desc'
+    | 'frequency_asc'
+    | 'alphabetical'
+    | 'alphabetical_reverse'
+    | 'date_added_desc'
+    | 'date_added_asc' = 'frequency_desc';
 
   @state() flashcards: Flashcard[] = [];
   @state() flashcardQueue: string[] = [];
   @state() currentFlashcardQueueIndex = 0;
   @state() flashcardIntervals = new Map<string, number>();
   @state() flashcardFlipState = new Map<string, boolean>();
-  @state() flashcardAnimationState: 'idle' | 'sliding-left' | 'sliding-right' | 'entering-left' | 'entering-right' = 'idle';
-  
+  @state() flashcardAnimationState:
+    | 'idle'
+    | 'sliding-left'
+    | 'sliding-right'
+    | 'entering-left'
+    | 'entering-right' = 'idle';
+
   // TTS preloading state
   private preloadedUtterances = new Map<string, SpeechSynthesisUtterance>();
   private currentPreloadingCardId: string | null = null;
-  
+
   // Word form tracking for blue highlighting
   private knownWordForms = new Set<string>(); // All conjugated/inflected forms
 
@@ -81,7 +96,6 @@ export class GdmLiveAudio extends LitElement {
   @state() appState: 'languageSelection' | 'conversation' = 'languageSelection';
   @state() currentProfile: string;
   private readonly profiles: string[] = PROFILES;
-
 
   @state() private rightPanelWidth: number;
   @state() private isDraggingPanel = false;
@@ -146,31 +160,34 @@ export class GdmLiveAudio extends LitElement {
   private videoSpeechFrames = 0;
   private videoSilenceFrames = 0;
   private videoStoppedForSpeechCompletion = false; // Track if we stopped due to speech completion
-  
+
   // VAD Constants
   private readonly VIDEO_FRAME_MS = 100;
-  private readonly VIDEO_GAP_MS = 500;            // flush after 500ms silence (reduced from 600ms)
-  private readonly VIDEO_MIN_SPEECH_MS = 250;     // need 250ms > thresh to mark as speech
-  private readonly VIDEO_MARGIN_DB = 6;           // threshold = noise + 6dB
-  
+  private readonly VIDEO_GAP_MS = 500; // flush after 500ms silence (reduced from 600ms)
+  private readonly VIDEO_MIN_SPEECH_MS = 250; // need 250ms > thresh to mark as speech
+  private readonly VIDEO_MARGIN_DB = 6; // threshold = noise + 6dB
+
   // Track current placeholder for replacement
   private currentVideoPlaceholderId: string | null = null;
-  
+
   // Better tracking for multiple concurrent placeholders
   private pendingVideoPlaceholders = new Map<string, string>(); // Maps MediaRecorder session ID to placeholder ID
-  
+
   // Map to track active recording sessions and their placeholders
-  private activeVideoSessions = new Map<string, {
-    placeholderId: string;
-    mediaRecorder: MediaRecorder | null;
-    timestamp: number;
-  }>();
+  private activeVideoSessions = new Map<
+    string,
+    {
+      placeholderId: string;
+      mediaRecorder: MediaRecorder | null;
+      timestamp: number;
+    }
+  >();
 
   // WebRTC VAD for pre-filtering audio
   private micVAD: any = null; // MicVAD instance
   private isVADInitialized = false;
   private vadSpeechTimer: number | null = null; // Timer for speech end detection
-  
+
   // Pending speech chunks for accumulated sending
   private pendingSpeechChunks: Blob[] = [];
 
@@ -182,27 +199,28 @@ export class GdmLiveAudio extends LitElement {
   @state() callError: string | null = null;
   @state() remoteVideoStream: MediaStream | null = null;
   @state() joinCodeInput = '';
-  
+
   // Socket.IO and WebRTC
   private signalingSocket: Socket | null = null;
   private peerConnection: RTCPeerConnection | null = null;
   private localStream: MediaStream | null = null;
   private remoteSocketId: string | null = null; // Store the remote peer's socket ID
-  
+
   // WebRTC configuration
   private readonly rtcConfiguration = {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' }
-    ]
+      { urls: 'stun:stun1.l.google.com:19302' },
+    ],
   };
 
-
   private openAIVoiceSession: OpenAIVoiceSession | null = null;
-  private inputAudioContext = new (window.AudioContext ||
-    (window as any).webkitAudioContext)({sampleRate: 24000});
-  private outputAudioContext = new (window.AudioContext ||
-    (window as any).webkitAudioContext)({sampleRate: 24000});
+  private inputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
+    sampleRate: 24000,
+  });
+  private outputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
+    sampleRate: 24000,
+  });
   @state() inputNode = this.inputAudioContext.createGain();
   @state() outputNode = this.outputAudioContext.createGain();
   private nextStartTime = 0;
@@ -218,41 +236,41 @@ export class GdmLiveAudio extends LitElement {
   // Video mode methods
   private async startWebcam() {
     if (this.videoStream) return;
-    
+
     this.isVideoLoading = true;
     this.status = 'Starting camera...';
-    
+
     try {
       // First check if we have permission
       const permissions = await navigator.permissions.query({ name: 'camera' as PermissionName });
       console.log('Camera permission status:', permissions.state);
-      
+
       // Try with more basic constraints first
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
           width: { ideal: 640, max: 1280 },
           height: { ideal: 480, max: 720 },
-          facingMode: 'user'
-        }, 
-        audio: false 
+          facingMode: 'user',
+        },
+        audio: false,
       });
-      
+
       this.videoStream = stream;
       this.isVideoLoading = false;
       this.status = 'Camera started successfully';
-      
+
       // Trigger a re-render and then set up the video
       await this.requestUpdate();
       await this.updateComplete;
-      
+
       // Set up the video element - handle both regular and PiP modes
       let videoElement = this.shadowRoot?.querySelector('#webcam-video') as HTMLVideoElement;
-      
+
       // If regular video element not found, try PiP video element
       if (!videoElement) {
         videoElement = this.shadowRoot?.querySelector('#webcam-video-pip') as HTMLVideoElement;
       }
-      
+
       if (videoElement) {
         videoElement.srcObject = stream;
         videoElement.onloadedmetadata = () => {
@@ -265,10 +283,11 @@ export class GdmLiveAudio extends LitElement {
     } catch (error: any) {
       console.error('❌ Error accessing webcam:', error);
       this.isVideoLoading = false;
-      
+
       let errorMessage = 'Camera error: ';
       if (error.name === 'NotReadableError') {
-        errorMessage += 'Camera is already in use by another application. Please close other apps using the camera and try again.';
+        errorMessage +=
+          'Camera is already in use by another application. Please close other apps using the camera and try again.';
       } else if (error.name === 'NotAllowedError') {
         errorMessage += 'Camera access denied. Please allow camera access and refresh the page.';
       } else if (error.name === 'NotFoundError') {
@@ -281,7 +300,7 @@ export class GdmLiveAudio extends LitElement {
       } else {
         errorMessage += error.message || 'Unknown camera error';
       }
-      
+
       this.status = errorMessage;
     }
   }
@@ -289,18 +308,18 @@ export class GdmLiveAudio extends LitElement {
   private async tryBasicCamera() {
     try {
       console.log('🔄 Trying basic camera settings...');
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: true, 
-        audio: false 
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: false,
       });
-      
+
       this.videoStream = stream;
       this.isVideoLoading = false;
       this.status = 'Camera started with basic settings';
-      
+
       await this.requestUpdate();
       await this.updateComplete;
-      
+
       const videoElement = this.shadowRoot?.querySelector('#webcam-video') as HTMLVideoElement;
       if (videoElement) {
         videoElement.srcObject = stream;
@@ -316,7 +335,7 @@ export class GdmLiveAudio extends LitElement {
 
   private stopWebcam() {
     if (this.videoStream) {
-      this.videoStream.getTracks().forEach(track => track.stop());
+      this.videoStream.getTracks().forEach((track) => track.stop());
       this.videoStream = null;
       this.status = 'Camera stopped';
       this.requestUpdate();
@@ -325,7 +344,7 @@ export class GdmLiveAudio extends LitElement {
 
   private handleModeSwitch(mode: 'ai' | 'video') {
     if (this.leftPanelMode === mode) return; // No change needed
-    
+
     // Save current transcript to appropriate history
     if (this.leftPanelMode === 'ai') {
       this.aiTranscriptHistory = [...this.transcriptHistory];
@@ -333,10 +352,10 @@ export class GdmLiveAudio extends LitElement {
       // Save video transcripts during session, just don't persist to localStorage
       this.videoTranscriptHistory = [...this.transcriptHistory];
     }
-    
+
     // Switch mode
     this.leftPanelMode = mode;
-    
+
     // Load appropriate transcript history
     if (mode === 'ai') {
       this.transcriptHistory = [...this.aiTranscriptHistory];
@@ -344,7 +363,7 @@ export class GdmLiveAudio extends LitElement {
       // Load existing video transcript history from this session
       this.transcriptHistory = [...this.videoTranscriptHistory];
     }
-    
+
     // Stop current activities and clean up
     if (mode === 'ai') {
       this.stopWebcam();
@@ -360,7 +379,7 @@ export class GdmLiveAudio extends LitElement {
         }, 500);
       }
     }
-    
+
     this.saveProfileData();
     this.requestUpdate();
   }
@@ -372,41 +391,41 @@ export class GdmLiveAudio extends LitElement {
 
   private handlePipDragStart(e: MouseEvent) {
     if (this.videoLayout !== 'pip') return;
-    
+
     e.preventDefault();
     this.isDraggingPip = true;
-    
+
     const pipElement = e.target as HTMLElement;
     const containerElement = this.shadowRoot?.querySelector('.video-container') as HTMLElement;
     if (!containerElement) return;
-    
+
     const containerRect = containerElement.getBoundingClientRect();
     const pipRect = pipElement.getBoundingClientRect();
-    
+
     // Calculate offset from mouse to top-left of PiP element
     const offsetX = e.clientX - pipRect.left;
     const offsetY = e.clientY - pipRect.top;
-    
+
     const handleMouseMove = (moveEvent: MouseEvent) => {
       if (!this.isDraggingPip) return;
-      
+
       // Calculate new position relative to container
       const newX = moveEvent.clientX - containerRect.left - offsetX;
       const newY = moveEvent.clientY - containerRect.top - offsetY;
-      
+
       // Constrain to container bounds (with PiP size consideration)
       const pipWidth = 200; // PiP width
       const pipHeight = 150; // PiP height
       const maxX = containerRect.width - pipWidth;
       const maxY = containerRect.height - pipHeight;
-      
+
       this.pipPosition = {
         x: Math.max(0, Math.min(maxX, newX)),
-        y: Math.max(0, Math.min(maxY, newY))
+        y: Math.max(0, Math.min(maxY, newY)),
       };
       this.requestUpdate();
     };
-    
+
     const handleMouseUp = () => {
       if (this.isDraggingPip) {
         // Snap to nearest corner
@@ -417,7 +436,7 @@ export class GdmLiveAudio extends LitElement {
       document.removeEventListener('mouseup', handleMouseUp);
       this.requestUpdate();
     };
-    
+
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
     this.requestUpdate();
@@ -426,46 +445,49 @@ export class GdmLiveAudio extends LitElement {
   private snapToNearestCorner() {
     const containerElement = this.shadowRoot?.querySelector('.video-container') as HTMLElement;
     if (!containerElement) return;
-    
+
     const containerRect = containerElement.getBoundingClientRect();
     const pipWidth = 200;
     const pipHeight = 150;
     const margin = 20; // Distance from edges
-    
+
     // Calculate container dimensions
     const containerWidth = containerRect.width;
     const containerHeight = containerRect.height;
-    
+
     // Current PiP center position
     const pipCenterX = this.pipPosition.x + pipWidth / 2;
     const pipCenterY = this.pipPosition.y + pipHeight / 2;
-    
+
     // Define corner positions (with margin from edges)
     const corners = [
       { x: margin, y: margin, name: 'top-left' }, // Top-left
       { x: containerWidth - pipWidth - margin, y: margin, name: 'top-right' }, // Top-right
       { x: margin, y: containerHeight - pipHeight - margin, name: 'bottom-left' }, // Bottom-left
-      { x: containerWidth - pipWidth - margin, y: containerHeight - pipHeight - margin, name: 'bottom-right' } // Bottom-right
+      {
+        x: containerWidth - pipWidth - margin,
+        y: containerHeight - pipHeight - margin,
+        name: 'bottom-right',
+      }, // Bottom-right
     ];
-    
+
     // Find nearest corner
     let nearestCorner = corners[0];
     let minDistance = Infinity;
-    
-    corners.forEach(corner => {
+
+    corners.forEach((corner) => {
       const cornerCenterX = corner.x + pipWidth / 2;
       const cornerCenterY = corner.y + pipHeight / 2;
       const distance = Math.sqrt(
-        Math.pow(pipCenterX - cornerCenterX, 2) + 
-        Math.pow(pipCenterY - cornerCenterY, 2)
+        Math.pow(pipCenterX - cornerCenterX, 2) + Math.pow(pipCenterY - cornerCenterY, 2)
       );
-      
+
       if (distance < minDistance) {
         minDistance = distance;
         nearestCorner = corner;
       }
     });
-    
+
     // Animate to nearest corner
     this.animatePipToPosition(nearestCorner.x, nearestCorner.y);
   }
@@ -475,26 +497,26 @@ export class GdmLiveAudio extends LitElement {
     const startY = this.pipPosition.y;
     const startTime = performance.now();
     const duration = 300; // Animation duration in ms
-    
+
     const animate = (currentTime: number) => {
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      
+
       // Easing function (ease-out)
       const easeOut = 1 - Math.pow(1 - progress, 3);
-      
+
       this.pipPosition = {
         x: startX + (targetX - startX) * easeOut,
-        y: startY + (targetY - startY) * easeOut
+        y: startY + (targetY - startY) * easeOut,
       };
-      
+
       this.requestUpdate();
-      
+
       if (progress < 1) {
         requestAnimationFrame(animate);
       }
     };
-    
+
     requestAnimationFrame(animate);
   }
 
@@ -516,11 +538,11 @@ export class GdmLiveAudio extends LitElement {
       height: 100%;
       padding: 20px;
       box-sizing: border-box;
-      background-color: #1a1423; 
+      background-color: #1a1423;
       text-align: center;
     }
     .language-selection-screen h2 {
-      color: #bca0dc; 
+      color: #bca0dc;
       margin-bottom: 30px;
       font-size: 1.8em;
     }
@@ -532,15 +554,15 @@ export class GdmLiveAudio extends LitElement {
     .language-selection-group label {
       display: block;
       margin-bottom: 8px;
-      color: #a093c4; 
+      color: #a093c4;
       font-size: 1em;
     }
     .language-selection-group select {
       width: 100%;
       padding: 12px 15px;
-      background-color: #2a2139; 
+      background-color: #2a2139;
       color: #e0e0e0;
-      border: 1px solid #3c3152; 
+      border: 1px solid #3c3152;
       border-radius: 6px;
       font-size: 1em;
       cursor: pointer;
@@ -550,7 +572,7 @@ export class GdmLiveAudio extends LitElement {
       font-size: 1.1em;
       font-weight: bold;
       color: white;
-      background-color: #8a5cf5; 
+      background-color: #8a5cf5;
       border: none;
       border-radius: 6px;
       cursor: pointer;
@@ -558,9 +580,8 @@ export class GdmLiveAudio extends LitElement {
       margin-top: 20px;
     }
     .language-selection-screen .start-button:hover {
-      background-color: #794ee2; 
+      background-color: #794ee2;
     }
-
 
     .app-container {
       display: flex;
@@ -597,10 +618,13 @@ export class GdmLiveAudio extends LitElement {
     }
 
     @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+      0% {
+        transform: rotate(0deg);
+      }
+      100% {
+        transform: rotate(360deg);
+      }
     }
-
 
     .left-panel {
       /* flex: 1; Provided by inline style now */
@@ -610,7 +634,7 @@ export class GdmLiveAudio extends LitElement {
       flex-direction: column;
       overflow: hidden;
     }
-    
+
     /* Mode selector styles */
     .mode-selector {
       display: flex;
@@ -735,8 +759,12 @@ export class GdmLiveAudio extends LitElement {
       background: currentColor;
       opacity: 0.7;
     }
-    .layout-option.horizontal::before { left: 2px; }
-    .layout-option.horizontal::after { right: 2px; }
+    .layout-option.horizontal::before {
+      left: 2px;
+    }
+    .layout-option.horizontal::after {
+      right: 2px;
+    }
 
     .layout-option.pip::before {
       content: '';
@@ -830,7 +858,9 @@ export class GdmLiveAudio extends LitElement {
       cursor: move;
       border: 3px solid #8a5cf5;
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      transition:
+        border-color 0.2s ease,
+        box-shadow 0.2s ease;
       user-select: none;
     }
 
@@ -852,7 +882,12 @@ export class GdmLiveAudio extends LitElement {
       bottom: 0;
       left: 0;
       right: 0;
-      background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.6) 50%, transparent 100%);
+      background: linear-gradient(
+        to top,
+        rgba(0, 0, 0, 0.8) 0%,
+        rgba(0, 0, 0, 0.6) 50%,
+        transparent 100%
+      );
       color: white;
       padding: 15px 20px;
       text-align: center;
@@ -977,7 +1012,6 @@ export class GdmLiveAudio extends LitElement {
       z-index: 5; /* Ensure it's above panel content if needed */
     }
 
-
     .right-panel {
       /* width and flex-shrink provided by inline style */
       /* border-left: 1px solid #3c3152;  Removed, divider handles this */
@@ -990,47 +1024,52 @@ export class GdmLiveAudio extends LitElement {
       box-sizing: border-box;
       overflow: hidden; /* Prevent content from overflowing during resize */
     }
-    
+
     .tabs {
       display: flex;
-      background-color: #2a2139; 
+      background-color: #2a2139;
       border-bottom: 1px solid #3c3152;
-      padding: 0px 15px; 
-      padding-top: 10px; 
+      padding: 0px 15px;
+      padding-top: 10px;
       flex-shrink: 0; /* Prevent tabs from shrinking */
     }
 
     .tab-button {
-      padding: 10px 15px; 
+      padding: 10px 15px;
       cursor: pointer;
       border: none;
       background-color: transparent;
-      color: #8a80a5; 
-      font-size: 0.95em; 
+      color: #8a80a5;
+      font-size: 0.95em;
       font-weight: 500;
       border-bottom: 3px solid transparent;
       /* margin-right: 10px; /* Let flexbox handle spacing or use gap on .tabs */
-      transition: color 0.2s ease, border-color 0.2s ease;
+      transition:
+        color 0.2s ease,
+        border-color 0.2s ease;
       flex-grow: 1; /* Added */
-      flex-basis: 0;  /* Added */
+      flex-basis: 0; /* Added */
       text-align: center; /* Added */
     }
     .tab-button:not(:last-child) {
-        margin-right: 5px; /* Restore some spacing if desired */
+      margin-right: 5px; /* Restore some spacing if desired */
     }
-
 
     .tab-button:hover {
       color: #bca0dc;
     }
 
     .tab-button.active {
-      color: #e0e0e0; 
-      border-bottom-color: #8a5cf5; 
+      color: #e0e0e0;
+      border-bottom-color: #8a5cf5;
     }
-    
-    .tab-button.dictionary-tab-btn.active { border-bottom-color: #e53e3e; } 
-    .tab-button.flashcards-tab-btn.active { border-bottom-color: #3b82f6; } 
+
+    .tab-button.dictionary-tab-btn.active {
+      border-bottom-color: #e53e3e;
+    }
+    .tab-button.flashcards-tab-btn.active {
+      border-bottom-color: #3b82f6;
+    }
     .tab-button.evaluate-tab-btn.active,
     .tab-button.evaluate-tab-btn:hover {
       border-bottom-color: #28a745; /* Green */
@@ -1047,14 +1086,13 @@ export class GdmLiveAudio extends LitElement {
       color: #5a4f73; /* Keep hover color same as disabled */
     }
 
-
     .tab-content {
       flex-grow: 1;
       overflow-y: auto; /* Allows content within tab to scroll */
-      display: flex; 
-      flex-direction: column; 
+      display: flex;
+      flex-direction: column;
     }
-    
+
     .transcript-header {
       display: flex;
       justify-content: space-between;
@@ -1062,7 +1100,7 @@ export class GdmLiveAudio extends LitElement {
       padding: 15px 20px;
       flex-shrink: 0;
       border-bottom: 1px solid #3c3152;
-      background-color: #231c31; 
+      background-color: #231c31;
     }
 
     .transcript-title {
@@ -1074,7 +1112,6 @@ export class GdmLiveAudio extends LitElement {
     .transcript-title.diagnostic {
       color: #f97316; /* Orange for diagnostic */
     }
-
 
     .font-controls {
       display: flex;
@@ -1096,22 +1133,24 @@ export class GdmLiveAudio extends LitElement {
       background-color: #4a3f63;
     }
 
-    .transcript-messages-container, .dictionary-content, .flashcards-content, .evaluate-content {
+    .transcript-messages-container,
+    .dictionary-content,
+    .flashcards-content,
+    .evaluate-content {
       flex-grow: 1;
       overflow-y: auto;
-      padding: 20px; 
+      padding: 20px;
     }
     .flashcards-content {
-        display: flex;
-        flex-direction: column; 
-        align-items: center;
-        justify-content: center;
-        color: #8a80a5;
-        font-size: 1.1em;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #8a80a5;
+      font-size: 1.1em;
     }
 
-
-    .transcript-messages-container::-webkit-scrollbar, 
+    .transcript-messages-container::-webkit-scrollbar,
     .dictionary-content::-webkit-scrollbar,
     .flashcards-content::-webkit-scrollbar,
     .evaluate-content::-webkit-scrollbar {
@@ -1135,54 +1174,53 @@ export class GdmLiveAudio extends LitElement {
     .transcript-messages {
       display: flex;
       flex-direction: column;
-      gap: 0px; 
+      gap: 0px;
     }
 
     .transcript-message {
-      background-color: #3c3152; 
+      background-color: #3c3152;
       padding: 8px 12px;
       line-height: 1.5;
-      color: #e0e0e0; 
+      color: #e0e0e0;
       word-wrap: break-word;
-      margin-top: 0; 
+      margin-top: 0;
       margin-bottom: 0;
-      border-radius: 10px; 
+      border-radius: 10px;
     }
 
-    .transcript-message[data-speaker="user"] + .transcript-message[data-speaker="model"],
-    .transcript-message[data-speaker="model"] + .transcript-message[data-speaker="user"] {
+    .transcript-message[data-speaker='user'] + .transcript-message[data-speaker='model'],
+    .transcript-message[data-speaker='model'] + .transcript-message[data-speaker='user'] {
       margin-top: 8px;
     }
 
     .transcript-message.user {
-      background-color: #34495e; 
-      color: #ecf0f1; 
+      background-color: #34495e;
+      color: #ecf0f1;
     }
 
     .transcript-message.latest {
-      background-color: #ffffff; 
+      background-color: #ffffff;
     }
-    .transcript-message.latest:not(.user) { 
-        color: #3cb371; 
+    .transcript-message.latest:not(.user) {
+      color: #3cb371;
     }
-     .transcript-message.latest.user { 
-        color: #2c3e50; 
+    .transcript-message.latest.user {
+      color: #2c3e50;
     }
-
 
     .clickable-word {
       cursor: pointer;
       text-decoration: underline;
-      text-decoration-color: #a093c4; 
+      text-decoration-color: #a093c4;
       text-decoration-thickness: 1px;
       text-underline-offset: 3px;
       padding-bottom: 1px;
     }
 
     .transcript-message.user .clickable-word {
-        text-decoration-color: #7f8c8d; 
+      text-decoration-color: #7f8c8d;
     }
-    
+
     .clickable-word:hover {
       color: #ffffff;
       text-decoration-color: #ffffff;
@@ -1190,16 +1228,16 @@ export class GdmLiveAudio extends LitElement {
       border-radius: 2px;
     }
 
-    .transcript-message.latest:not(.user) .clickable-word:hover { 
-      color: #3cb371; 
+    .transcript-message.latest:not(.user) .clickable-word:hover {
+      color: #3cb371;
       text-decoration-color: #3cb371;
-      background-color: rgba(0, 0, 0, 0.05); 
+      background-color: rgba(0, 0, 0, 0.05);
     }
 
-    .transcript-message.latest.user .clickable-word:hover { 
-      color: #000000; 
+    .transcript-message.latest.user .clickable-word:hover {
+      color: #000000;
       text-decoration-color: #000000;
-      background-color: rgba(0, 0, 0, 0.05); 
+      background-color: rgba(0, 0, 0, 0.05);
     }
 
     .clickable-word.known-word {
@@ -1211,7 +1249,7 @@ export class GdmLiveAudio extends LitElement {
       background-color: rgba(59, 130, 246, 0.1);
       text-decoration-color: #3b82f6;
     }
-    .transcript-message.latest:not(.user) .clickable-word.known-word { 
+    .transcript-message.latest:not(.user) .clickable-word.known-word {
       color: #2563eb; /* blue-600 */
       text-decoration-color: #60a5fa; /* blue-400 */
     }
@@ -1220,16 +1258,15 @@ export class GdmLiveAudio extends LitElement {
       text-decoration-color: #1d4ed8;
       background-color: rgba(29, 78, 216, 0.15);
     }
-    .transcript-message.latest.user .clickable-word.known-word { 
-      color: #005A9C; /* Darker, custom blue for user's latest message */
-      text-decoration-color: #3182CE;
+    .transcript-message.latest.user .clickable-word.known-word {
+      color: #005a9c; /* Darker, custom blue for user's latest message */
+      text-decoration-color: #3182ce;
     }
     .transcript-message.latest.user .clickable-word.known-word:hover {
-      color: #003D6B;
-      text-decoration-color: #003D6B;
+      color: #003d6b;
+      text-decoration-color: #003d6b;
       background-color: rgba(0, 61, 107, 0.1);
     }
-
 
     .popup-overlay {
       position: fixed;
@@ -1237,7 +1274,7 @@ export class GdmLiveAudio extends LitElement {
       left: 0;
       width: 100vw;
       height: 100vh;
-      background: transparent; 
+      background: transparent;
       z-index: 999;
     }
 
@@ -1250,26 +1287,26 @@ export class GdmLiveAudio extends LitElement {
       z-index: 1000;
       min-width: 250px;
       max-width: 380px;
-      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
       color: #e0e0e0;
       font-size: 14px;
       line-height: 1.5;
       transform: translateX(-50%);
     }
-    
+
     .word-popup-header {
       display: flex;
-      align-items: center; 
-      gap: 8px; 
-      margin-bottom: 2px; 
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 2px;
     }
 
     .popup-selected-word {
       color: #3cb371;
-      font-size: 1.4em; 
+      font-size: 1.4em;
       font-weight: 600;
     }
-    
+
     .dictionary-toggle-btn {
       display: flex;
       align-items: center;
@@ -1280,13 +1317,14 @@ export class GdmLiveAudio extends LitElement {
       border-radius: 50%;
       border: none;
       cursor: pointer;
-      background-color: #4a3f63; 
-      color: #e0e0e0; 
-      transition: background-color 0.2s ease, color 0.2s ease;
-      flex-shrink: 0; 
+      background-color: #4a3f63;
+      color: #e0e0e0;
+      transition:
+        background-color 0.2s ease,
+        color 0.2s ease;
+      flex-shrink: 0;
     }
     /* .dictionary-toggle-btn .loader defined with .loading-spinner animation */
-
 
     .dictionary-toggle-btn svg {
       width: 16px;
@@ -1295,34 +1333,33 @@ export class GdmLiveAudio extends LitElement {
     }
 
     .dictionary-toggle-btn:hover:not(:disabled) {
-      background-color: #5a4f73; 
+      background-color: #5a4f73;
     }
 
     .dictionary-toggle-btn.added {
-      background-color: #3cb371; 
-      color: #ffffff; 
+      background-color: #3cb371;
+      color: #ffffff;
     }
 
     .dictionary-toggle-btn.added:hover:not(:disabled) {
-      background-color: #36a065; 
+      background-color: #36a065;
     }
     .dictionary-toggle-btn:disabled {
       opacity: 0.7;
       cursor: not-allowed;
     }
 
-
     .popup-part-of-speech {
-      color: #3cb371; 
-      font-size: 0.9em; 
-      display: block; 
-      margin-bottom: 12px; 
+      color: #3cb371;
+      font-size: 0.9em;
+      display: block;
+      margin-bottom: 12px;
     }
 
     .popup-label {
       color: #bca0dc;
       text-transform: uppercase;
-      font-size: 0.8em; 
+      font-size: 0.8em;
       font-weight: 600;
       display: block;
       margin-bottom: 3px;
@@ -1330,15 +1367,14 @@ export class GdmLiveAudio extends LitElement {
 
     .popup-content-text {
       color: #e0e0e0;
-      font-size: 1em; 
+      font-size: 1em;
       margin-bottom: 10px;
       display: block;
-      white-space: pre-wrap; 
+      white-space: pre-wrap;
     }
     .popup-content-text:last-child {
-        margin-bottom: 0;
+      margin-bottom: 0;
     }
-
 
     .popup-close-btn {
       position: absolute;
@@ -1429,9 +1465,15 @@ export class GdmLiveAudio extends LitElement {
       }
 
       @keyframes pulse {
-        0% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.7); }
-        70% { box-shadow: 0 0 0 10px rgba(255, 0, 0, 0); }
-        100% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0); }
+        0% {
+          box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.7);
+        }
+        70% {
+          box-shadow: 0 0 0 10px rgba(255, 0, 0, 0);
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgba(255, 0, 0, 0);
+        }
       }
     }
 
@@ -1460,10 +1502,10 @@ export class GdmLiveAudio extends LitElement {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 0 0 10px 0; 
+      padding: 0 0 10px 0;
       margin-bottom: 10px;
       border-bottom: 1px solid #3c3152;
-      flex-wrap: wrap; 
+      flex-wrap: wrap;
       flex-shrink: 0; /* Prevent controls from shrinking */
     }
 
@@ -1474,24 +1516,30 @@ export class GdmLiveAudio extends LitElement {
       border-radius: 4px;
       padding: 8px 12px;
       font-size: 0.9em;
-      width: 250px; 
+      width: 250px;
     }
     .search-bar input::placeholder {
       color: #8a80a5;
     }
-    .search-bar { margin-right: auto; }
-
+    .search-bar {
+      margin-right: auto;
+    }
 
     .dictionary-word-count {
       font-size: 0.9em;
       color: #8a80a5;
-      margin-left: 10px; 
+      margin-left: 10px;
       margin-right: 10px;
     }
 
-    .dictionary-options { display: flex; align-items: center; gap: 10px; }
+    .dictionary-options {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
 
-    .sort-by-select, .dictionary-action-button {
+    .sort-by-select,
+    .dictionary-action-button {
       background-color: #3c3152;
       color: #e0e0e0;
       border: 1px solid #4a3f63;
@@ -1500,16 +1548,24 @@ export class GdmLiveAudio extends LitElement {
       font-size: 0.9em;
       cursor: pointer;
     }
-    .sort-by-select { appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23e0e0e0' stroke='%23e0e0e0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 10px center; background-size: 1em; padding-right: 2.5em;}
+    .sort-by-select {
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23e0e0e0' stroke='%23e0e0e0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      background-size: 1em;
+      padding-right: 2.5em;
+    }
 
     .dictionary-action-button .icon {
       margin-right: 6px;
     }
-    
+
     .dictionary-list {
       display: flex;
       flex-direction: column;
-      gap: 8px; 
+      gap: 8px;
     }
 
     .dictionary-entry {
@@ -1527,20 +1583,29 @@ export class GdmLiveAudio extends LitElement {
     }
 
     .dictionary-entry-word {
-      color: #3cb371; 
+      color: #3cb371;
       font-weight: 600;
       font-size: 1.1em;
     }
-    
-    .frequency-dots { display: flex; gap: 3px; }
+
+    .frequency-dots {
+      display: flex;
+      gap: 3px;
+    }
     .frequency-dot {
       width: 10px;
       height: 10px;
       border-radius: 50%;
     }
 
-    .expand-arrow { color: #8a80a5; font-size: 1.2em; transition: transform 0.2s ease; }
-    .dictionary-entry.expanded .expand-arrow { transform: rotate(90deg); }
+    .expand-arrow {
+      color: #8a80a5;
+      font-size: 1.2em;
+      transition: transform 0.2s ease;
+    }
+    .dictionary-entry.expanded .expand-arrow {
+      transform: rotate(90deg);
+    }
 
     .dictionary-entry-details {
       margin-top: 10px;
@@ -1549,9 +1614,18 @@ export class GdmLiveAudio extends LitElement {
       font-size: 0.9em;
       line-height: 1.6;
     }
-    .dictionary-entry-details .popup-label { font-size: 0.85em; margin-bottom: 2px;}
-    .dictionary-entry-details .popup-content-text { font-size: 0.95em; margin-bottom: 8px;}
-    .dictionary-entry-details .popup-part-of-speech { font-size: 0.85em; margin-bottom: 8px;}
+    .dictionary-entry-details .popup-label {
+      font-size: 0.85em;
+      margin-bottom: 2px;
+    }
+    .dictionary-entry-details .popup-content-text {
+      font-size: 0.95em;
+      margin-bottom: 8px;
+    }
+    .dictionary-entry-details .popup-part-of-speech {
+      font-size: 0.85em;
+      margin-bottom: 8px;
+    }
 
     .delete-dictionary-entry-btn {
       background: none;
@@ -1565,7 +1639,9 @@ export class GdmLiveAudio extends LitElement {
       border-radius: 50%;
       width: 24px;
       height: 24px;
-      transition: background-color 0.2s, color 0.2s;
+      transition:
+        background-color 0.2s,
+        color 0.2s;
     }
     .delete-dictionary-entry-btn:hover {
       color: #ff7b7b;
@@ -1576,19 +1652,18 @@ export class GdmLiveAudio extends LitElement {
       height: 18px;
     }
 
-
     /* Flashcard Styles */
     .flashcard-viewer {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 15px; 
-        width: 100%; 
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 15px;
+      width: 100%;
     }
     .flashcard-scene {
-      width: 100%; 
-      aspect-ratio: 4 / 3; 
-      max-width: 480px; 
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      max-width: 480px;
       perspective: 1000px;
       margin-bottom: 10px;
       overflow: visible; /* Allow animations to show fully */
@@ -1599,97 +1674,123 @@ export class GdmLiveAudio extends LitElement {
       height: 100%;
       position: relative;
       transform-style: preserve-3d;
-      transition: transform 0.7s cubic-bezier(0.4, 0.0, 0.2, 1);
+      transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
       cursor: pointer;
     }
     .flashcard-container.flipped {
       transform: rotateY(180deg);
     }
-    
+
     /* Animation states for card transitions */
     .flashcard-container.sliding-left {
-      animation: slideOutLeft 0.3s cubic-bezier(0.4, 0.0, 0.6, 1) forwards;
+      animation: slideOutLeft 0.3s cubic-bezier(0.4, 0, 0.6, 1) forwards;
     }
     .flashcard-container.sliding-right {
-      animation: slideOutRight 0.3s cubic-bezier(0.4, 0.0, 0.6, 1) forwards;
+      animation: slideOutRight 0.3s cubic-bezier(0.4, 0, 0.6, 1) forwards;
     }
     .flashcard-container.entering-left {
-      animation: slideInFromLeft 0.3s cubic-bezier(0.4, 0.0, 0.6, 1) forwards;
+      animation: slideInFromLeft 0.3s cubic-bezier(0.4, 0, 0.6, 1) forwards;
     }
     .flashcard-container.entering-right {
-      animation: slideInFromRight 0.3s cubic-bezier(0.4, 0.0, 0.6, 1) forwards;
+      animation: slideInFromRight 0.3s cubic-bezier(0.4, 0, 0.6, 1) forwards;
     }
-    
+
     @keyframes slideOutLeft {
-      0% { transform: translateX(0); opacity: 1; }
-      100% { transform: translateX(-100%); opacity: 0; }
+      0% {
+        transform: translateX(0);
+        opacity: 1;
+      }
+      100% {
+        transform: translateX(-100%);
+        opacity: 0;
+      }
     }
     @keyframes slideOutRight {
-      0% { transform: translateX(0); opacity: 1; }
-      100% { transform: translateX(100%); opacity: 0; }
+      0% {
+        transform: translateX(0);
+        opacity: 1;
+      }
+      100% {
+        transform: translateX(100%);
+        opacity: 0;
+      }
     }
     @keyframes slideInFromLeft {
-      0% { transform: translateX(-100%); opacity: 0; }
-      100% { transform: translateX(0); opacity: 1; }
+      0% {
+        transform: translateX(-100%);
+        opacity: 0;
+      }
+      100% {
+        transform: translateX(0);
+        opacity: 1;
+      }
     }
     @keyframes slideInFromRight {
-      0% { transform: translateX(100%); opacity: 0; }
-      100% { transform: translateX(0); opacity: 1; }
+      0% {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+      100% {
+        transform: translateX(0);
+        opacity: 1;
+      }
     }
     .flashcard {
       position: absolute;
       width: 100%;
       height: 100%;
       backface-visibility: hidden;
-      -webkit-backface-visibility: hidden; 
+      -webkit-backface-visibility: hidden;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center; 
+      justify-content: center;
       border: 1px solid #4a3f63;
-      border-radius: 12px; 
+      border-radius: 12px;
       background-color: #3c3152;
-      padding: 20px; 
+      padding: 20px;
       box-sizing: border-box;
       text-align: center;
-      font-size: 1.1em; 
-      overflow-y: auto; 
+      font-size: 1.1em;
+      overflow-y: auto;
     }
     .card-front {
-      color: white; 
+      color: white;
     }
-    .card-front .portuguese-translation { 
+    .card-front .portuguese-translation {
       font-style: italic;
-      color: #cccccc; 
+      color: #cccccc;
       font-size: 0.9em;
       margin-top: 10px;
     }
     .card-back {
       transform: rotateY(180deg);
-      justify-content: space-between; 
+      justify-content: space-between;
     }
     .card-back .highlighted-word {
-      color: #ffd700; 
+      color: #ffd700;
       font-weight: bold;
     }
     .flashcard-content-area {
-      flex-grow: 1; 
+      flex-grow: 1;
       display: flex;
-      flex-direction: column; 
-      align-items: center; 
-      justify-content: center; 
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
       width: 100%;
-      overflow-y: auto; 
-      padding-bottom: 10px; 
+      overflow-y: auto;
+      padding-bottom: 10px;
       line-height: 1.5;
     }
-     .flashcard-content-area p { margin: 0; } 
+    .flashcard-content-area p {
+      margin: 0;
+    }
 
     .flashcard-interval {
       font-size: 0.8em;
       color: #bca0dc;
-      margin-top: auto; 
-      padding-top: 5px; 
+      margin-top: auto;
+      padding-top: 5px;
     }
     .flashcard-tts-button {
       position: absolute;
@@ -1705,7 +1806,9 @@ export class GdmLiveAudio extends LitElement {
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: background-color 0.2s, transform 0.1s;
+      transition:
+        background-color 0.2s,
+        transform 0.1s;
       font-size: 18px;
       backdrop-filter: blur(4px);
     }
@@ -1718,35 +1821,41 @@ export class GdmLiveAudio extends LitElement {
     }
     .flashcard-actions {
       display: flex;
-      gap: 12px; 
+      gap: 12px;
       width: 100%;
-      padding-top: 15px; 
-      flex-shrink: 0; 
+      padding-top: 15px;
+      flex-shrink: 0;
     }
     .flashcard-actions button {
       flex-grow: 1;
-      padding: 10px 0; 
+      padding: 10px 0;
       border: none;
       border-radius: 6px;
       color: white;
       font-weight: bold;
       font-size: 0.9em;
       cursor: pointer;
-      transition: background-color 0.2s, transform 0.1s;
+      transition:
+        background-color 0.2s,
+        transform 0.1s;
     }
-    .flashcard-actions button:hover { transform: translateY(-1px); }
-    .flashcard-actions button:active { transform: translateY(0px); }
-    .flashcard-actions .incorrect-btn { 
-      background-color: #ef4444; 
+    .flashcard-actions button:hover {
+      transform: translateY(-1px);
     }
-    .flashcard-actions .incorrect-btn:hover { 
-      background-color: #dc2626; 
+    .flashcard-actions button:active {
+      transform: translateY(0px);
     }
-    .flashcard-actions .correct-btn { 
-      background-color: #22c55e; 
+    .flashcard-actions .incorrect-btn {
+      background-color: #ef4444;
     }
-    .flashcard-actions .correct-btn:hover { 
-      background-color: #16a34a; 
+    .flashcard-actions .incorrect-btn:hover {
+      background-color: #dc2626;
+    }
+    .flashcard-actions .correct-btn {
+      background-color: #22c55e;
+    }
+    .flashcard-actions .correct-btn:hover {
+      background-color: #16a34a;
     }
 
     .flashcard-nav {
@@ -1754,31 +1863,36 @@ export class GdmLiveAudio extends LitElement {
       justify-content: center;
       align-items: center;
       color: #bca0dc;
-      width: 100%; 
+      width: 100%;
       margin-top: 10px;
     }
     .flashcard-nav button {
       background: none;
       border: none;
       color: #bca0dc;
-      font-size: 1.8em; 
+      font-size: 1.8em;
       cursor: pointer;
-      padding: 5px 15px; 
+      padding: 5px 15px;
       transition: color 0.2s;
     }
-    .flashcard-nav button:hover:not(:disabled) { color: #e0e0e0; }
-    .flashcard-nav button:disabled { color: #5a4f73; cursor: default; }
-    .card-count { 
-      margin: 0 20px; 
-      font-size: 0.95em; 
+    .flashcard-nav button:hover:not(:disabled) {
+      color: #e0e0e0;
+    }
+    .flashcard-nav button:disabled {
+      color: #5a4f73;
+      cursor: default;
+    }
+    .card-count {
+      margin: 0 20px;
+      font-size: 0.95em;
       font-weight: 600;
-      text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
     }
     .no-flashcards-message {
-        text-align: center;
-        padding: 20px;
-        font-size: 1em;
-        color: #8a80a5;
+      text-align: center;
+      padding: 20px;
+      font-size: 1em;
+      color: #8a80a5;
     }
     .flashcard-due-info {
       position: absolute;
@@ -1838,12 +1952,13 @@ export class GdmLiveAudio extends LitElement {
       gap: 15px;
       align-items: flex-start;
     }
-    .evaluate-content h3, .evaluate-content h4 {
+    .evaluate-content h3,
+    .evaluate-content h4 {
       color: #bca0dc;
       margin-top: 10px;
       margin-bottom: 5px;
     }
-     .evaluate-content h3:first-child {
+    .evaluate-content h3:first-child {
       margin-top: 0;
     }
     .evaluate-content p {
@@ -1998,7 +2113,9 @@ export class GdmLiveAudio extends LitElement {
       text-shadow: 0 0 10px rgba(138, 92, 245, 0.5);
     }
 
-    .waiting-text, .connecting-text, .no-call-text {
+    .waiting-text,
+    .connecting-text,
+    .no-call-text {
       font-size: 1.1rem;
       color: #8a80a5;
       text-align: center;
@@ -2081,7 +2198,8 @@ export class GdmLiveAudio extends LitElement {
     }
 
     @keyframes pulse-glow {
-      0%, 100% {
+      0%,
+      100% {
         box-shadow: 0 0 5px rgba(138, 92, 245, 0.3);
       }
       50% {
@@ -2097,11 +2215,11 @@ export class GdmLiveAudio extends LitElement {
         bottom: 15px;
         right: 15px;
       }
-      
+
       .call-code-value {
         font-size: 1.5rem;
       }
-      
+
       .video-call-subtitle-overlay {
         max-width: 90%;
         bottom: 15px;
@@ -2114,7 +2232,7 @@ export class GdmLiveAudio extends LitElement {
       gap: 10px;
       align-items: center;
     }
-    
+
     .microphone-selector-button {
       background: #3c3152;
       border: 1px solid #5a4b73;
@@ -2147,18 +2265,18 @@ export class GdmLiveAudio extends LitElement {
       font-size: 0.7em;
       opacity: 0.7;
     }
-    
+
     .microphone-selector-button:hover {
       background: #4a3d60;
       border-color: #6b5a84;
     }
-    
+
     .microphone-selector-button.no-microphone {
       background: #5d2f2f;
       border-color: #8b4545;
       color: #ffcccc;
     }
-    
+
     /* Context Menu Style Microphone Popup */
     .microphone-context-menu {
       position: fixed;
@@ -2173,7 +2291,7 @@ export class GdmLiveAudio extends LitElement {
       overflow: hidden;
       animation: contextMenuFadeIn 0.15s ease-out;
     }
-    
+
     @keyframes contextMenuFadeIn {
       from {
         opacity: 0;
@@ -2184,7 +2302,7 @@ export class GdmLiveAudio extends LitElement {
         transform: scale(1);
       }
     }
-    
+
     .microphone-menu-header {
       background: #3c3152;
       color: #e0e0e0;
@@ -2194,11 +2312,11 @@ export class GdmLiveAudio extends LitElement {
       border-bottom: 1px solid #5a4b73;
       text-align: center;
     }
-    
+
     .microphone-menu-items {
       padding: 4px 0;
     }
-    
+
     .microphone-menu-item {
       padding: 10px 14px;
       cursor: pointer;
@@ -2212,21 +2330,21 @@ export class GdmLiveAudio extends LitElement {
       min-height: 40px;
       gap: 12px;
     }
-    
+
     .microphone-menu-item:hover:not(.disabled) {
       background: #3c3152;
     }
-    
+
     .microphone-menu-item.selected {
       background: #4a3d60;
       color: #8a5cf5;
     }
-    
+
     .microphone-menu-item.disabled {
       color: #888;
       cursor: not-allowed;
     }
-    
+
     .microphone-device-name {
       flex: 1;
       white-space: nowrap;
@@ -2236,13 +2354,13 @@ export class GdmLiveAudio extends LitElement {
       min-width: 0; /* Allow flex item to shrink below content size */
       line-height: 1.4;
     }
-    
+
     .microphone-selected-check {
       color: #8a5cf5;
       font-weight: bold;
       margin-left: 8px;
     }
-    
+
     .microphone-menu-separator {
       height: 1px;
       background: #5a4b73;
@@ -2260,12 +2378,12 @@ export class GdmLiveAudio extends LitElement {
       cursor: pointer;
       text-transform: capitalize;
     }
-    
+
     .voice-selector:hover {
       background: #4a3d60;
       border-color: #6b5a84;
     }
-    
+
     .voice-selector option {
       background: #3c3152;
       color: #e0e0e0;
@@ -2284,16 +2402,16 @@ export class GdmLiveAudio extends LitElement {
   constructor() {
     super();
     this.currentProfile = localStorage.getItem('lastActiveProfile') || this.profiles[0];
-    
+
     let initialWidth = parseInt(localStorage.getItem('rightPanelWidth') || '600', 10);
-    initialWidth = Math.max(this.minRightPanelWidth, initialWidth); 
+    initialWidth = Math.max(this.minRightPanelWidth, initialWidth);
     this.rightPanelWidth = initialWidth;
 
     this.boundHandlePanelDragMove = this.handlePanelDragMove.bind(this);
     this.boundHandlePanelDragEnd = this.handlePanelDragEnd.bind(this);
     this.boundHandleKeyDown = this.handleKeyDown.bind(this);
     this.boundHandleKeyUp = this.handleKeyUp.bind(this);
-    
+
     this.initializeAvailableVoices();
   }
 
@@ -2302,45 +2420,49 @@ export class GdmLiveAudio extends LitElement {
   }
 
   private loadProfileData() {
-    this.nativeLanguage = localStorage.getItem(this.getProfileKey('nativeLanguage')) || SUPPORTED_LANGUAGES[0];
-    this.targetLanguage = localStorage.getItem(this.getProfileKey('targetLanguage')) || SUPPORTED_LANGUAGES[2];
+    this.nativeLanguage =
+      localStorage.getItem(this.getProfileKey('nativeLanguage')) || SUPPORTED_LANGUAGES[0];
+    this.targetLanguage =
+      localStorage.getItem(this.getProfileKey('targetLanguage')) || SUPPORTED_LANGUAGES[2];
 
     const storedDict = localStorage.getItem(this.getProfileKey('dictionaryEntries'));
     this.dictionaryEntries = storedDict ? new Map(JSON.parse(storedDict)) : new Map();
 
     const storedFlashcards = localStorage.getItem(this.getProfileKey('flashcards'));
-    this.flashcards = storedFlashcards ? JSON.parse(storedFlashcards).map((card: any) => ({
-      ...card,
-      status: card.status === 'practiced' ? 'review' : (card.status || 'new'), // Convert old 'practiced' to 'review'
-      correctCount: card.correctCount || 0,
-      incorrectCount: card.incorrectCount || 0,
-      interval: card.interval || 0,
-      easeFactor: card.easeFactor || 2.5,
-      dueDate: card.dueDate || Date.now(),
-      lastReviewed: card.lastReviewed || 0,
-      learningStep: card.learningStep || 0,
-    })) : [];
+    this.flashcards = storedFlashcards
+      ? JSON.parse(storedFlashcards).map((card: any) => ({
+          ...card,
+          status: card.status === 'practiced' ? 'review' : card.status || 'new', // Convert old 'practiced' to 'review'
+          correctCount: card.correctCount || 0,
+          incorrectCount: card.incorrectCount || 0,
+          interval: card.interval || 0,
+          easeFactor: card.easeFactor || 2.5,
+          dueDate: card.dueDate || Date.now(),
+          lastReviewed: card.lastReviewed || 0,
+          learningStep: card.learningStep || 0,
+        }))
+      : [];
 
     const storedIntervals = localStorage.getItem(this.getProfileKey('flashcardIntervals'));
     this.flashcardIntervals = storedIntervals ? new Map(JSON.parse(storedIntervals)) : new Map();
-    
+
     const storedWordForms = localStorage.getItem(this.getProfileKey('knownWordForms'));
     this.knownWordForms = storedWordForms ? new Set(JSON.parse(storedWordForms)) : new Set();
-    
+
     // Load separate transcripts
     const storedAiTranscript = localStorage.getItem(this.getProfileKey('aiTranscriptHistory'));
     this.aiTranscriptHistory = storedAiTranscript ? JSON.parse(storedAiTranscript) : [];
-    
+
     // Video transcripts should not persist between sessions - always start fresh
     this.videoTranscriptHistory = [];
-    
+
     // Set the current transcript based on current mode
     if (this.leftPanelMode === 'ai') {
       this.transcriptHistory = [...this.aiTranscriptHistory];
     } else {
       this.transcriptHistory = [...this.videoTranscriptHistory];
     }
-    
+
     this.flashcardFlipState.clear(); // Reset flip state on profile load
     this.sortAndInitializeFlashcardQueue();
     this.requestUpdate();
@@ -2349,11 +2471,23 @@ export class GdmLiveAudio extends LitElement {
   private saveProfileData() {
     localStorage.setItem(this.getProfileKey('nativeLanguage'), this.nativeLanguage);
     localStorage.setItem(this.getProfileKey('targetLanguage'), this.targetLanguage);
-    localStorage.setItem(this.getProfileKey('dictionaryEntries'), JSON.stringify(Array.from(this.dictionaryEntries.entries())));
+    localStorage.setItem(
+      this.getProfileKey('dictionaryEntries'),
+      JSON.stringify(Array.from(this.dictionaryEntries.entries()))
+    );
     localStorage.setItem(this.getProfileKey('flashcards'), JSON.stringify(this.flashcards));
-    localStorage.setItem(this.getProfileKey('flashcardIntervals'), JSON.stringify(Array.from(this.flashcardIntervals.entries())));
-    localStorage.setItem(this.getProfileKey('knownWordForms'), JSON.stringify(Array.from(this.knownWordForms)));
-    localStorage.setItem(this.getProfileKey('aiTranscriptHistory'), JSON.stringify(this.aiTranscriptHistory));
+    localStorage.setItem(
+      this.getProfileKey('flashcardIntervals'),
+      JSON.stringify(Array.from(this.flashcardIntervals.entries()))
+    );
+    localStorage.setItem(
+      this.getProfileKey('knownWordForms'),
+      JSON.stringify(Array.from(this.knownWordForms))
+    );
+    localStorage.setItem(
+      this.getProfileKey('aiTranscriptHistory'),
+      JSON.stringify(this.aiTranscriptHistory)
+    );
     // Note: videoTranscriptHistory is intentionally not saved - video sessions should start fresh
   }
 
@@ -2363,11 +2497,10 @@ export class GdmLiveAudio extends LitElement {
     this.loadProfileData();
   }
 
-
   private handleInitialNativeLanguageChange(e: Event) {
     this.nativeLanguage = (e.target as HTMLSelectElement).value;
     this.saveProfileData();
-    this.requestUpdate('nativeLanguage'); 
+    this.requestUpdate('nativeLanguage');
   }
 
   private handleInitialTargetLanguageChange(e: Event) {
@@ -2375,10 +2508,10 @@ export class GdmLiveAudio extends LitElement {
     this.saveProfileData();
     this.requestUpdate('targetLanguage');
   }
-  
+
   private async handleStartConversation() {
-    this.initAudio(); 
-    
+    this.initAudio();
+
     this.transcriptHistory = [];
     this.userInterimTranscript = '';
     this.finalUserTranscript = '';
@@ -2392,42 +2525,41 @@ export class GdmLiveAudio extends LitElement {
     this.expandedDictionaryWords.clear();
 
     this.appState = 'conversation';
-    await this.requestUpdate(); 
+    await this.requestUpdate();
 
     await this.initClient();
-    
+
     // Preload core vocabulary for the target language
-    import('./gemini-api-service.js').then(module => {
-      module.preloadTargetLanguage(this.targetLanguage.toLowerCase())
+    import('./gemini-api-service.js').then((module) => {
+      module
+        .preloadTargetLanguage(this.targetLanguage.toLowerCase())
         .then(() => console.log(`✅ Core vocabulary preloaded for ${this.targetLanguage}`))
-        .catch(err => console.warn(`⚠️ Failed to preload vocabulary: ${err}`));
-    }); 
-    
+        .catch((err) => console.warn(`⚠️ Failed to preload vocabulary: ${err}`));
+    });
+
     // Speech recognition is optional - OpenAI handles the voice processing
     if (this.openAIVoiceSession && this.openAIVoiceSession.connected) {
-        try {
-          this.initSpeechRecognition(); 
-        } catch (error) {
-          console.warn('Speech recognition not available, but OpenAI voice will still work:', error);
-          // Don't fail - the app can work without browser speech recognition
-        }
+      try {
+        this.initSpeechRecognition();
+      } catch (error) {
+        console.warn('Speech recognition not available, but OpenAI voice will still work:', error);
+        // Don't fail - the app can work without browser speech recognition
+      }
     }
   }
-
 
   private mapLanguageToBcp47(languageName: string): string {
     switch (languageName.toLowerCase()) {
       case 'english':
         return 'en-US';
       case 'spanish':
-        return 'es-ES'; 
+        return 'es-ES';
       case 'portuguese':
         return 'pt-BR';
       default:
-        return 'en-US'; 
+        return 'en-US';
     }
   }
-
 
   private initAudio() {
     this.nextStartTime = this.outputAudioContext.currentTime;
@@ -2447,10 +2579,10 @@ export class GdmLiveAudio extends LitElement {
 
       // Get all media devices
       const devices = await navigator.mediaDevices.enumerateDevices();
-      const audioInputDevices = devices.filter(device => device.kind === 'audioinput');
-      
+      const audioInputDevices = devices.filter((device) => device.kind === 'audioinput');
+
       console.log('📱 Found audio input devices:', audioInputDevices.length);
-      audioInputDevices.forEach(device => {
+      audioInputDevices.forEach((device) => {
         console.log(`  - ${device.label || 'Unknown Device'} (${device.deviceId})`);
       });
 
@@ -2458,20 +2590,22 @@ export class GdmLiveAudio extends LitElement {
       this.hasMicrophone = audioInputDevices.length > 0;
 
       // If no devices found, try requesting permission first
-      if (audioInputDevices.length === 0 || audioInputDevices.every(d => !d.label)) {
+      if (audioInputDevices.length === 0 || audioInputDevices.every((d) => !d.label)) {
         console.log('🔓 Requesting microphone permission to get device labels...');
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
           // Stop the stream immediately, we just needed permission
-          stream.getTracks().forEach(track => track.stop());
-          
+          stream.getTracks().forEach((track) => track.stop());
+
           // Re-enumerate with permission granted
           const devicesWithLabels = await navigator.mediaDevices.enumerateDevices();
-          const audioInputsWithLabels = devicesWithLabels.filter(device => device.kind === 'audioinput');
-          
+          const audioInputsWithLabels = devicesWithLabels.filter(
+            (device) => device.kind === 'audioinput'
+          );
+
           this.availableAudioDevices = audioInputsWithLabels;
           this.hasMicrophone = audioInputsWithLabels.length > 0;
-          
+
           console.log('📱 Audio devices after permission:', audioInputsWithLabels.length);
         } catch (permissionError) {
           console.error('❌ Microphone permission denied:', permissionError);
@@ -2495,7 +2629,7 @@ export class GdmLiveAudio extends LitElement {
   private async selectAudioDevice(deviceId: string) {
     this.selectedAudioDeviceId = deviceId;
     this.showMicrophoneSelector = false;
-    
+
     // If session is active, reconnect with new device
     if (this.openAIVoiceSession && this.openAIVoiceSession.connected) {
       console.log('🔄 Reconnecting with new audio device...');
@@ -2505,56 +2639,56 @@ export class GdmLiveAudio extends LitElement {
         this.initSession();
       }, 500);
     }
-    
+
     this.requestUpdate();
   }
 
   private handleMicrophoneButtonClick(event: MouseEvent) {
     event.preventDefault();
     event.stopPropagation();
-    
+
     if (!this.hasMicrophone) {
       this.status = 'No microphone detected. Please connect a microphone and refresh the page.';
       return;
     }
-    
+
     if (this.showMicrophoneSelector) {
       this.closeMicrophoneSelector();
       return;
     }
-    
+
     // Position the popup near the button
     const rect = (event.target as HTMLElement).getBoundingClientRect();
     const popupWidth = 350; // Max popup width
     const popupHeight = 250; // Estimated popup height
-    
+
     // Default to bottom-left of button
     let x = rect.left;
     let y = rect.bottom + 8;
-    
+
     // Adjust horizontal position if popup would go off the right edge
     if (x + popupWidth > window.innerWidth) {
       x = window.innerWidth - popupWidth - 20; // 20px margin from edge
     }
-    
+
     // Ensure minimum left margin
     if (x < 20) {
       x = 20;
     }
-    
+
     // Adjust vertical position if popup would go off the bottom edge
     if (y + popupHeight > window.innerHeight) {
       y = rect.top - popupHeight - 8; // Show above button
-      
+
       // If still off screen, position at top with margin
       if (y < 20) {
         y = 20;
       }
     }
-    
+
     this.microphonePopupX = x;
     this.microphonePopupY = y;
-    
+
     this.showMicrophoneSelector = true;
     // Refresh device list when opening
     this.enumerateAudioDevices();
@@ -2570,7 +2704,7 @@ export class GdmLiveAudio extends LitElement {
   private initializeAvailableVoices() {
     // Available OpenAI voices
     this.availableVoices = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer', 'verse'];
-    
+
     // Load saved voice preference for current profile
     const savedVoice = localStorage.getItem(`${this.currentProfile}_selectedVoice`);
     if (savedVoice && this.availableVoices.includes(savedVoice)) {
@@ -2582,7 +2716,7 @@ export class GdmLiveAudio extends LitElement {
       localStorage.setItem(`${this.currentProfile}_selectedVoice`, 'alloy');
       console.log('🔊 Set default voice for profile:', this.currentProfile, '→ alloy');
     }
-    
+
     this.requestUpdate();
   }
 
@@ -2594,11 +2728,11 @@ export class GdmLiveAudio extends LitElement {
   private selectVoice(voiceName: string) {
     console.log('🔊 Voice selection changed:', this.selectedVoice, '→', voiceName);
     this.selectedVoice = voiceName;
-    
+
     // Save preference for current profile
     localStorage.setItem(`${this.currentProfile}_selectedVoice`, voiceName);
     console.log('💾 Saved voice preference for profile:', this.currentProfile);
-    
+
     // If session is active, reconnect with new voice
     if (this.openAIVoiceSession && this.openAIVoiceSession.connected) {
       console.log('🔄 Reconnecting OpenAI session with new voice:', voiceName);
@@ -2611,13 +2745,13 @@ export class GdmLiveAudio extends LitElement {
     } else {
       console.log('ℹ️  Session not active, voice will be used on next connection');
     }
-    
+
     this.requestUpdate();
   }
 
   private handleClickOutsideVoiceSelector(event: MouseEvent) {
     const target = event.target as Element;
-    
+
     // Check if click is outside voice popup (but we need to check for popup overlay)
     if (this.showVoiceSelector && target.classList.contains('popup-overlay')) {
       this.showVoiceSelector = false;
@@ -2627,25 +2761,28 @@ export class GdmLiveAudio extends LitElement {
 
   private initSpeechRecognition() {
     if (!SpeechRecognitionAPI) {
-      this.error = "Speech Recognition API not supported by this browser.";
-      this.speechRecognition = null; 
+      this.error = 'Speech Recognition API not supported by this browser.';
+      this.speechRecognition = null;
       return;
     }
-    if (this.speechRecognition) { 
-        try { this.speechRecognition.abort(); } catch(e) { /* ignore */ }
+    if (this.speechRecognition) {
+      try {
+        this.speechRecognition.abort();
+      } catch (e) {
+        /* ignore */
+      }
     }
     this.speechRecognition = new SpeechRecognitionAPI();
-    this.speechRecognition.continuous = true; 
-    this.speechRecognition.interimResults = true; 
+    this.speechRecognition.continuous = true;
+    this.speechRecognition.interimResults = true;
     this.speechRecognition.lang = this.mapLanguageToBcp47(this.targetLanguage);
-
 
     this.speechRecognition.onstart = () => {
       this.isSpeechRecognitionActive = true;
     };
-    
-    this.speechRecognition.onresult = (event: any) => { 
-      if (!this.isSpeechRecognitionActive) return; 
+
+    this.speechRecognition.onresult = (event: any) => {
+      if (!this.isSpeechRecognitionActive) return;
 
       let interimTranscript = '';
       for (let i = event.resultIndex; i < event.results.length; ++i) {
@@ -2656,7 +2793,7 @@ export class GdmLiveAudio extends LitElement {
           if (finalSegment) {
             this.transcriptHistory = [
               ...this.transcriptHistory,
-              { speaker: 'user', text: finalSegment, id: `user-${crypto.randomUUID()}` }
+              { speaker: 'user', text: finalSegment, id: `user-${crypto.randomUUID()}` },
             ];
             this.status = `You: ${finalSegment}`;
           }
@@ -2669,20 +2806,20 @@ export class GdmLiveAudio extends LitElement {
 
     this.speechRecognition.onend = () => {
       this.isSpeechRecognitionActive = false;
-      this.finalUserTranscript = ''; 
+      this.finalUserTranscript = '';
       this.userInterimTranscript = '';
     };
 
-    this.speechRecognition.onerror = (event: any) => { 
-      this.isSpeechRecognitionActive = false; 
+    this.speechRecognition.onerror = (event: any) => {
+      this.isSpeechRecognitionActive = false;
       console.error('Speech recognition error', event);
       let errorMsg = `Speech error: ${event.error}`;
       if (event.error === 'no-speech') {
-        errorMsg = "No speech detected. Please try again.";
+        errorMsg = 'No speech detected. Please try again.';
       } else if (event.error === 'audio-capture') {
-        errorMsg = "Audio capture error. Check microphone permissions.";
+        errorMsg = 'Audio capture error. Check microphone permissions.';
       } else if (event.error === 'not-allowed') {
-        errorMsg = "Microphone access denied. Please allow access.";
+        errorMsg = 'Microphone access denied. Please allow access.';
       } else if (event.error === 'language-not-supported') {
         errorMsg = `Target language (${this.targetLanguage}) not supported by speech recognition. Try English.`;
       }
@@ -2691,20 +2828,25 @@ export class GdmLiveAudio extends LitElement {
   }
 
   private startUserSpeechRecognition() {
-    if (this.speechRecognition && this.isRecording && !this.isSpeechRecognitionActive && !this.isModelSpeaking) {
+    if (
+      this.speechRecognition &&
+      this.isRecording &&
+      !this.isSpeechRecognitionActive &&
+      !this.isModelSpeaking
+    ) {
       try {
-        this.speechRecognition.lang = this.mapLanguageToBcp47(this.targetLanguage); 
+        this.speechRecognition.lang = this.mapLanguageToBcp47(this.targetLanguage);
         this.finalUserTranscript = '';
         this.userInterimTranscript = '';
         this.speechRecognition.start();
       } catch (e: any) {
-        console.error("Error starting speech recognition:", e);
-         if (e.name === 'InvalidStateError' && this.isSpeechRecognitionActive) {
-           // Already started, benign
+        console.error('Error starting speech recognition:', e);
+        if (e.name === 'InvalidStateError' && this.isSpeechRecognitionActive) {
+          // Already started, benign
         } else if (e.name === 'NotAllowedError' || e.name === 'SecurityError') {
-           this.error = "Microphone access denied or speech recognition blocked by browser.";
+          this.error = 'Microphone access denied or speech recognition blocked by browser.';
         } else {
-           this.error = `Speech recognition start error: ${e.message}`;
+          this.error = `Speech recognition start error: ${e.message}`;
         }
       }
     }
@@ -2715,29 +2857,31 @@ export class GdmLiveAudio extends LitElement {
       try {
         this.speechRecognition.stop();
       } catch (e) {
-        console.warn("Error stopping speech recognition (might be benign):", e);
+        console.warn('Error stopping speech recognition (might be benign):', e);
       }
     }
   }
 
   private async initClient() {
     if (this.openAIVoiceSession) {
-        try { this.openAIVoiceSession.disconnect(); } catch (e) { /* ignore */ }
-        this.openAIVoiceSession = null as any;
+      try {
+        this.openAIVoiceSession.disconnect();
+      } catch (e) {
+        /* ignore */
+      }
+      this.openAIVoiceSession = null as any;
     }
     try {
       this.outputNode.connect(this.outputAudioContext.destination);
-      await this.initSession(); 
+      await this.initSession();
     } catch (e: any) {
-      this.isInitializingSession = false; 
+      this.isInitializingSession = false;
       this.requestUpdate('isInitializingSession');
-      console.error("Failed to initialize OpenAI voice session:", e);
+      console.error('Failed to initialize OpenAI voice session:', e);
       this.error = `Client Init Error (Session): ${e.message}. Ensure API_KEY is valid and configured.`;
-      this.openAIVoiceSession = null as any; 
+      this.openAIVoiceSession = null as any;
     }
   }
-
-
 
   private getRegularSystemInstruction(): string {
     return `I am a language learner who speaks ${this.nativeLanguage} and is trying to learn ${this.targetLanguage}. Please conduct our conversation primarily in ${this.targetLanguage}. When I ask for definitions or translations, provide definitions in ${this.nativeLanguage} and translations from ${this.targetLanguage} to ${this.nativeLanguage}.`;
@@ -2845,7 +2989,7 @@ In ${this.targetLanguage}:
     } else if (this.nativeLanguage === 'Portuguese') {
       phase1Instruction = `"Vou dizer algumas frases. Por favor, traduza-as em voz alta para ${this.targetLanguage}. Começaremos com frases fáceis, depois ficarão mais difíceis."`;
       phase2Instruction = `"Agora vou fazer-lhe algumas perguntas. As perguntas estão em Português, mas as suas respostas devem estar em ${this.targetLanguage}."`;
-    } else { 
+    } else {
       phase1Instruction = `"Voy a decir frases. Por favor tradúcelas en voz alta al ${this.targetLanguage}. Comenzamos con frases fáciles. Luego serán más difíciles."`;
       phase2Instruction = `"Ahora voy a hacerte preguntas. Las preguntas están en español, pero tus respuestas deben estar en ${this.targetLanguage}."`;
     }
@@ -2853,7 +2997,7 @@ In ${this.targetLanguage}:
     let instructionText = baseInstruction
       .replace('PHASE_1_INSTRUCTION_PLACEHOLDER', phase1Instruction)
       .replace('PHASE_2_INSTRUCTION_PLACEHOLDER', phase2Instruction);
-    
+
     return instructionText;
   }
 
@@ -2866,15 +3010,14 @@ In ${this.targetLanguage}:
     this.status = 'Diagnostic session completed! You can now have regular conversations.';
   }
 
-
   private async initSession() {
     const diagnosticKey = this.getProfileKey('diagnosticCompleted');
     const diagnosticCompleted = localStorage.getItem(diagnosticKey) === 'true';
-    this.isDiagnosticSessionActive = !diagnosticCompleted; 
+    this.isDiagnosticSessionActive = !diagnosticCompleted;
 
-    this.isInitializingSession = true; 
-    this.openAIVoiceSession = null as any; 
-    this.requestUpdate(); 
+    this.isInitializingSession = true;
+    this.openAIVoiceSession = null as any;
+    this.requestUpdate();
 
     let systemInstructionText: string;
 
@@ -2889,23 +3032,26 @@ In ${this.targetLanguage}:
     try {
       // Initialize OpenAI Voice Session
       this.openAIVoiceSession = new OpenAIVoiceSession();
-      
+
       // Set up event handlers - SIMPLIFIED: Only handle complete AI transcripts
       this.openAIVoiceSession.onTranscriptUpdate = (transcript, isComplete) => {
         if (isComplete && transcript && transcript.trim()) {
           console.log('📝 Adding AI transcript to history:', transcript);
           this.transcriptHistory = [
             ...this.transcriptHistory,
-            { speaker: 'model', text: transcript.trim(), id: `model-${crypto.randomUUID()}` }
+            { speaker: 'model', text: transcript.trim(), id: `model-${crypto.randomUUID()}` },
           ];
 
           if (this.isDiagnosticSessionActive) {
             const lowerText = transcript.toLowerCase();
-            if (lowerText.includes("end of our session") || lowerText.includes("see you next time")) {
+            if (
+              lowerText.includes('end of our session') ||
+              lowerText.includes('see you next time')
+            ) {
               this.markDiagnosticAsCompleted();
             }
           }
-          
+
           this.requestUpdate(); // Trigger UI update
         }
       };
@@ -2914,33 +3060,35 @@ In ${this.targetLanguage}:
       this.openAIVoiceSession.onUserTranscriptUpdate = (transcript) => {
         if (transcript && transcript.trim()) {
           console.log('📝 Adding/updating user transcript in history:', transcript);
-          
+
           // Find the most recent user placeholder that needs to be replaced
           // (might not be the last message if AI responded already)
           let placeholderIndex = -1;
           for (let i = this.transcriptHistory.length - 1; i >= 0; i--) {
             const message = this.transcriptHistory[i];
-            if (message.speaker === 'user' && message.text === "Processing your speech...") {
+            if (message.speaker === 'user' && message.text === 'Processing your speech...') {
               placeholderIndex = i;
               break;
             }
           }
-          
+
           if (placeholderIndex !== -1) {
             // Replace the placeholder with the real transcript
             const updatedHistory = [...this.transcriptHistory];
             updatedHistory[placeholderIndex] = {
-              speaker: 'user', 
-              text: transcript.trim(), 
-              id: updatedHistory[placeholderIndex].id
+              speaker: 'user',
+              text: transcript.trim(),
+              id: updatedHistory[placeholderIndex].id,
             };
             this.transcriptHistory = updatedHistory;
-            console.log(`✅ Replaced placeholder at index ${placeholderIndex} with real transcript`);
+            console.log(
+              `✅ Replaced placeholder at index ${placeholderIndex} with real transcript`
+            );
           } else {
             // No placeholder found, add new user transcript
             this.transcriptHistory = [
               ...this.transcriptHistory,
-              { speaker: 'user', text: transcript.trim(), id: `user-${crypto.randomUUID()}` }
+              { speaker: 'user', text: transcript.trim(), id: `user-${crypto.randomUUID()}` },
             ];
             console.log('➕ Added new user transcript (no placeholder found)');
           }
@@ -2954,18 +3102,18 @@ In ${this.targetLanguage}:
           this.isModelSpeaking = true;
           this.isModelAudioTurnComplete = false;
           this.stopUserSpeechRecognition();
-          
+
           // Stop audio capture in the OpenAI service
           if (this.openAIVoiceSession && this.isRecording) {
             this.openAIVoiceSession.stopRecording();
             this.isRecording = false; // Stop recording when AI responds
           }
-          
+
           // Update status to show AI is responding
           this.status = '🤖 AI is speaking...';
-          
+
           // Clear any queued audio to prevent overlaps
-          this.sources.forEach(source => {
+          this.sources.forEach((source) => {
             source.stop();
             source.disconnect();
           });
@@ -2976,12 +3124,12 @@ In ${this.targetLanguage}:
         // Create an audio buffer from the received data
         const audioBuffer = this.outputAudioContext.createBuffer(1, audioData.length, 24000);
         audioBuffer.getChannelData(0).set(audioData);
-        
+
         // Schedule audio playback properly to prevent overlapping
         const source = this.outputAudioContext.createBufferSource();
         source.buffer = audioBuffer;
         source.connect(this.outputNode);
-        
+
         source.addEventListener('ended', () => {
           this.sources.delete(source);
           if (this.sources.size === 0) {
@@ -2990,7 +3138,7 @@ In ${this.targetLanguage}:
             this.status = 'Click the record button to continue the conversation.';
           }
         });
-        
+
         // Schedule to start at the correct time to prevent overlap
         const startTime = Math.max(this.nextStartTime, this.outputAudioContext.currentTime);
         source.start(startTime);
@@ -3008,8 +3156,8 @@ In ${this.targetLanguage}:
             this.status = 'Ready! Click record or hold SPACEBAR to talk.';
           }
         } else {
-          console.log("Session closed");
-          this.status = "Session closed.";
+          console.log('Session closed');
+          this.status = 'Session closed.';
           this.isInitializingSession = false;
           this.isRecording = false; // Stop recording if session closes
           this.requestUpdate('isInitializingSession');
@@ -3022,7 +3170,7 @@ In ${this.targetLanguage}:
       };
 
       this.openAIVoiceSession.onError = (error) => {
-        console.error("Session error:", error);
+        console.error('Session error:', error);
         this.error = `Session error: ${error || 'Unknown error'}`;
         this.isInitializingSession = false;
         this.requestUpdate('isInitializingSession');
@@ -3034,16 +3182,15 @@ In ${this.targetLanguage}:
         instructions: systemInstructionText,
         inputAudioFormat: 'pcm16',
         outputAudioFormat: 'pcm16',
-        deviceId: this.selectedAudioDeviceId || undefined
+        deviceId: this.selectedAudioDeviceId || undefined,
         // NOTE: NO turn_detection - we control everything manually like Python
       });
-      
     } catch (e: any) {
       this.isInitializingSession = false;
       this.requestUpdate('isInitializingSession');
-      console.error("Failed to initialize session:", e);
+      console.error('Failed to initialize session:', e);
       this.error = `Failed to initialize session: ${e.message}`;
-      this.openAIVoiceSession = null as any; 
+      this.openAIVoiceSession = null as any;
     }
   }
 
@@ -3051,12 +3198,12 @@ In ${this.targetLanguage}:
     if (this.isRecording) return;
 
     if (!this.openAIVoiceSession || !this.openAIVoiceSession.connected) {
-      this.error = "Session not initialized. Please try again or refresh the page.";
+      this.error = 'Session not initialized. Please try again or refresh the page.';
       return;
     }
-    
+
     console.log('🎤 Starting recording - resuming audio contexts...');
-    
+
     // Ensure audio contexts are active
     if (this.inputAudioContext.state === 'suspended') {
       await this.inputAudioContext.resume();
@@ -3066,34 +3213,33 @@ In ${this.targetLanguage}:
       await this.outputAudioContext.resume();
       console.log('✅ Output audio context resumed');
     }
-    
+
     this.status = 'Starting recording...';
-    
+
     try {
       // Start recording through the OpenAI voice service - PYTHON STYLE
       this.openAIVoiceSession.startRecording();
-      
-      this.isRecording = true; 
+
+      this.isRecording = true;
       this.status = '🔴 Recording... Speak now. Release SPACEBAR or click stop when done.';
       this.error = ''; // Clear any previous errors
-      
+
       console.log('✅ Recording started successfully');
-      
+
       // Start browser speech recognition for display purposes only
       this.startUserSpeechRecognition();
-      
     } catch (err: any) {
       console.error('❌ Error starting recording:', err);
       this.error = `Error: ${err.message}`;
-      this.stopRecording(); 
+      this.stopRecording();
     }
   }
 
   private stopRecording() {
     // Let the voice service handle its own recording state
-    this.isRecording = false; 
+    this.isRecording = false;
     this.status = 'Processing... Please wait for AI response.';
-    
+
     // Stop recording and trigger AI response - PYTHON STYLE
     if (this.openAIVoiceSession) {
       this.openAIVoiceSession.stopRecording();
@@ -3101,10 +3247,14 @@ In ${this.targetLanguage}:
   }
 
   private async reset() {
-    this.stopRecording(); 
+    this.stopRecording();
     if (this.openAIVoiceSession) {
-        try { this.openAIVoiceSession.disconnect(); } catch (e) { /* ignore */ }
-        this.openAIVoiceSession = null as any;
+      try {
+        this.openAIVoiceSession.disconnect();
+      } catch (e) {
+        /* ignore */
+      }
+      this.openAIVoiceSession = null as any;
     }
 
     this.transcriptHistory = [];
@@ -3119,14 +3269,18 @@ In ${this.targetLanguage}:
     this.dictionarySearchTerm = '';
     this.expandedDictionaryWords.clear();
 
-    await this.initClient(); 
+    await this.initClient();
 
-    if (this.speechRecognition && this.openAIVoiceSession && this.openAIVoiceSession.connected) { 
-        try { this.speechRecognition.abort(); } catch(e) {/*ignore*/}
-        this.initSpeechRecognition(); 
+    if (this.speechRecognition && this.openAIVoiceSession && this.openAIVoiceSession.connected) {
+      try {
+        this.speechRecognition.abort();
+      } catch (e) {
+        /*ignore*/
+      }
+      this.initSpeechRecognition();
     }
-    
-    this.requestUpdate(); 
+
+    this.requestUpdate();
   }
 
   private handlePanelDragStart(e: MouseEvent) {
@@ -3135,7 +3289,7 @@ In ${this.targetLanguage}:
     this.initialRightPanelWidth = this.rightPanelWidth;
     document.addEventListener('mousemove', this.boundHandlePanelDragMove);
     document.addEventListener('mouseup', this.boundHandlePanelDragEnd);
-    document.body.style.userSelect = 'none'; 
+    document.body.style.userSelect = 'none';
     document.body.style.cursor = 'col-resize';
   }
 
@@ -3149,11 +3303,11 @@ In ${this.targetLanguage}:
     const appContainer = this.shadowRoot!.querySelector('.app-container') as HTMLElement;
     if (!appContainer) return;
     const totalWidth = appContainer.clientWidth;
-    
+
     const maxRightWidth = totalWidth - this.minLeftPanelWidth - this.dividerWidth;
-    
-    newWidth = Math.max(this.minRightPanelWidth, newWidth); 
-    newWidth = Math.min(newWidth, maxRightWidth);     
+
+    newWidth = Math.max(this.minRightPanelWidth, newWidth);
+    newWidth = Math.min(newWidth, maxRightWidth);
 
     this.rightPanelWidth = newWidth;
   }
@@ -3167,28 +3321,29 @@ In ${this.targetLanguage}:
     document.body.style.cursor = '';
     localStorage.setItem('rightPanelWidth', this.rightPanelWidth.toString());
 
-    const visualizer = this.shadowRoot?.querySelector('gdm-live-audio-visuals-3d') as GdmLiveAudioVisuals3D | null;
+    const visualizer = this.shadowRoot?.querySelector(
+      'gdm-live-audio-visuals-3d'
+    ) as GdmLiveAudioVisuals3D | null;
     if (visualizer && typeof visualizer.triggerResize === 'function') {
       visualizer.triggerResize();
     }
   }
 
-
   protected firstUpdated() {
-    this.loadProfileData(); 
+    this.loadProfileData();
 
     if (this.shadowRoot) {
       const hostElement = this.shadowRoot.host as HTMLElement;
       hostElement.style.setProperty('--transcript-font-size', `${this.transcriptFontSize}px`);
-       const appContainer = this.shadowRoot!.querySelector('.app-container') as HTMLElement;
+      const appContainer = this.shadowRoot!.querySelector('.app-container') as HTMLElement;
       if (appContainer) {
         const totalWidth = appContainer.clientWidth;
         const maxInitialRightWidth = totalWidth - this.minLeftPanelWidth - this.dividerWidth;
         let validatedWidth = Math.min(this.rightPanelWidth, maxInitialRightWidth);
         validatedWidth = Math.max(validatedWidth, this.minRightPanelWidth);
         if (this.rightPanelWidth !== validatedWidth) {
-            this.rightPanelWidth = validatedWidth;
-            localStorage.setItem('rightPanelWidth', this.rightPanelWidth.toString());
+          this.rightPanelWidth = validatedWidth;
+          localStorage.setItem('rightPanelWidth', this.rightPanelWidth.toString());
         }
       }
     }
@@ -3196,20 +3351,21 @@ In ${this.targetLanguage}:
 
   protected updated(changedProperties: Map<string | number | symbol, unknown>) {
     super.updated(changedProperties);
-    
+
     // Set up video element when video stream becomes available OR when layout changes
-    if ((changedProperties.has('videoStream') && this.videoStream) || 
-        (changedProperties.has('videoLayout') && this.videoStream)) {
-      
+    if (
+      (changedProperties.has('videoStream') && this.videoStream) ||
+      (changedProperties.has('videoLayout') && this.videoStream)
+    ) {
       // Wait for DOM to update then set up video
       setTimeout(() => {
         let videoElement = this.shadowRoot?.querySelector('#webcam-video') as HTMLVideoElement;
-        
+
         // If regular video element not found, try PiP video element
         if (!videoElement) {
           videoElement = this.shadowRoot?.querySelector('#webcam-video-pip') as HTMLVideoElement;
         }
-        
+
         if (videoElement && this.videoStream && !videoElement.srcObject) {
           videoElement.srcObject = this.videoStream;
           videoElement.onloadedmetadata = () => {
@@ -3221,24 +3377,27 @@ In ${this.targetLanguage}:
     }
 
     // Set up local video elements for video calling when localStream becomes available or call status changes
-    if ((changedProperties.has('localStream') && this.localStream) || 
-        (changedProperties.has('callStatus') && this.callStatus !== 'idle')) {
-      
+    if (
+      (changedProperties.has('localStream') && this.localStream) ||
+      (changedProperties.has('callStatus') && this.callStatus !== 'idle')
+    ) {
       // Wait for DOM to update then set up local video
       setTimeout(() => {
         const localVideo = this.shadowRoot?.querySelector('#local-video') as HTMLVideoElement;
-        const localVideoFallback = this.shadowRoot?.querySelector('#local-video-fallback') as HTMLVideoElement;
-        
+        const localVideoFallback = this.shadowRoot?.querySelector(
+          '#local-video-fallback'
+        ) as HTMLVideoElement;
+
         console.log('🎥 [UPDATE] Setting up local video display');
         console.log('🎥 [UPDATE] Local video element found:', !!localVideo);
         console.log('🎥 [UPDATE] Local video fallback element found:', !!localVideoFallback);
         console.log('🎥 [UPDATE] Local stream available:', !!this.localStream);
         console.log('🎥 [UPDATE] Video stream available:', !!this.videoStream);
         console.log('🎥 [UPDATE] Call status:', this.callStatus);
-        
+
         // Try to set localStream first, then fall back to videoStream
         const streamToUse = this.localStream || this.videoStream;
-        
+
         if (localVideo && streamToUse && !localVideo.srcObject) {
           localVideo.srcObject = streamToUse;
           localVideo.muted = true;
@@ -3262,16 +3421,22 @@ In ${this.targetLanguage}:
     if (changedProperties.has('transcriptHistory') && this.activeTab === 'transcript') {
       const container = this.shadowRoot?.getElementById('transcriptMessagesContainer');
       if (container) {
-        if (!this.popupData) { 
-            container.scrollTop = container.scrollHeight;
+        if (!this.popupData) {
+          container.scrollTop = container.scrollHeight;
         }
       }
     }
     if (changedProperties.has('transcriptFontSize') && this.shadowRoot) {
-        (this.shadowRoot.host as HTMLElement).style.setProperty('--transcript-font-size', `${this.transcriptFontSize}px`);
+      (this.shadowRoot.host as HTMLElement).style.setProperty(
+        '--transcript-font-size',
+        `${this.transcriptFontSize}px`
+      );
     }
-    if (changedProperties.has('dictionaryEntries') || changedProperties.has('dictionarySearchTerm') && this.activeTab === 'dictionary') {
-        this.requestUpdate(); 
+    if (
+      changedProperties.has('dictionaryEntries') ||
+      (changedProperties.has('dictionarySearchTerm') && this.activeTab === 'dictionary')
+    ) {
+      this.requestUpdate();
     }
     if (changedProperties.has('activeTab') && this.activeTab === 'flashcards') {
       this.sortAndInitializeFlashcardQueue();
@@ -3294,25 +3459,25 @@ In ${this.targetLanguage}:
 
     let popupX = rect.left + rect.width / 2;
     let popupY = rect.bottom + 8;
-    const estimatedPopupWidth = 300; 
+    const estimatedPopupWidth = 300;
     const estimatedPopupHeight = 200;
 
     if (popupX + estimatedPopupWidth / 2 > window.innerWidth) {
-        popupX = window.innerWidth - estimatedPopupWidth / 2 - 10; 
+      popupX = window.innerWidth - estimatedPopupWidth / 2 - 10;
     }
     if (popupX - estimatedPopupWidth / 2 < 0) {
-        popupX = estimatedPopupWidth / 2 + 10;
+      popupX = estimatedPopupWidth / 2 + 10;
     }
     if (popupY + estimatedPopupHeight > window.innerHeight) {
-        popupY = rect.top - estimatedPopupHeight - 8; 
+      popupY = rect.top - estimatedPopupHeight - 8;
     }
 
     this.popupData = {
-      word, 
-      sentence, 
-      translation: '', 
-      definition: '', 
-      partOfSpeech: '', 
+      word,
+      sentence,
+      translation: '',
+      definition: '',
+      partOfSpeech: '',
       x: popupX,
       y: popupY,
       targetWidth: rect.width,
@@ -3320,11 +3485,18 @@ In ${this.targetLanguage}:
     this.isPopupLoading = true;
     this.popupError = null;
 
-    const details = await fetchWordDetailsFromApi(word, sentence, this.targetLanguage, this.nativeLanguage);
-    
-    if (this.popupData) { // Check if popup is still open
+    const details = await fetchWordDetailsFromApi(
+      word,
+      sentence,
+      this.targetLanguage,
+      this.nativeLanguage
+    );
+
+    if (this.popupData) {
+      // Check if popup is still open
       // Fix: Use type guard to correctly handle WordDetails | WordDetailsError union type
-      if ('error' in details) { // Type guard for WordDetailsError
+      if ('error' in details) {
+        // Type guard for WordDetailsError
         const errorMessage = details.error || `Failed to load details for "${word}".`;
         console.error(`Error fetching word details for "${word}": ${errorMessage}`);
         this.popupError = errorMessage;
@@ -3336,7 +3508,8 @@ In ${this.targetLanguage}:
           lemmatizedWord: word,
           displayWord: word,
         };
-      } else { // It's WordDetails
+      } else {
+        // It's WordDetails
         this.popupData = {
           ...this.popupData,
           partOfSpeech: details.partOfSpeech || 'N/A',
@@ -3363,11 +3536,11 @@ In ${this.targetLanguage}:
   private async handleToggleDictionary(wordData: WordPopupData) {
     // Use the lemmatized word for the dictionary key and API calls
     const lemmatizedWord = (wordData as any).lemmatizedWord || wordData.word;
-    const displayWord = (wordData as any).displayWord || wordData.word; 
+    const displayWord = (wordData as any).displayWord || wordData.word;
     const wordKey = lemmatizedWord.toLowerCase().trim();
 
     if (this.dictionaryEntries.has(wordKey)) {
-      await this.handleDeleteDictionaryEntry(wordKey); 
+      await this.handleDeleteDictionaryEntry(wordKey);
     } else {
       const optimisticEntry: DictionaryEntry = {
         word: displayWord, // Use the properly formatted word for display
@@ -3385,34 +3558,47 @@ In ${this.targetLanguage}:
       this.isFetchingFrequencyFor = displayWord;
       this.isFetchingSentencesFor = displayWord;
       this.popupError = null;
-      this.requestUpdate(); 
+      this.requestUpdate();
 
       try {
         // Fetch all word forms for comprehensive highlighting
-        const wordForms = await this.fetchWordForms(lemmatizedWord, wordData.partOfSpeech, this.targetLanguage);
+        const wordForms = await this.fetchWordForms(
+          lemmatizedWord,
+          wordData.partOfSpeech,
+          this.targetLanguage
+        );
         console.log(`📝 Adding ${wordForms.length} forms to known words:`, wordForms);
-        
+
         // Add all forms to the known words set
-        wordForms.forEach(form => {
+        wordForms.forEach((form) => {
           console.log(`➕ Adding form "${form}" to knownWordForms`);
           this.knownWordForms.add(form);
         });
-        
-        console.log(`🎯 Total known word forms after adding "${lemmatizedWord}":`, this.knownWordForms.size);
-        
+
+        console.log(
+          `🎯 Total known word forms after adding "${lemmatizedWord}":`,
+          this.knownWordForms.size
+        );
+
         // Use lemmatized word for frequency lookup to get more accurate results
-        const frequencyResult = await fetchWordFrequencyFromApi(lemmatizedWord, this.targetLanguage);
+        const frequencyResult = await fetchWordFrequencyFromApi(
+          lemmatizedWord,
+          this.targetLanguage
+        );
         // Fix: Use type guard for WordFrequencyResult | WordFrequencyError
         let frequency: number | null = null;
         let rank: number | null = null;
-        if (!('error' in frequencyResult)) { // It's WordFrequencyResult
-            frequency = frequencyResult.frequency;
-            rank = frequencyResult.rank || null;
+        if (!('error' in frequencyResult)) {
+          // It's WordFrequencyResult
+          frequency = frequencyResult.frequency;
+          rank = frequencyResult.rank || null;
         } else {
-            console.warn(`Failed to fetch frequency for "${lemmatizedWord}": ${frequencyResult.error}`);
-            // frequency and rank remain null, which is an acceptable state for DictionaryEntry
+          console.warn(
+            `Failed to fetch frequency for "${lemmatizedWord}": ${frequencyResult.error}`
+          );
+          // frequency and rank remain null, which is an acceptable state for DictionaryEntry
         }
-        
+
         // Use lemmatized word for example sentences
         const sentencesResult = await fetchExampleSentencesFromApi(
           lemmatizedWord,
@@ -3424,18 +3610,21 @@ In ${this.targetLanguage}:
         );
         // Fix: Use type guard for ExampleSentencesResult | ExampleSentencesError
         let exampleSentences: FlashcardExampleSentence[] = [];
-        if (!('error' in sentencesResult)) { // It's ExampleSentencesResult
-            exampleSentences = sentencesResult.sentences || [];
+        if (!('error' in sentencesResult)) {
+          // It's ExampleSentencesResult
+          exampleSentences = sentencesResult.sentences || [];
         } else {
-            console.warn(`Error fetching example sentences for "${lemmatizedWord}": ${sentencesResult.error}`);
-            // exampleSentences will remain [], and the logic below will handle it
+          console.warn(
+            `Error fetching example sentences for "${lemmatizedWord}": ${sentencesResult.error}`
+          );
+          // exampleSentences will remain [], and the logic below will handle it
         }
-        
+
         this.isFetchingFrequencyFor = null;
         this.isFetchingSentencesFor = null;
 
         if (exampleSentences.length === 0) {
-          this.popupError = "Could not generate usable example sentences. Word not added.";
+          this.popupError = 'Could not generate usable example sentences. Word not added.';
           this.dictionaryEntries.delete(wordKey);
           this.dictionaryEntries = new Map(this.dictionaryEntries);
           this.requestUpdate();
@@ -3463,15 +3652,14 @@ In ${this.targetLanguage}:
         this.flashcards = [...this.flashcards, newFlashcard];
         this.flashcardIntervals.set(flashcardId, 1);
         this.flashcardFlipState.set(flashcardId, false);
-        
+
         this.dictionaryEntries = new Map(this.dictionaryEntries);
         this.sortAndInitializeFlashcardQueue();
-        this.saveProfileData(); 
+        this.saveProfileData();
         this.requestUpdate();
-
       } catch (error) {
-        console.error("Error adding word to dictionary:", error);
-        this.popupError = "An error occurred while adding the word. Please try again.";
+        console.error('Error adding word to dictionary:', error);
+        this.popupError = 'An error occurred while adding the word. Please try again.';
         this.dictionaryEntries.delete(wordKey);
         this.dictionaryEntries = new Map(this.dictionaryEntries);
         this.isFetchingFrequencyFor = null;
@@ -3484,27 +3672,31 @@ In ${this.targetLanguage}:
   private async handleDeleteDictionaryEntry(wordKey: string) {
     if (this.dictionaryEntries.has(wordKey)) {
       const entry = this.dictionaryEntries.get(wordKey);
-      
+
       // Remove all word forms from the known words set
       if (entry) {
-        const wordForms = await this.fetchWordForms(entry.word, entry.partOfSpeech, this.targetLanguage);
-        wordForms.forEach(form => this.knownWordForms.delete(form));
+        const wordForms = await this.fetchWordForms(
+          entry.word,
+          entry.partOfSpeech,
+          this.targetLanguage
+        );
+        wordForms.forEach((form) => this.knownWordForms.delete(form));
         console.log(`🗑️ Removed ${wordForms.length} forms from known words:`, wordForms);
       }
-      
+
       this.dictionaryEntries.delete(wordKey);
       this.expandedDictionaryWords.delete(wordKey);
 
       const flashcardIdToRemove = `${wordKey}_flashcard`;
-      this.flashcards = this.flashcards.filter(fc => fc.id !== flashcardIdToRemove);
+      this.flashcards = this.flashcards.filter((fc) => fc.id !== flashcardIdToRemove);
       this.flashcardIntervals.delete(flashcardIdToRemove);
       this.flashcardFlipState.delete(flashcardIdToRemove);
 
-      this.dictionaryEntries = new Map(this.dictionaryEntries); 
+      this.dictionaryEntries = new Map(this.dictionaryEntries);
       this.saveProfileData();
       this.sortAndInitializeFlashcardQueue();
       this.requestUpdate();
-      
+
       if (this.popupData && this.popupData.word.toLowerCase().trim() === wordKey) {
         this.closePopup();
       }
@@ -3514,39 +3706,39 @@ In ${this.targetLanguage}:
   private sortAndInitializeFlashcardQueue() {
     // Only show cards that are due for review
     const cardsToShow = this.getCardsToShow();
-    
+
     this.flashcardQueue = cardsToShow
       .sort((a, b) => {
         // Sort by due date first (overdue cards first)
         if (a.dueDate !== b.dueDate) return a.dueDate - b.dueDate;
-        
+
         // Then by status priority (new > learning > review)
         const statusPriority = { new: 0, learning: 1, review: 2 };
         const priorityA = statusPriority[a.status];
         const priorityB = statusPriority[b.status];
         if (priorityA !== priorityB) return priorityA - priorityB;
-        
+
         // Then by frequency (more frequent words first)
-        const freqA = a.dictionaryEntry.frequency ?? 0; 
+        const freqA = a.dictionaryEntry.frequency ?? 0;
         const freqB = b.dictionaryEntry.frequency ?? 0;
-        if (freqB !== freqA) return freqB - freqA; 
+        if (freqB !== freqA) return freqB - freqA;
 
-        return a.dictionaryEntry.dateAdded - b.dictionaryEntry.dateAdded; 
+        return a.dictionaryEntry.dateAdded - b.dictionaryEntry.dateAdded;
       })
-      .map(fc => fc.id);
+      .map((fc) => fc.id);
 
-    this.flashcardQueue.forEach(id => this.flashcardFlipState.set(id, false));
-    
+    this.flashcardQueue.forEach((id) => this.flashcardFlipState.set(id, false));
+
     if (this.currentFlashcardQueueIndex >= this.flashcardQueue.length) {
-        this.currentFlashcardQueueIndex = Math.max(0, this.flashcardQueue.length - 1);
+      this.currentFlashcardQueueIndex = Math.max(0, this.flashcardQueue.length - 1);
     }
     if (this.flashcardQueue.length > 0 && this.currentFlashcardQueueIndex < 0) {
-        this.currentFlashcardQueueIndex = 0;
+      this.currentFlashcardQueueIndex = 0;
     }
     if (this.flashcardQueue.length === 0) {
-        this.currentFlashcardQueueIndex = 0;
+      this.currentFlashcardQueueIndex = 0;
     }
-    
+
     // Preload audio for current card
     if (this.flashcardQueue.length > 0) {
       const currentCardId = this.flashcardQueue[this.currentFlashcardQueueIndex];
@@ -3554,29 +3746,29 @@ In ${this.targetLanguage}:
         this.preloadFlashcardAudio(currentCardId);
       }
     }
-    
-    this.requestUpdate('flashcardQueue'); 
+
+    this.requestUpdate('flashcardQueue');
   }
 
   private handleFlashcardFlip(cardId?: string) {
     if (!cardId) return;
-    
+
     const wasFlipped = this.flashcardFlipState.get(cardId) || false;
     const willBeFlipped = !wasFlipped;
-    
+
     this.flashcardFlipState.set(cardId, willBeFlipped);
     this.requestUpdate('flashcardFlipState');
-    
+
     // Auto-play audio when flipping to the back (answer side)
     if (willBeFlipped) {
       // Small delay to let the flip animation start, then play audio
       setTimeout(() => {
-        const card = this.flashcards.find(fc => fc.id === cardId);
+        const card = this.flashcards.find((fc) => fc.id === cardId);
         if (card && card.exampleSentences && card.exampleSentences.length > 0) {
           const currentInterval = this.flashcardIntervals.get(cardId) || 1;
           const sentenceIndex = (currentInterval - 1) % card.exampleSentences.length;
           const currentExample = card.exampleSentences[sentenceIndex];
-          
+
           if (currentExample?.english) {
             this.speakFlashcardText(currentExample.english, true); // Use preloaded audio
           }
@@ -3587,9 +3779,9 @@ In ${this.targetLanguage}:
 
   private handleFlashcardAnswer(cardId: string, isCorrect: boolean) {
     if (!cardId) return;
-    
+
     // Update card status and stats
-    const card = this.flashcards.find(fc => fc.id === cardId);
+    const card = this.flashcards.find((fc) => fc.id === cardId);
     if (card) {
       if (isCorrect) {
         card.correctCount++;
@@ -3600,33 +3792,33 @@ In ${this.targetLanguage}:
         this.updateCardWithAnkiLogic(card, false);
       }
     }
-    
+
     // Update interval
     let interval = this.flashcardIntervals.get(cardId) || 1;
     if (isCorrect) {
-        interval++;
+      interval++;
     } else {
-        interval = Math.max(1, interval - 1);
+      interval = Math.max(1, interval - 1);
     }
     this.flashcardIntervals.set(cardId, interval);
-    this.flashcardFlipState.set(cardId, false); 
+    this.flashcardFlipState.set(cardId, false);
 
     // Animate card sliding out to the right (correct) or left (incorrect)
     this.flashcardAnimationState = isCorrect ? 'sliding-right' : 'sliding-left';
     this.requestUpdate();
-    
+
     // After animation, handle card queue management
     setTimeout(() => {
       const cardIndexInQueue = this.flashcardQueue.indexOf(cardId);
-      const card = this.flashcards.find(fc => fc.id === cardId);
-      
+      const card = this.flashcards.find((fc) => fc.id === cardId);
+
       if (cardIndexInQueue > -1) {
         // Check if card is done for today (due date is in the future)
         const now = Date.now();
         if (card && card.dueDate > now) {
           // Card is done for today - remove from queue completely
           this.flashcardQueue.splice(cardIndexInQueue, 1);
-          
+
           // Adjust current index if needed
           if (this.currentFlashcardQueueIndex >= this.flashcardQueue.length) {
             this.currentFlashcardQueueIndex = Math.max(0, this.flashcardQueue.length - 1);
@@ -3635,33 +3827,32 @@ In ${this.targetLanguage}:
           // Card is still due - move to end of queue
           this.flashcardQueue.splice(cardIndexInQueue, 1);
           this.flashcardQueue.push(cardId);
-          
+
           if (this.currentFlashcardQueueIndex >= this.flashcardQueue.length) {
-            this.currentFlashcardQueueIndex = 0; 
+            this.currentFlashcardQueueIndex = 0;
           }
         }
       }
-      
+
       // Animate new card entering from opposite side
       this.flashcardAnimationState = isCorrect ? 'entering-left' : 'entering-right';
-      
+
       if (this.flashcardQueue.length > 0) {
-          const nextCardIdToShow = this.flashcardQueue[this.currentFlashcardQueueIndex];
-          this.flashcardFlipState.set(nextCardIdToShow, false);
-          // Preload audio for the next card
-          this.preloadFlashcardAudio(nextCardIdToShow);
+        const nextCardIdToShow = this.flashcardQueue[this.currentFlashcardQueueIndex];
+        this.flashcardFlipState.set(nextCardIdToShow, false);
+        // Preload audio for the next card
+        this.preloadFlashcardAudio(nextCardIdToShow);
       }
-      
+
       this.requestUpdate();
-      
+
       // Reset animation state
       setTimeout(() => {
         this.flashcardAnimationState = 'idle';
         this.requestUpdate();
       }, 300);
-      
     }, 300); // Wait for slide out animation
-    
+
     this.saveProfileData();
   }
 
@@ -3669,13 +3860,13 @@ In ${this.targetLanguage}:
     const counts = {
       new: 0,
       learning: 0,
-      review: 0
+      review: 0,
     };
-    
+
     for (const card of this.flashcards) {
       counts[card.status]++;
     }
-    
+
     return counts;
   }
 
@@ -3699,7 +3890,7 @@ In ${this.targetLanguage}:
     }
 
     let utterance: SpeechSynthesisUtterance;
-    
+
     // Use preloaded utterance if available and requested
     const currentCardId = this.flashcardQueue[this.currentFlashcardQueueIndex];
     if (usePreloaded && currentCardId && this.preloadedUtterances.has(currentCardId)) {
@@ -3708,11 +3899,11 @@ In ${this.targetLanguage}:
     } else {
       // Create new utterance
       utterance = new SpeechSynthesisUtterance(plainText);
-      
+
       // Set language based on target language
       const speechLang = this.mapLanguageToSpeechCode(this.targetLanguage);
       utterance.lang = speechLang;
-      
+
       // Configure speech settings
       utterance.rate = 0.8; // Slightly slower for language learning
       utterance.pitch = 1.0;
@@ -3721,8 +3912,10 @@ In ${this.targetLanguage}:
 
     // Speak the text
     window.speechSynthesis.speak(utterance);
-    
-    console.log(`🔊 Speaking "${plainText}" in ${this.mapLanguageToSpeechCode(this.targetLanguage)}`);
+
+    console.log(
+      `🔊 Speaking "${plainText}" in ${this.mapLanguageToSpeechCode(this.targetLanguage)}`
+    );
   }
 
   private preloadFlashcardAudio(cardId: string) {
@@ -3735,7 +3928,7 @@ In ${this.targetLanguage}:
       return;
     }
 
-    const card = this.flashcards.find(fc => fc.id === cardId);
+    const card = this.flashcards.find((fc) => fc.id === cardId);
     if (!card || !card.exampleSentences || card.exampleSentences.length === 0) {
       return;
     }
@@ -3743,7 +3936,7 @@ In ${this.targetLanguage}:
     const currentInterval = this.flashcardIntervals.get(cardId) || 1;
     const sentenceIndex = (currentInterval - 1) % card.exampleSentences.length;
     const currentExample = card.exampleSentences[sentenceIndex];
-    
+
     if (!currentExample?.english) {
       return;
     }
@@ -3796,17 +3989,17 @@ In ${this.targetLanguage}:
           // Graduate to review with 1 day interval
           card.status = 'review';
           card.interval = 1;
-          card.dueDate = now + (1 * 24 * 60 * 60 * 1000); // 1 day from now
+          card.dueDate = now + 1 * 24 * 60 * 60 * 1000; // 1 day from now
         } else {
           // Stay in learning, next step
           card.status = 'learning';
           const learningIntervals = [1, 10]; // 1 minute, 10 minutes
-          card.dueDate = now + (learningIntervals[card.learningStep - 1] * 60 * 1000);
+          card.dueDate = now + learningIntervals[card.learningStep - 1] * 60 * 1000;
         }
       } else {
         // Reset learning steps
         card.learningStep = 0;
-        card.dueDate = now + (1 * 60 * 1000); // 1 minute from now
+        card.dueDate = now + 1 * 60 * 1000; // 1 minute from now
       }
     } else if (card.status === 'learning') {
       if (isCorrect) {
@@ -3815,43 +4008,45 @@ In ${this.targetLanguage}:
           // Graduate to review
           card.status = 'review';
           card.interval = 1;
-          card.dueDate = now + (1 * 24 * 60 * 60 * 1000); // 1 day from now
+          card.dueDate = now + 1 * 24 * 60 * 60 * 1000; // 1 day from now
         } else {
           // Continue learning
           const learningIntervals = [1, 10]; // 1 minute, 10 minutes
-          card.dueDate = now + (learningIntervals[card.learningStep - 1] * 60 * 1000);
+          card.dueDate = now + learningIntervals[card.learningStep - 1] * 60 * 1000;
         }
       } else {
         // Reset to beginning of learning
         card.learningStep = 0;
-        card.dueDate = now + (1 * 60 * 1000); // 1 minute from now
+        card.dueDate = now + 1 * 60 * 1000; // 1 minute from now
       }
-         } else if (card.status === 'review') {
-       if (isCorrect) {
-         // Increase interval using ease factor
-         if (card.interval === 0) {
-           card.interval = 1;
-         } else if (card.interval === 1) {
-           card.interval = 6; // Second review interval
-         } else {
-           card.interval = Math.round(card.interval * card.easeFactor);
-         }
-         card.dueDate = now + (card.interval * 24 * 60 * 60 * 1000);
-       } else {
-         // Reset to learning
-         card.status = 'learning';
-         card.learningStep = 0;
-         card.interval = 0;
-         card.dueDate = now + (1 * 60 * 1000); // 1 minute from now
-       }
-     }
-     
-     console.log(`🎯 Updated card "${card.dictionaryEntry.word}": status=${card.status}, interval=${card.interval}, dueDate=${new Date(card.dueDate).toLocaleString()}, isCorrect=${isCorrect}`);
-   }
+    } else if (card.status === 'review') {
+      if (isCorrect) {
+        // Increase interval using ease factor
+        if (card.interval === 0) {
+          card.interval = 1;
+        } else if (card.interval === 1) {
+          card.interval = 6; // Second review interval
+        } else {
+          card.interval = Math.round(card.interval * card.easeFactor);
+        }
+        card.dueDate = now + card.interval * 24 * 60 * 60 * 1000;
+      } else {
+        // Reset to learning
+        card.status = 'learning';
+        card.learningStep = 0;
+        card.interval = 0;
+        card.dueDate = now + 1 * 60 * 1000; // 1 minute from now
+      }
+    }
+
+    console.log(
+      `🎯 Updated card "${card.dictionaryEntry.word}": status=${card.status}, interval=${card.interval}, dueDate=${new Date(card.dueDate).toLocaleString()}, isCorrect=${isCorrect}`
+    );
+  }
 
   private getCardsToShow(): Flashcard[] {
     const now = Date.now();
-    return this.flashcards.filter(card => card.dueDate <= now);
+    return this.flashcards.filter((card) => card.dueDate <= now);
   }
 
   private getDaysUntilDue(dueDate: number): number {
@@ -3864,7 +4059,7 @@ In ${this.targetLanguage}:
     const now = Date.now();
     const diffMs = dueDate - now;
     const diffDays = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
-    
+
     if (diffDays < 0) {
       return `${Math.abs(diffDays)} days overdue`;
     } else if (diffDays === 0) {
@@ -3879,97 +4074,108 @@ In ${this.targetLanguage}:
   private getDueStatus(dueDate: number): 'due-today' | 'overdue' | 'future' {
     const now = Date.now();
     const diffDays = Math.ceil((dueDate - now) / (24 * 60 * 60 * 1000));
-    
+
     if (diffDays < 0) return 'overdue';
     if (diffDays === 0) return 'due-today';
     return 'future';
   }
 
-  private getUpcomingReviews(): Array<{dateString: string, words: string[]}> {
+  private getUpcomingReviews(): Array<{ dateString: string; words: string[] }> {
     const now = Date.now();
-    const futureCards = this.flashcards.filter(card => card.dueDate > now);
-    
+    const futureCards = this.flashcards.filter((card) => card.dueDate > now);
+
     // Group cards by due date
     const groupedByDate = new Map<string, string[]>();
-    
-    futureCards.forEach(card => {
+
+    futureCards.forEach((card) => {
       const date = new Date(card.dueDate);
       const dateString = date.toLocaleDateString();
-      
+
       if (!groupedByDate.has(dateString)) {
         groupedByDate.set(dateString, []);
       }
       groupedByDate.get(dateString)!.push(card.dictionaryEntry.word);
     });
-    
+
     // Convert to array and sort by date
     const reviews = Array.from(groupedByDate.entries())
       .map(([dateString, words]) => ({ dateString, words }))
       .sort((a, b) => new Date(a.dateString).getTime() - new Date(b.dateString).getTime())
       .slice(0, 7); // Show next 7 days
-    
+
     return reviews;
   }
 
   private isWordKnown(word: string): boolean {
     const normalizedWord = word.toLowerCase().trim();
-    
+
     // First check if the word itself is in the dictionary
     if (this.dictionaryEntries.has(normalizedWord)) {
       return true;
     }
-    
+
     // Check if any conjugated/inflected form of this word is known
     if (this.knownWordForms.has(normalizedWord)) {
       return true;
     }
-    
+
     return false;
   }
 
-  private async fetchWordForms(word: string, partOfSpeech: string, language: string): Promise<string[]> {
-    console.log(`🔍 fetchWordForms called for "${word}", partOfSpeech: "${partOfSpeech}", language: "${language}"`);
-    
+  private async fetchWordForms(
+    word: string,
+    partOfSpeech: string,
+    language: string
+  ): Promise<string[]> {
+    console.log(
+      `🔍 fetchWordForms called for "${word}", partOfSpeech: "${partOfSpeech}", language: "${language}"`
+    );
+
     // Only fetch forms for verbs, as they have the most variations
-    if (!partOfSpeech.toLowerCase().includes('verb') && !partOfSpeech.toLowerCase().includes('verbo')) {
+    if (
+      !partOfSpeech.toLowerCase().includes('verb') &&
+      !partOfSpeech.toLowerCase().includes('verbo')
+    ) {
       console.log(`📝 "${word}" is not a verb, returning base form only`);
       return [word.toLowerCase().trim()];
     }
-    
+
     // For Spanish, use our comprehensive conjugation database
     if (language.toLowerCase() === 'spanish') {
       return await this.fetchSpanishVerbForms(word);
     }
-    
+
     // For other languages, return just the base form
-    console.log(`📝 Language "${language}" not supported for conjugation lookup, returning base form only`);
+    console.log(
+      `📝 Language "${language}" not supported for conjugation lookup, returning base form only`
+    );
     return [word.toLowerCase().trim()];
   }
 
   private async fetchSpanishVerbForms(word: string): Promise<string[]> {
     const baseWord = word.toLowerCase().trim();
     console.log(`🔍 Fetching Spanish verb forms for "${baseWord}"`);
-    
+
     try {
       // Determine which letter file to load
       const firstLetter = baseWord[0];
       const fileName = `./Conjugations/Spanish/by-letter/${firstLetter}.json`;
-      
+
       console.log(`📁 Loading conjugation file: ${fileName}`);
-      
+
       // Fetch the conjugation file for this letter
       const response = await fetch(fileName);
       if (!response.ok) {
         console.warn(`⚠️ Could not load conjugation file ${fileName}: ${response.status}`);
         return [baseWord]; // Return just the base word if file not found
       }
-      
+
       const conjugationData = await response.json();
       const allForms = new Set<string>();
-      
+
       // Add the base word itself
       allForms.add(baseWord);
-      
+
       // Find all conjugated forms that belong to this infinitive
       for (const [conjugatedForm, entries] of Object.entries(conjugationData)) {
         if (Array.isArray(entries)) {
@@ -3985,12 +4191,14 @@ In ${this.targetLanguage}:
           }
         }
       }
-      
+
       const formsArray = Array.from(allForms);
-      console.log(`✅ Found ${formsArray.length} Spanish verb forms for "${baseWord}":`, formsArray.slice(0, 10));
-      
+      console.log(
+        `✅ Found ${formsArray.length} Spanish verb forms for "${baseWord}":`,
+        formsArray.slice(0, 10)
+      );
+
       return formsArray;
-      
     } catch (error) {
       console.error(`❌ Error fetching Spanish verb forms for "${baseWord}":`, error);
       return [baseWord]; // Return just the base word on error
@@ -4001,14 +4209,14 @@ In ${this.targetLanguage}:
     // If we're looking for "ser", don't filter out ser's own conjugations
     // If we're looking for "haber", don't filter out haber's own conjugations
     // Only filter out auxiliary verbs from OTHER verbs
-    
+
     const targetInfinitive = targetVerb.toLowerCase();
-    
+
     // If the target verb itself is an auxiliary verb, allow all its forms
     if (['ser', 'estar', 'haber'].includes(targetInfinitive)) {
       return false; // Don't filter anything when looking for auxiliary verbs themselves
     }
-    
+
     // For non-auxiliary verbs, filter out auxiliary forms from other verbs
     return this.isAuxiliaryOrPronoun(word);
   }
@@ -4016,39 +4224,166 @@ In ${this.targetLanguage}:
   private isAuxiliaryOrPronoun(word: string): boolean {
     const auxiliariesAndPronouns = [
       // Pronouns
-      'me', 'te', 'se', 'nos', 'os', 'le', 'la', 'lo', 'les', 'las', 'los',
+      'me',
+      'te',
+      'se',
+      'nos',
+      'os',
+      'le',
+      'la',
+      'lo',
+      'les',
+      'las',
+      'los',
       // All forms of HABER (to have - auxiliary)
-      'he', 'has', 'ha', 'hemos', 'habéis', 'han',
-      'había', 'habías', 'habíamos', 'habíais', 'habían', 
-      'habré', 'habrás', 'habrá', 'habremos', 'habréis', 'habrán',
-      'haya', 'hayas', 'hayamos', 'hayáis', 'hayan',
-      'hubiera', 'hubieras', 'hubiéramos', 'hubierais', 'hubieran',
-      'hubiese', 'hubieses', 'hubiésemos', 'hubieseis', 'hubiesen',
-      'hubiere', 'hubieres', 'hubiéremos', 'hubiereis', 'hubieren',
-      'hube', 'hubiste', 'hubo', 'hubimos', 'hubisteis', 'hubieron',
-      'habría', 'habrías', 'habríamos', 'habríais', 'habrían',
+      'he',
+      'has',
+      'ha',
+      'hemos',
+      'habéis',
+      'han',
+      'había',
+      'habías',
+      'habíamos',
+      'habíais',
+      'habían',
+      'habré',
+      'habrás',
+      'habrá',
+      'habremos',
+      'habréis',
+      'habrán',
+      'haya',
+      'hayas',
+      'hayamos',
+      'hayáis',
+      'hayan',
+      'hubiera',
+      'hubieras',
+      'hubiéramos',
+      'hubierais',
+      'hubieran',
+      'hubiese',
+      'hubieses',
+      'hubiésemos',
+      'hubieseis',
+      'hubiesen',
+      'hubiere',
+      'hubieres',
+      'hubiéremos',
+      'hubiereis',
+      'hubieren',
+      'hube',
+      'hubiste',
+      'hubo',
+      'hubimos',
+      'hubisteis',
+      'hubieron',
+      'habría',
+      'habrías',
+      'habríamos',
+      'habríais',
+      'habrían',
       // All forms of SER (to be - auxiliary)
-      'soy', 'eres', 'es', 'somos', 'sois', 'son',
-      'era', 'eras', 'éramos', 'erais', 'eran',
-      'seré', 'serás', 'será', 'seremos', 'seréis', 'serán',
-      'sea', 'seas', 'seamos', 'seáis', 'sean',
-      'fuera', 'fueras', 'fuéramos', 'fuerais', 'fueran',
-      'fuese', 'fueses', 'fuésemos', 'fueseis', 'fuesen',
-      'fuere', 'fueres', 'fuéremos', 'fuereis', 'fueren',
-      'fui', 'fuiste', 'fue', 'fuimos', 'fuisteis', 'fueron',
-      'sería', 'serías', 'seríamos', 'seríais', 'serían',
+      'soy',
+      'eres',
+      'es',
+      'somos',
+      'sois',
+      'son',
+      'era',
+      'eras',
+      'éramos',
+      'erais',
+      'eran',
+      'seré',
+      'serás',
+      'será',
+      'seremos',
+      'seréis',
+      'serán',
+      'sea',
+      'seas',
+      'seamos',
+      'seáis',
+      'sean',
+      'fuera',
+      'fueras',
+      'fuéramos',
+      'fuerais',
+      'fueran',
+      'fuese',
+      'fueses',
+      'fuésemos',
+      'fueseis',
+      'fuesen',
+      'fuere',
+      'fueres',
+      'fuéremos',
+      'fuereis',
+      'fueren',
+      'fui',
+      'fuiste',
+      'fue',
+      'fuimos',
+      'fuisteis',
+      'fueron',
+      'sería',
+      'serías',
+      'seríamos',
+      'seríais',
+      'serían',
       // All forms of ESTAR (to be - auxiliary)
-      'estoy', 'estás', 'está', 'estamos', 'estáis', 'están',
-      'estaba', 'estabas', 'estábamos', 'estabais', 'estaban',
-      'estaré', 'estarás', 'estará', 'estaremos', 'estaréis', 'estarán',
-      'esté', 'estés', 'estemos', 'estéis', 'estén',
-      'estuviera', 'estuvieras', 'estuviéramos', 'estuvierais', 'estuvieran',
-      'estuviese', 'estuvieses', 'estuviésemos', 'estuvieseis', 'estuviesen',
-      'estuviere', 'estuvieres', 'estuviéremos', 'estuviereis', 'estuvieren',
-      'estuve', 'estuviste', 'estuvo', 'estuvimos', 'estuvisteis', 'estuvieron',
-      'estaría', 'estarías', 'estaríamos', 'estaríais', 'estarían'
+      'estoy',
+      'estás',
+      'está',
+      'estamos',
+      'estáis',
+      'están',
+      'estaba',
+      'estabas',
+      'estábamos',
+      'estabais',
+      'estaban',
+      'estaré',
+      'estarás',
+      'estará',
+      'estaremos',
+      'estaréis',
+      'estarán',
+      'esté',
+      'estés',
+      'estemos',
+      'estéis',
+      'estén',
+      'estuviera',
+      'estuvieras',
+      'estuviéramos',
+      'estuvierais',
+      'estuvieran',
+      'estuviese',
+      'estuvieses',
+      'estuviésemos',
+      'estuvieseis',
+      'estuviesen',
+      'estuviere',
+      'estuvieres',
+      'estuviéremos',
+      'estuviereis',
+      'estuvieren',
+      'estuve',
+      'estuviste',
+      'estuvo',
+      'estuvimos',
+      'estuvisteis',
+      'estuvieron',
+      'estaría',
+      'estarías',
+      'estaríamos',
+      'estaríais',
+      'estarían',
     ];
-    
+
     return auxiliariesAndPronouns.includes(word.toLowerCase());
   }
 
@@ -4058,12 +4393,12 @@ In ${this.targetLanguage}:
     if (baseVerb.endsWith('ar') || baseVerb.endsWith('er') || baseVerb.endsWith('ir')) {
       stem = baseVerb.slice(0, -2);
     }
-    
+
     // For very short stems, be more strict
     if (stem.length < 3) {
       return wordPart.startsWith(stem) && wordPart.length >= stem.length + 1;
     }
-    
+
     // Check if the word part contains the stem (handles stem changes)
     // For example: poner -> stem "pon", should match "puesto", "puse", etc.
     // Handle common stem changes
@@ -4071,11 +4406,9 @@ In ${this.targetLanguage}:
       const stemStart = stem.slice(0, -1); // Remove last letter to handle stem changes
       return wordPart.includes(stemStart) || wordPart.startsWith(stem);
     }
-    
+
     return wordPart.includes(stem);
   }
-
-
 
   private calculateNextDueDateIfCorrect(card: Flashcard): string {
     const now = Date.now();
@@ -4085,21 +4418,21 @@ In ${this.targetLanguage}:
       const nextLearningStep = card.learningStep + 1;
       if (nextLearningStep >= 2) {
         // Would graduate to review with 1 day interval
-        nextDueDate = now + (1 * 24 * 60 * 60 * 1000);
+        nextDueDate = now + 1 * 24 * 60 * 60 * 1000;
       } else {
         // Would stay in learning
         const learningIntervals = [1, 10]; // 1 minute, 10 minutes
-        nextDueDate = now + (learningIntervals[nextLearningStep - 1] * 60 * 1000);
+        nextDueDate = now + learningIntervals[nextLearningStep - 1] * 60 * 1000;
       }
     } else if (card.status === 'learning') {
       const nextLearningStep = card.learningStep + 1;
       if (nextLearningStep >= 2) {
         // Would graduate to review
-        nextDueDate = now + (1 * 24 * 60 * 60 * 1000);
+        nextDueDate = now + 1 * 24 * 60 * 60 * 1000;
       } else {
         // Would continue learning
         const learningIntervals = [1, 10]; // 1 minute, 10 minutes
-        nextDueDate = now + (learningIntervals[nextLearningStep - 1] * 60 * 1000);
+        nextDueDate = now + learningIntervals[nextLearningStep - 1] * 60 * 1000;
       }
     } else if (card.status === 'review') {
       // Calculate next review interval
@@ -4111,7 +4444,7 @@ In ${this.targetLanguage}:
       } else {
         nextInterval = Math.round(card.interval * card.easeFactor);
       }
-      nextDueDate = now + (nextInterval * 24 * 60 * 60 * 1000);
+      nextDueDate = now + nextInterval * 24 * 60 * 60 * 1000;
     } else {
       nextDueDate = now;
     }
@@ -4123,54 +4456,57 @@ In ${this.targetLanguage}:
     if (this.flashcardQueue.length === 0) return;
 
     const currentCardId = this.flashcardQueue[this.currentFlashcardQueueIndex];
-    if (currentCardId) { 
-        this.flashcardFlipState.set(currentCardId, false);
+    if (currentCardId) {
+      this.flashcardFlipState.set(currentCardId, false);
     }
 
     // Animate current card sliding out
     this.flashcardAnimationState = direction === 'next' ? 'sliding-left' : 'sliding-right';
     this.requestUpdate();
-    
+
     setTimeout(() => {
       if (direction === 'next') {
-          this.currentFlashcardQueueIndex = (this.currentFlashcardQueueIndex + 1) % this.flashcardQueue.length;
+        this.currentFlashcardQueueIndex =
+          (this.currentFlashcardQueueIndex + 1) % this.flashcardQueue.length;
       } else {
-          this.currentFlashcardQueueIndex = (this.currentFlashcardQueueIndex - 1 + this.flashcardQueue.length) % this.flashcardQueue.length;
+        this.currentFlashcardQueueIndex =
+          (this.currentFlashcardQueueIndex - 1 + this.flashcardQueue.length) %
+          this.flashcardQueue.length;
       }
-      
+
       // Animate new card entering from opposite side
       this.flashcardAnimationState = direction === 'next' ? 'entering-right' : 'entering-left';
-      
+
       const newCardId = this.flashcardQueue[this.currentFlashcardQueueIndex];
       if (newCardId) {
-          this.flashcardFlipState.set(newCardId, false);
-          // Preload audio for the new card
-          this.preloadFlashcardAudio(newCardId);
+        this.flashcardFlipState.set(newCardId, false);
+        // Preload audio for the new card
+        this.preloadFlashcardAudio(newCardId);
       }
       this.requestUpdate();
-      
+
       // Reset animation state
       setTimeout(() => {
         this.flashcardAnimationState = 'idle';
         this.requestUpdate();
       }, 300);
-      
     }, 300); // Wait for slide out animation
   }
 
-
   private renderMessageWithClickableWords(messageText: string) {
-    const parts = messageText.split(/(\s+|[,.;!?:]+(?=\s|$)|(?<=\w)[,.;!?:]+)/g).filter(part => part);
+    const parts = messageText
+      .split(/(\s+|[,.;!?:]+(?=\s|$)|(?<=\w)[,.;!?:]+)/g)
+      .filter((part) => part);
 
     return parts.map((part) => {
       const trimmedPart = part.trim();
       const wordForApiMatch = trimmedPart.match(/^[\W]*([\w'-]+)[\W]*$/);
-      const wordForApi = wordForApiMatch ? wordForApiMatch[1] : "";
+      const wordForApi = wordForApiMatch ? wordForApiMatch[1] : '';
 
-      if (wordForApi === '') { 
-        return part; 
+      if (wordForApi === '') {
+        return part;
       }
-      
+
       const wordKey = wordForApi.toLowerCase().trim();
       const isKnown = this.isWordKnown(wordKey);
       const wordClass = `clickable-word ${isKnown ? 'known-word' : ''}`;
@@ -4178,36 +4514,47 @@ In ${this.targetLanguage}:
       return html`<span
         class="${wordClass}"
         @click=${(e: MouseEvent) => this.handleWordClick(e, wordForApi, messageText)}
-        @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') this.handleWordClick(e as unknown as MouseEvent, wordForApi, messageText);}}
+        @keydown=${(e: KeyboardEvent) => {
+          if (e.key === 'Enter' || e.key === ' ')
+            this.handleWordClick(e as unknown as MouseEvent, wordForApi, messageText);
+        }}
         role="button"
         tabindex="0"
-        aria-description="${isKnown ? `Known word: ${wordForApi}. Click to see details.` : `Clickable word: ${wordForApi}. Click to see details.`}"
-      >${part}</span>`; 
+        aria-description="${isKnown
+          ? `Known word: ${wordForApi}. Click to see details.`
+          : `Clickable word: ${wordForApi}. Click to see details.`}"
+        >${part}</span
+      >`;
     });
   }
 
   private calculateFrequencyFromRank(rank: number | null, totalWords: number): number {
     if (!rank || totalWords <= 0) return 1;
-    
+
     // Calculate percentile from rank (lower rank = higher percentile)
     const percentile = (totalWords - rank + 1) / totalWords;
-    
+
     // Distribution: 5:4:3:2:1 = 1:2:4:8:16 (out of 31 parts)
     // Frequency 5 (most common): top 3.23% (1/31)
     // Frequency 4: next 6.45% (2/31) - top 9.68%
     // Frequency 3: next 12.90% (4/31) - top 22.58%
     // Frequency 2: next 25.81% (8/31) - top 48.39%
     // Frequency 1: remaining 51.61% (16/31)
-    
-    if (percentile >= 0.9677) {    // Top 3.23%
+
+    if (percentile >= 0.9677) {
+      // Top 3.23%
       return 5; // Very common/basic
-    } else if (percentile >= 0.9032) {  // Top 9.68%
+    } else if (percentile >= 0.9032) {
+      // Top 9.68%
       return 4; // Common
-    } else if (percentile >= 0.7742) {  // Top 22.58%
+    } else if (percentile >= 0.7742) {
+      // Top 22.58%
       return 3; // Neutral
-    } else if (percentile >= 0.4839) {  // Top 48.39%
+    } else if (percentile >= 0.4839) {
+      // Top 48.39%
       return 2; // Uncommon
-    } else {                        // Bottom 51.61%
+    } else {
+      // Bottom 51.61%
       return 1; // Rare
     }
   }
@@ -4215,16 +4562,16 @@ In ${this.targetLanguage}:
   private renderFrequencyInfo(frequency: number | null, rank: number | null) {
     // Use rank-based calculation if we have rank data, otherwise fall back to frequency
     let displayFrequency: number;
-    
+
     // Total words by language from metadata
     const totalWordsByLanguage: Record<string, number> = {
-      'Spanish': 341461,
-      'English': 319938,
-      'Portuguese': 267444
+      Spanish: 341461,
+      English: 319938,
+      Portuguese: 267444,
     };
-    
+
     const totalWords = totalWordsByLanguage[this.targetLanguage] || 341461;
-    
+
     if (rank !== null && rank > 0) {
       displayFrequency = this.calculateFrequencyFromRank(rank, totalWords);
     } else if (frequency !== null && frequency >= 1 && frequency <= 5) {
@@ -4232,21 +4579,25 @@ In ${this.targetLanguage}:
     } else {
       return html`<span style="color: #8a80a5; font-size: 12px;">N/A</span>`;
     }
-    
-    let color = '#22C55E'; 
-    if (displayFrequency === 1) color = '#EF4444'; 
-    else if (displayFrequency === 2) color = '#F97316'; 
-    else if (displayFrequency === 3) color = '#FACC15'; 
-    else if (displayFrequency === 4) color = '#84CC16'; 
+
+    let color = '#22C55E';
+    if (displayFrequency === 1) color = '#EF4444';
+    else if (displayFrequency === 2) color = '#F97316';
+    else if (displayFrequency === 3) color = '#FACC15';
+    else if (displayFrequency === 4) color = '#84CC16';
 
     const rankText = rank ? `#${rank.toLocaleString()}` : '';
-    
+
     return html`
       <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
         <div class="frequency-dots" aria-label="Frequency: ${displayFrequency} out of 5">
-          ${Array(displayFrequency).fill(0).map(() => html`<div class="frequency-dot" style="background-color: ${color};"></div>`)}
+          ${Array(displayFrequency)
+            .fill(0)
+            .map(() => html`<div class="frequency-dot" style="background-color: ${color};"></div>`)}
         </div>
-        ${rank ? html`<div style="color: #666; font-size: 10px; font-weight: 600;">${rankText}</div>` : ''}
+        ${rank
+          ? html`<div style="color: #666; font-size: 10px; font-weight: 600;">${rankText}</div>`
+          : ''}
       </div>
     `;
   }
@@ -4262,26 +4613,32 @@ In ${this.targetLanguage}:
 
   private getDynamicFlashcardContent(card: Flashcard | undefined, interval: number) {
     if (!card || !card.exampleSentences || card.exampleSentences.length === 0) {
-      return { front: 'Error: No sentence data for this card.', back: 'Error: No sentence data for this card.' };
+      return {
+        front: 'Error: No sentence data for this card.',
+        back: 'Error: No sentence data for this card.',
+      };
     }
 
     const sentenceIndex = (interval - 1) % card.exampleSentences.length;
-    const currentExample = card.exampleSentences[sentenceIndex]; 
-    const targetWord = card.dictionaryEntry.word; 
+    const currentExample = card.exampleSentences[sentenceIndex];
+    const targetWord = card.dictionaryEntry.word;
 
     const blankedSentence = currentExample.english.replace(
-      new RegExp(this.escapeRegExp(targetWord), 'gi'), '_______'
+      new RegExp(this.escapeRegExp(targetWord), 'gi'),
+      '_______'
     );
-    
+
     const frontHTML = html`
-        <p>${blankedSentence}</p>
-        <p class="portuguese-translation">${currentExample.portugueseTranslation}</p>
+      <p>${blankedSentence}</p>
+      <p class="portuguese-translation">${currentExample.portugueseTranslation}</p>
     `;
 
-    const parts = currentExample.english.split(new RegExp(`(${this.escapeRegExp(targetWord)})`, 'gi'));
-    const backHTML = html`${parts.map(part => 
-        part.toLowerCase() === targetWord.toLowerCase() 
-        ? html`<span class="highlighted-word">${part}</span>` 
+    const parts = currentExample.english.split(
+      new RegExp(`(${this.escapeRegExp(targetWord)})`, 'gi')
+    );
+    const backHTML = html`${parts.map((part) =>
+      part.toLowerCase() === targetWord.toLowerCase()
+        ? html`<span class="highlighted-word">${part}</span>`
         : part
     )}`;
 
@@ -4295,31 +4652,37 @@ In ${this.targetLanguage}:
     this.requestUpdate();
 
     if (this.transcriptHistory.length === 0) {
-      this.evaluationError = "Transcript is empty. Please have a conversation first.";
+      this.evaluationError = 'Transcript is empty. Please have a conversation first.';
       this.isEvaluating = false;
       this.requestUpdate();
       return;
     }
-    
-    const result = await fetchEvaluationFromApi(this.transcriptHistory, this.targetLanguage, this.nativeLanguage);
+
+    const result = await fetchEvaluationFromApi(
+      this.transcriptHistory,
+      this.targetLanguage,
+      this.nativeLanguage
+    );
 
     // Fix: Use type guard for EvaluationResult | EvaluationError
-    if (result && 'error' in result) { // Type guard for EvaluationError
-        const errorMessage = result.error || "Failed to evaluate transcript.";
-        console.error("Error evaluating transcript:", errorMessage);
-        this.evaluationError = errorMessage;
-        this.evaluationResult = null; 
-    } else if (result && 'evaluation' in result) { // It's EvaluationResult
-        this.evaluationResult = result.evaluation;
-        this.evaluationError = null;
+    if (result && 'error' in result) {
+      // Type guard for EvaluationError
+      const errorMessage = result.error || 'Failed to evaluate transcript.';
+      console.error('Error evaluating transcript:', errorMessage);
+      this.evaluationError = errorMessage;
+      this.evaluationResult = null;
+    } else if (result && 'evaluation' in result) {
+      // It's EvaluationResult
+      this.evaluationResult = result.evaluation;
+      this.evaluationError = null;
     } else {
-        // Should not happen if API service always returns an object from the union
-        const errorMessage = "Failed to evaluate transcript. API returned no data.";
-        console.error(errorMessage);
-        this.evaluationError = errorMessage;
-        this.evaluationResult = null;
+      // Should not happen if API service always returns an object from the union
+      const errorMessage = 'Failed to evaluate transcript. API returned no data.';
+      console.error(errorMessage);
+      this.evaluationError = errorMessage;
+      this.evaluationResult = null;
     }
-    
+
     this.isEvaluating = false;
     this.requestUpdate();
   }
@@ -4330,23 +4693,37 @@ In ${this.targetLanguage}:
         <h2>Setup Your Learning Session</h2>
         <div class="language-selection-group">
           <label for="profile-select">Choose Profile:</label>
-          <select id="profile-select" .value=${this.currentProfile} @change=${this.handleProfileChange}>
-            ${this.profiles.map(profile => html`<option value=${profile}>${profile}</option>`)}
+          <select
+            id="profile-select"
+            .value=${this.currentProfile}
+            @change=${this.handleProfileChange}
+          >
+            ${this.profiles.map((profile) => html`<option value=${profile}>${profile}</option>`)}
           </select>
         </div>
         <div class="language-selection-group">
           <label for="initial-native-lang-select">Your Native Language:</label>
-          <select id="initial-native-lang-select" .value=${this.nativeLanguage} @change=${this.handleInitialNativeLanguageChange}>
-            ${SUPPORTED_LANGUAGES.map(lang => html`<option value=${lang}>${lang}</option>`)}
+          <select
+            id="initial-native-lang-select"
+            .value=${this.nativeLanguage}
+            @change=${this.handleInitialNativeLanguageChange}
+          >
+            ${SUPPORTED_LANGUAGES.map((lang) => html`<option value=${lang}>${lang}</option>`)}
           </select>
         </div>
         <div class="language-selection-group">
           <label for="initial-target-lang-select">Language You're Learning:</label>
-          <select id="initial-target-lang-select" .value=${this.targetLanguage} @change=${this.handleInitialTargetLanguageChange}>
-            ${SUPPORTED_LANGUAGES.map(lang => html`<option value=${lang}>${lang}</option>`)}
+          <select
+            id="initial-target-lang-select"
+            .value=${this.targetLanguage}
+            @change=${this.handleInitialTargetLanguageChange}
+          >
+            ${SUPPORTED_LANGUAGES.map((lang) => html`<option value=${lang}>${lang}</option>`)}
           </select>
         </div>
-        <button class="start-button" @click=${this.handleStartConversation}>Start Conversation</button>
+        <button class="start-button" @click=${this.handleStartConversation}>
+          Start Conversation
+        </button>
       </div>
     `;
   }
@@ -4354,92 +4731,104 @@ In ${this.targetLanguage}:
   private renderMainApplication() {
     const hostElement = this.shadowRoot?.host;
     if (hostElement) {
-      (hostElement as HTMLElement).style.setProperty('--transcript-font-size', `${this.transcriptFontSize}px`);
+      (hostElement as HTMLElement).style.setProperty(
+        '--transcript-font-size',
+        `${this.transcriptFontSize}px`
+      );
     }
 
-    const isWordInPopupDictionary = this.popupData ? 
-      this.dictionaryEntries.has((this.popupData.lemmatizedWord || this.popupData.word).toLowerCase().trim()) : false;
-    const isFetchingCurrentPopupWordEnrichments = this.popupData ? (this.isFetchingFrequencyFor === this.popupData.word || this.isFetchingSentencesFor === this.popupData.word) : false;
-    
-    const dictionaryButtonDisabledState = 
-        (this.isPopupLoading && (!this.popupData || !this.popupData.definition)) || 
-        isFetchingCurrentPopupWordEnrichments;
+    const isWordInPopupDictionary = this.popupData
+      ? this.dictionaryEntries.has(
+          (this.popupData.lemmatizedWord || this.popupData.word).toLowerCase().trim()
+        )
+      : false;
+    const isFetchingCurrentPopupWordEnrichments = this.popupData
+      ? this.isFetchingFrequencyFor === this.popupData.word ||
+        this.isFetchingSentencesFor === this.popupData.word
+      : false;
 
-    const filteredDictionaryEntries = Array.from(this.dictionaryEntries.values()).filter(entry => 
-      entry.word.toLowerCase().includes(this.dictionarySearchTerm.toLowerCase()) 
-    ).sort((a, b) => {
-      switch (this.dictionarySortOrder) {
-        case 'frequency_desc': // Most frequent first (default)
-          // Handle null frequencies - put them last
-          if (a.frequency === null && b.frequency === null) return 0;
-          if (a.frequency === null) return 1;
-          if (b.frequency === null) return -1;
-          if (a.frequency !== b.frequency) return b.frequency - a.frequency;
-          // If frequencies are equal, sort by rank (lower rank = more common)
-          if (a.rank !== null && b.rank !== null) return a.rank - b.rank;
-          return a.word.localeCompare(b.word); // Final fallback: alphabetical
-          
-        case 'frequency_asc': // Least frequent first
-          if (a.frequency === null && b.frequency === null) return 0;
-          if (a.frequency === null) return 1;
-          if (b.frequency === null) return -1;
-          if (a.frequency !== b.frequency) return a.frequency - b.frequency;
-          // If frequencies are equal, sort by rank (higher rank = less common)
-          if (a.rank !== null && b.rank !== null) return b.rank - a.rank;
-          return a.word.localeCompare(b.word);
-          
-        case 'alphabetical': // A-Z
-          return a.word.localeCompare(b.word);
-          
-        case 'alphabetical_reverse': // Z-A
-          return b.word.localeCompare(a.word);
-          
-        case 'date_added_desc': // Most recent first
-          return b.dateAdded - a.dateAdded;
-          
-        case 'date_added_asc': // Oldest first
-          return a.dateAdded - b.dateAdded;
-          
-        default:
-          return a.word.localeCompare(b.word);
-      }
-    });
+    const dictionaryButtonDisabledState =
+      (this.isPopupLoading && (!this.popupData || !this.popupData.definition)) ||
+      isFetchingCurrentPopupWordEnrichments;
+
+    const filteredDictionaryEntries = Array.from(this.dictionaryEntries.values())
+      .filter((entry) => entry.word.toLowerCase().includes(this.dictionarySearchTerm.toLowerCase()))
+      .sort((a, b) => {
+        switch (this.dictionarySortOrder) {
+          case 'frequency_desc': // Most frequent first (default)
+            // Handle null frequencies - put them last
+            if (a.frequency === null && b.frequency === null) return 0;
+            if (a.frequency === null) return 1;
+            if (b.frequency === null) return -1;
+            if (a.frequency !== b.frequency) return b.frequency - a.frequency;
+            // If frequencies are equal, sort by rank (lower rank = more common)
+            if (a.rank !== null && b.rank !== null) return a.rank - b.rank;
+            return a.word.localeCompare(b.word); // Final fallback: alphabetical
+
+          case 'frequency_asc': // Least frequent first
+            if (a.frequency === null && b.frequency === null) return 0;
+            if (a.frequency === null) return 1;
+            if (b.frequency === null) return -1;
+            if (a.frequency !== b.frequency) return a.frequency - b.frequency;
+            // If frequencies are equal, sort by rank (higher rank = less common)
+            if (a.rank !== null && b.rank !== null) return b.rank - a.rank;
+            return a.word.localeCompare(b.word);
+
+          case 'alphabetical': // A-Z
+            return a.word.localeCompare(b.word);
+
+          case 'alphabetical_reverse': // Z-A
+            return b.word.localeCompare(a.word);
+
+          case 'date_added_desc': // Most recent first
+            return b.dateAdded - a.dateAdded;
+
+          case 'date_added_asc': // Oldest first
+            return a.dateAdded - b.dateAdded;
+
+          default:
+            return a.word.localeCompare(b.word);
+        }
+      });
 
     const transcriptButtonClasses = `tab-button ${this.activeTab === 'transcript' ? 'active' : ''}`;
     const dictionaryButtonClasses = `tab-button dictionary-tab-btn ${this.activeTab === 'dictionary' ? 'active' : ''}`;
     const flashcardsButtonClasses = `tab-button flashcards-tab-btn ${this.activeTab === 'flashcards' ? 'active' : ''}`;
     const evaluateButtonClasses = `tab-button evaluate-tab-btn ${this.activeTab === 'evaluate' ? 'active' : ''}`;
 
-
     const currentCardId = this.flashcardQueue[this.currentFlashcardQueueIndex];
-    const currentFlashcard = this.flashcards.find(fc => fc.id === currentCardId);
+    const currentFlashcard = this.flashcards.find((fc) => fc.id === currentCardId);
     const isFlipped = currentCardId ? this.flashcardFlipState.get(currentCardId) === true : false;
     const currentInterval = currentCardId ? this.flashcardIntervals.get(currentCardId) || 1 : 1;
-    const { front: flashcardFrontContent, back: flashcardBackContent } = this.getDynamicFlashcardContent(currentFlashcard, currentInterval);
-    
+    const { front: flashcardFrontContent, back: flashcardBackContent } =
+      this.getDynamicFlashcardContent(currentFlashcard, currentInterval);
+
     return html`
       <div class="app-container">
-        ${this.isInitializingSession ? html`
-          <div class="loading-overlay" role="alert" aria-live="assertive">
-            <div class="loading-spinner"></div>
-            <p>${this.isDiagnosticSessionActive ?
-              `Loading Diagnostic Test for ${this.currentProfile}...` :
-              `Initializing session with ${this.currentProfile}...`
-            }</p>
-          </div>
-        ` : ''}
+        ${this.isInitializingSession
+          ? html`
+              <div class="loading-overlay" role="alert" aria-live="assertive">
+                <div class="loading-spinner"></div>
+                <p>
+                  ${this.isDiagnosticSessionActive
+                    ? `Loading Diagnostic Test for ${this.currentProfile}...`
+                    : `Initializing session with ${this.currentProfile}...`}
+                </p>
+              </div>
+            `
+          : ''}
 
         <div class="left-panel" style="flex: 1 1 auto; min-width: ${this.minLeftPanelWidth}px;">
           <!-- Mode Selector -->
           <div class="mode-selector">
-            <button 
+            <button
               class="mode-tab ${this.leftPanelMode === 'ai' ? 'active' : ''}"
               @click=${() => this.handleModeSwitch('ai')}
               aria-pressed="${this.leftPanelMode === 'ai'}"
             >
               🤖 AI Mode
             </button>
-            <button 
+            <button
               class="mode-tab ${this.leftPanelMode === 'video' ? 'active' : ''}"
               @click=${() => this.handleModeSwitch('video')}
               aria-pressed="${this.leftPanelMode === 'video'}"
@@ -4448,423 +4837,660 @@ In ${this.targetLanguage}:
             </button>
           </div>
 
-          ${this.leftPanelMode === 'ai' ? html`
-            <!-- AI Mode Interface -->
-            <div class="controls">
-              <button 
-                id="recordButton" 
-                @click=${this.isRecording ? this.stopRecording : this.startRecording} 
-                ?disabled=${!this.openAIVoiceSession || this.isInitializingSession || this.isModelSpeaking} 
-                class="${this.isRecording ? 'recording' : 'not-recording'}"
-                aria-label="${this.isRecording ? 'Stop Recording' : 'Start Recording'}">
-                ${this.isRecording ? html`
-                  <svg viewBox="0 0 100 100" width="40px" height="40px" fill="#ffffff" xmlns="http://www.w3.org/2000/svg">
-                    <rect x="15" y="15" width="70" height="70" rx="10" />
-                  </svg>
-                ` : html`
-                  <svg viewBox="0 0 100 100" width="40px" height="40px" fill="#c80000" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="50" cy="50" r="45" />
-                  </svg>
-                `}
-              </button>
-              
-              <!-- Audio Controls -->
-              <div class="audio-controls">
-                <button 
-                  class="microphone-selector-button ${this.hasMicrophone ? '' : 'no-microphone'}"
-                  @click=${this.handleMicrophoneButtonClick}
-                  title="${this.hasMicrophone ? 'Select microphone device' : 'No microphone detected'}"
-                  aria-label="Microphone device selector"
-                >
-                  <span class="mic-icon">🎤</span>
-                  <span class="mic-label">${this.hasMicrophone ? 
-                    (() => {
-                      const device = this.availableAudioDevices.find(d => d.deviceId === this.selectedAudioDeviceId);
-                      const label = device?.label?.replace(/^Default - /, '') || 'Default';
-                      return label.length > 20 ? label.substring(0, 20) + '...' : label;
-                    })() 
-                    : 'No Mic'}</span>
-                  <span class="dropdown-arrow">▼</span>
-                </button>
-                
-                <select 
-                  class="voice-selector"
-                  .value=${this.selectedVoice}
-                  @change=${(e: Event) => this.selectVoice((e.target as HTMLSelectElement).value)}
-                  title="Select AI voice"
-                  aria-label="AI voice selector"
-                >
-                  ${this.availableVoices.map(voice => html`
-                    <option value=${voice}>${voice}</option>
-                  `)}
-                </select>
-              </div>
-            </div>
-            <div id="status" role="status" aria-live="polite"> ${this.error || this.status} </div>
-            <gdm-live-audio-visuals-3d .inputNode=${this.inputNode} .outputNode=${this.outputNode}></gdm-live-audio-visuals-3d>
-          ` : html`
-            <!-- Video Mode Interface -->
-            <div class="video-interface">
-              <!-- Layout Selector -->
-              <div class="video-layout-selector">
-                <button 
-                  class="layout-option vertical ${this.videoLayout === 'vertical' ? 'active' : ''}"
-                  @click=${() => this.handleVideoLayoutChange('vertical')}
-                  title="Vertical layout"
-                ></button>
-                <button 
-                  class="layout-option horizontal ${this.videoLayout === 'horizontal' ? 'active' : ''}"
-                  @click=${() => this.handleVideoLayoutChange('horizontal')}
-                  title="Side by side"
-                ></button>
-                <button 
-                  class="layout-option pip ${this.videoLayout === 'pip' ? 'active' : ''}"
-                  @click=${() => this.handleVideoLayoutChange('pip')}
-                  title="Picture-in-picture"
-                ></button>
-              </div>
+          ${this.leftPanelMode === 'ai'
+            ? html`
+                <!-- AI Mode Interface -->
+                <div class="controls">
+                  <button
+                    id="recordButton"
+                    @click=${this.isRecording ? this.stopRecording : this.startRecording}
+                    ?disabled=${!this.openAIVoiceSession ||
+                    this.isInitializingSession ||
+                    this.isModelSpeaking}
+                    class="${this.isRecording ? 'recording' : 'not-recording'}"
+                    aria-label="${this.isRecording ? 'Stop Recording' : 'Start Recording'}"
+                  >
+                    ${this.isRecording
+                      ? html`
+                          <svg
+                            viewBox="0 0 100 100"
+                            width="40px"
+                            height="40px"
+                            fill="#ffffff"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <rect x="15" y="15" width="70" height="70" rx="10" />
+                          </svg>
+                        `
+                      : html`
+                          <svg
+                            viewBox="0 0 100 100"
+                            width="40px"
+                            height="40px"
+                            fill="#c80000"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <circle cx="50" cy="50" r="45" />
+                          </svg>
+                        `}
+                  </button>
 
-              <!-- Video Container -->
-              <div class="video-container ${this.videoLayout}">
-                ${this.renderVideoScreens()}
-              </div>
-              
-              <!-- Video Controls -->
-              <div class="video-controls">
-                <select 
-                  class="video-language-select"
-                  .value=${this.selectedVideoLanguage}
-                  @change=${(e: Event) => this.selectedVideoLanguage = (e.target as HTMLSelectElement).value}
-                  title="Select language for speech recognition"
-                >
-                  <option value="auto">🌐 Auto-detect</option>
-                  <option value="en">🇺🇸 English</option>
-                  <option value="es">🇪🇸 Spanish</option>
-                  <option value="pt">🇵🇹 Portuguese</option>
-                  <option value="fr">🇫🇷 French</option>
-                  <option value="de">🇩🇪 German</option>
-                  <option value="it">🇮🇹 Italian</option>
-                  <option value="ja">🇯🇵 Japanese</option>
-                  <option value="ko">🇰🇷 Korean</option>
-                  <option value="zh">🇨🇳 Chinese</option>
-                </select>
-                
-                <button 
-                  class="video-control-btn ${this.videoStream ? 'active' : ''}"
-                  @click=${this.videoStream ? () => this.stopWebcam() : () => this.startWebcam()}
-                  ?disabled=${this.isVideoLoading}
-                >
-                  ${this.videoStream ? '📹 Stop Camera' : '📷 Start Camera'}
-                </button>
-                <button 
-                  class="video-control-btn ${!this.isVideoMicMuted ? 'active' : ''}"
-                  @click=${this.toggleVideoMic}
-                  title="${this.isVideoMicMuted ? 'Unmute microphone for subtitles' : 'Mute microphone (disable subtitles)'}"
-                >
-                  ${this.isVideoMicMuted ? '🔇 Mic Off' : 
-                    this.videoConnectionStatus === 'connecting' ? '⏳ Connecting...' :
-                    this.videoConnectionStatus === 'connected' ? '🎤 Mic On' :
-                    this.videoConnectionStatus === 'error' ? '❌ Mic Error' : '🎤 Mic On'}
-                </button>
-                
-                <!-- Video Calling Controls -->
-                <div class="video-calling-section">
-                  ${this.callStatus === 'idle' ? html`
-                    <button 
-                      class="video-control-btn host-call-btn"
-                      @click=${this.handleHostCall}
-                      ?disabled=${this.isHostingCall}
+                  <!-- Audio Controls -->
+                  <div class="audio-controls">
+                    <button
+                      class="microphone-selector-button ${this.hasMicrophone
+                        ? ''
+                        : 'no-microphone'}"
+                      @click=${this.handleMicrophoneButtonClick}
+                      title="${this.hasMicrophone
+                        ? 'Select microphone device'
+                        : 'No microphone detected'}"
+                      aria-label="Microphone device selector"
                     >
-                      📞 Host Call
+                      <span class="mic-icon">🎤</span>
+                      <span class="mic-label"
+                        >${this.hasMicrophone
+                          ? (() => {
+                              const device = this.availableAudioDevices.find(
+                                (d) => d.deviceId === this.selectedAudioDeviceId
+                              );
+                              const label = device?.label?.replace(/^Default - /, '') || 'Default';
+                              return label.length > 20 ? label.substring(0, 20) + '...' : label;
+                            })()
+                          : 'No Mic'}</span
+                      >
+                      <span class="dropdown-arrow">▼</span>
                     </button>
-                    
-                    <div class="join-call-group">
-                      <input 
-                        type="text" 
-                        class="join-code-input"
-                        placeholder="Enter 5-digit code"
-                        maxlength="5"
-                        .value=${this.joinCodeInput}
-                        @input=${(e: Event) => this.joinCodeInput = (e.target as HTMLInputElement).value}
-                        ?disabled=${this.isJoiningCall}
-                      />
-                      <button 
-                        class="video-control-btn join-call-btn"
-                        @click=${this.handleJoinCall}
-                        ?disabled=${this.isJoiningCall || this.joinCodeInput.length !== 5}
-                      >
-                        ${this.isJoiningCall ? '⏳ Joining...' : '🤝 Join Call'}
-                      </button>
-                    </div>
-                  ` : html`
-                    <div class="call-status-display">
-                      ${this.callStatus === 'hosting' ? html`
-                        <div class="call-info">
-                          <span class="call-code">Code: ${this.callCode}</span>
-                          <span class="call-status">Waiting for someone to join...</span>
-                        </div>
-                      ` : this.callStatus === 'joining' ? html`
-                        <div class="call-info">
-                          <span class="call-status">Connecting to call...</span>
-                        </div>
-                      ` : this.callStatus === 'connected' ? html`
-                        <div class="call-info">
-                          <span class="call-status">🟢 Connected!</span>
-                        </div>
-                      ` : this.callStatus === 'error' ? html`
-                        <div class="call-info error">
-                          <span class="call-status">❌ ${this.callError}</span>
-                        </div>
-                      ` : ''}
-                      
-                      <button 
-                        class="video-control-btn end-call-btn"
-                        @click=${this.handleEndCall}
-                      >
-                        📞 End Call
-                      </button>
-                    </div>
-                  `}
+
+                    <select
+                      class="voice-selector"
+                      .value=${this.selectedVoice}
+                      @change=${(e: Event) =>
+                        this.selectVoice((e.target as HTMLSelectElement).value)}
+                      title="Select AI voice"
+                      aria-label="AI voice selector"
+                    >
+                      ${this.availableVoices.map(
+                        (voice) => html` <option value=${voice}>${voice}</option> `
+                      )}
+                    </select>
+                  </div>
                 </div>
-              </div>
-            </div>
-          `}
+                <div id="status" role="status" aria-live="polite">${this.error || this.status}</div>
+                <gdm-live-audio-visuals-3d
+                  .inputNode=${this.inputNode}
+                  .outputNode=${this.outputNode}
+                ></gdm-live-audio-visuals-3d>
+              `
+            : html`
+                <!-- Video Mode Interface -->
+                <div class="video-interface">
+                  <!-- Layout Selector -->
+                  <div class="video-layout-selector">
+                    <button
+                      class="layout-option vertical ${this.videoLayout === 'vertical'
+                        ? 'active'
+                        : ''}"
+                      @click=${() => this.handleVideoLayoutChange('vertical')}
+                      title="Vertical layout"
+                    ></button>
+                    <button
+                      class="layout-option horizontal ${this.videoLayout === 'horizontal'
+                        ? 'active'
+                        : ''}"
+                      @click=${() => this.handleVideoLayoutChange('horizontal')}
+                      title="Side by side"
+                    ></button>
+                    <button
+                      class="layout-option pip ${this.videoLayout === 'pip' ? 'active' : ''}"
+                      @click=${() => this.handleVideoLayoutChange('pip')}
+                      title="Picture-in-picture"
+                    ></button>
+                  </div>
+
+                  <!-- Video Container -->
+                  <div class="video-container ${this.videoLayout}">
+                    ${this.renderVideoScreens()}
+                  </div>
+
+                  <!-- Video Controls -->
+                  <div class="video-controls">
+                    <select
+                      class="video-language-select"
+                      .value=${this.selectedVideoLanguage}
+                      @change=${(e: Event) =>
+                        (this.selectedVideoLanguage = (e.target as HTMLSelectElement).value)}
+                      title="Select language for speech recognition"
+                    >
+                      <option value="auto">🌐 Auto-detect</option>
+                      <option value="en">🇺🇸 English</option>
+                      <option value="es">🇪🇸 Spanish</option>
+                      <option value="pt">🇵🇹 Portuguese</option>
+                      <option value="fr">🇫🇷 French</option>
+                      <option value="de">🇩🇪 German</option>
+                      <option value="it">🇮🇹 Italian</option>
+                      <option value="ja">🇯🇵 Japanese</option>
+                      <option value="ko">🇰🇷 Korean</option>
+                      <option value="zh">🇨🇳 Chinese</option>
+                    </select>
+
+                    <button
+                      class="video-control-btn ${this.videoStream ? 'active' : ''}"
+                      @click=${this.videoStream
+                        ? () => this.stopWebcam()
+                        : () => this.startWebcam()}
+                      ?disabled=${this.isVideoLoading}
+                    >
+                      ${this.videoStream ? '📹 Stop Camera' : '📷 Start Camera'}
+                    </button>
+                    <button
+                      class="video-control-btn ${!this.isVideoMicMuted ? 'active' : ''}"
+                      @click=${this.toggleVideoMic}
+                      title="${this.isVideoMicMuted
+                        ? 'Unmute microphone for subtitles'
+                        : 'Mute microphone (disable subtitles)'}"
+                    >
+                      ${this.isVideoMicMuted
+                        ? '🔇 Mic Off'
+                        : this.videoConnectionStatus === 'connecting'
+                          ? '⏳ Connecting...'
+                          : this.videoConnectionStatus === 'connected'
+                            ? '🎤 Mic On'
+                            : this.videoConnectionStatus === 'error'
+                              ? '❌ Mic Error'
+                              : '🎤 Mic On'}
+                    </button>
+
+                    <!-- Video Calling Controls -->
+                    <div class="video-calling-section">
+                      ${this.callStatus === 'idle'
+                        ? html`
+                            <button
+                              class="video-control-btn host-call-btn"
+                              @click=${this.handleHostCall}
+                              ?disabled=${this.isHostingCall}
+                            >
+                              📞 Host Call
+                            </button>
+
+                            <div class="join-call-group">
+                              <input
+                                type="text"
+                                class="join-code-input"
+                                placeholder="Enter 5-digit code"
+                                maxlength="5"
+                                .value=${this.joinCodeInput}
+                                @input=${(e: Event) =>
+                                  (this.joinCodeInput = (e.target as HTMLInputElement).value)}
+                                ?disabled=${this.isJoiningCall}
+                              />
+                              <button
+                                class="video-control-btn join-call-btn"
+                                @click=${this.handleJoinCall}
+                                ?disabled=${this.isJoiningCall || this.joinCodeInput.length !== 5}
+                              >
+                                ${this.isJoiningCall ? '⏳ Joining...' : '🤝 Join Call'}
+                              </button>
+                            </div>
+                          `
+                        : html`
+                            <div class="call-status-display">
+                              ${this.callStatus === 'hosting'
+                                ? html`
+                                    <div class="call-info">
+                                      <span class="call-code">Code: ${this.callCode}</span>
+                                      <span class="call-status"
+                                        >Waiting for someone to join...</span
+                                      >
+                                    </div>
+                                  `
+                                : this.callStatus === 'joining'
+                                  ? html`
+                                      <div class="call-info">
+                                        <span class="call-status">Connecting to call...</span>
+                                      </div>
+                                    `
+                                  : this.callStatus === 'connected'
+                                    ? html`
+                                        <div class="call-info">
+                                          <span class="call-status">🟢 Connected!</span>
+                                        </div>
+                                      `
+                                    : this.callStatus === 'error'
+                                      ? html`
+                                          <div class="call-info error">
+                                            <span class="call-status">❌ ${this.callError}</span>
+                                          </div>
+                                        `
+                                      : ''}
+
+                              <button
+                                class="video-control-btn end-call-btn"
+                                @click=${this.handleEndCall}
+                              >
+                                📞 End Call
+                              </button>
+                            </div>
+                          `}
+                    </div>
+                  </div>
+                </div>
+              `}
         </div>
         <div class="panel-divider" @mousedown=${this.handlePanelDragStart}></div>
         <div class="right-panel" style="width: ${this.rightPanelWidth}px; flex-shrink: 0;">
           <div class="tabs">
-            <button 
-              class="${transcriptButtonClasses}" 
-              @click=${() => this.activeTab = 'transcript'}
+            <button
+              class="${transcriptButtonClasses}"
+              @click=${() => (this.activeTab = 'transcript')}
               aria-pressed="${this.activeTab === 'transcript'}"
-              aria-controls="transcript-content">Transcript</button>
-            <button 
-              class="${dictionaryButtonClasses}" 
-              @click=${() => this.activeTab = 'dictionary'}
+              aria-controls="transcript-content"
+            >
+              Transcript
+            </button>
+            <button
+              class="${dictionaryButtonClasses}"
+              @click=${() => (this.activeTab = 'dictionary')}
               aria-pressed="${this.activeTab === 'dictionary'}"
-              aria-controls="dictionary-content">Dictionary (${this.currentProfile})</button>
-            <button 
-              class="${flashcardsButtonClasses}" 
-              @click=${() => this.activeTab = 'flashcards'}
+              aria-controls="dictionary-content"
+            >
+              Dictionary (${this.currentProfile})
+            </button>
+            <button
+              class="${flashcardsButtonClasses}"
+              @click=${() => (this.activeTab = 'flashcards')}
               aria-pressed="${this.activeTab === 'flashcards'}"
-              aria-controls="flashcards-content">Flashcards (${this.currentProfile})</button>
+              aria-controls="flashcards-content"
+            >
+              Flashcards (${this.currentProfile})
+            </button>
             <button
               class="${evaluateButtonClasses}"
               @click=${() => {
                 if (this.isDiagnosticSessionActive) {
-                  this.evaluationError = "Evaluation is available after the initial diagnostic session.";
-                  this.activeTab = 'evaluate'; 
+                  this.evaluationError =
+                    'Evaluation is available after the initial diagnostic session.';
+                  this.activeTab = 'evaluate';
                   this.requestUpdate('activeTab', 'evaluationError');
                 } else {
-                  this.evaluationError = null; 
+                  this.evaluationError = null;
                   this.activeTab = 'evaluate';
                 }
               }}
               aria-pressed="${this.activeTab === 'evaluate'}"
               aria-controls="evaluate-content"
               ?disabled=${this.isInitializingSession}
-              title="${this.isDiagnosticSessionActive ? 'Evaluation available after diagnostic' : 'Evaluate conversation'}">
+              title="${this.isDiagnosticSessionActive
+                ? 'Evaluation available after diagnostic'
+                : 'Evaluate conversation'}"
+            >
               Evaluate
             </button>
           </div>
 
-          ${this.activeTab === 'transcript' ? html`
-            <transcript-viewer
-              .transcriptHistory=${this.transcriptHistory}
-              .transcriptFontSize=${this.transcriptFontSize}
-              .knownWordForms=${this.knownWordForms}
-              @word-click=${(e: CustomEvent<{ word: string; sentence: string; event: MouseEvent }>) => this.handleWordClick(e.detail.event, e.detail.word, e.detail.sentence)}
-            ></transcript-viewer>
-          ` : ''}
-
-          ${this.activeTab === 'dictionary' ? html`
-            <div class="dictionary-content" id="dictionary-content" role="tabpanel" aria-labelledby="dictionary-tab-button">
-              <div class="dictionary-controls">
-                <div class="search-bar">
-                  <input 
-                    type="search" 
-                    placeholder="Search words... (Press '/' to focus)" 
-                    .value=${this.dictionarySearchTerm}
-                    @input=${(e: Event) => this.dictionarySearchTerm = (e.target as HTMLInputElement).value}
-                    aria-label="Search dictionary words"
-                  />
-                </div>
-                 <span class="dictionary-word-count">${filteredDictionaryEntries.length} word${filteredDictionaryEntries.length !== 1 ? 's' : ''}</span>
-                <div class="dictionary-options">
-                   <select class="sort-by-select" .value=${this.dictionarySortOrder} @change=${(e: Event) => this.dictionarySortOrder = (e.target as HTMLSelectElement).value as any} aria-label="Sort dictionary words by">
+          ${this.activeTab === 'transcript'
+            ? html`
+                <transcript-viewer
+                  .transcriptHistory=${this.transcriptHistory}
+                  .transcriptFontSize=${this.transcriptFontSize}
+                  .knownWordForms=${this.knownWordForms}
+                  @word-click=${(
+                    e: CustomEvent<{ word: string; sentence: string; event: MouseEvent }>
+                  ) => this.handleWordClick(e.detail.event, e.detail.word, e.detail.sentence)}
+                ></transcript-viewer>
+              `
+            : ''}
+          ${this.activeTab === 'dictionary'
+            ? html`
+                <div
+                  class="dictionary-content"
+                  id="dictionary-content"
+                  role="tabpanel"
+                  aria-labelledby="dictionary-tab-button"
+                >
+                  <div class="dictionary-controls">
+                    <div class="search-bar">
+                      <input
+                        type="search"
+                        placeholder="Search words... (Press '/' to focus)"
+                        .value=${this.dictionarySearchTerm}
+                        @input=${(e: Event) =>
+                          (this.dictionarySearchTerm = (e.target as HTMLInputElement).value)}
+                        aria-label="Search dictionary words"
+                      />
+                    </div>
+                    <span class="dictionary-word-count"
+                      >${filteredDictionaryEntries.length}
+                      word${filteredDictionaryEntries.length !== 1 ? 's' : ''}</span
+                    >
+                    <div class="dictionary-options">
+                      <select
+                        class="sort-by-select"
+                        .value=${this.dictionarySortOrder}
+                        @change=${(e: Event) =>
+                          (this.dictionarySortOrder = (e.target as HTMLSelectElement).value as any)}
+                        aria-label="Sort dictionary words by"
+                      >
                         <option value="frequency_desc">Frequency (Most Common First)</option>
                         <option value="frequency_asc">Frequency (Least Common First)</option>
                         <option value="alphabetical">Alphabetical (A-Z)</option>
                         <option value="alphabetical_reverse">Alphabetical (Z-A)</option>
                         <option value="date_added_desc">Date Added (Newest First)</option>
                         <option value="date_added_asc">Date Added (Oldest First)</option>
-                    </select>
-                    <button class="dictionary-action-button" title="Frequency Guide (Coming Soon)" disabled>
+                      </select>
+                      <button
+                        class="dictionary-action-button"
+                        title="Frequency Guide (Coming Soon)"
+                        disabled
+                      >
                         <span class="icon">ℹ️</span> Frequency Guide
-                    </button>
-                </div>
-              </div>
-              <div class="dictionary-list">
-                ${filteredDictionaryEntries.length > 0 ? filteredDictionaryEntries.map(entry => {
-                  const entryWordKey = entry.word.toLowerCase().trim();
-                  return html`
-                  <div 
-                    class="dictionary-entry ${this.expandedDictionaryWords.has(entryWordKey) ? 'expanded' : ''}"
-                    @click=${() => this.toggleDictionaryWordExpansion(entryWordKey)}
-                    tabindex="0"
-                    role="button"
-                    aria-expanded="${this.expandedDictionaryWords.has(entryWordKey)}"
-                    aria-controls="details-${entryWordKey}"
-                    @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') this.toggleDictionaryWordExpansion(entryWordKey);}}
-                  >
-                    <div class="dictionary-entry-summary">
-                      <span class="dictionary-entry-word">${entry.word}</span>
-                      <div style="display: flex; align-items: center; gap: 10px;">
-                        ${this.renderFrequencyInfo(entry.frequency, entry.rank)}
-                        <button 
-                          class="delete-dictionary-entry-btn"
-                          @click=${async (e: Event) => { e.stopPropagation(); await this.handleDeleteDictionaryEntry(entryWordKey); }}
-                          title="Delete '${entry.word}' from dictionary"
-                          aria-label="Delete ${entry.word} from dictionary for profile ${this.currentProfile}"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M7 21q-.825 0-1.412-.587T5 19V6H4V4h5V3h6v1h5v2h-1v13q0 .825-.587 1.413T17 21zM17 6H7v13h10zM9 17h2V8H9zm4 0h2V8h-2z"></path></svg>
-                        </button>
-                        <span class="expand-arrow">${this.expandedDictionaryWords.has(entryWordKey) ? '▼' : '▶'}</span>
-                      </div>
+                      </button>
                     </div>
-                    ${this.expandedDictionaryWords.has(entryWordKey) ? html`
-                      <div class="dictionary-entry-details" id="details-${entryWordKey}">
-                        ${entry.partOfSpeech && entry.partOfSpeech !== 'N/A' ? html`<div class="popup-part-of-speech">${entry.partOfSpeech}</div>` : ''}
-                        ${entry.translation && entry.translation !== 'N/A' ? html`
-                            <div><span class="popup-label">Translation (to ${this.nativeLanguage})</span><span class="popup-content-text">${entry.translation}</span></div>` : ''}
-                        ${entry.definition && entry.definition !== 'N/A' ? html`
-                            <div><span class="popup-label">Definition (in ${this.nativeLanguage})</span><span class="popup-content-text">${entry.definition}</span></div>` : ''}
-                        ${entry.sentenceContext ? html`
-                            <div><span class="popup-label">Original Context (in ${this.targetLanguage})</span><span class="popup-content-text"><em>"${entry.sentenceContext}"</em></span></div>` : ''}
-                      </div>
-                    ` : ''}
                   </div>
-                `}) : html`<p style="text-align:center; color: #8a80a5; margin-top: 20px;">No words in dictionary${this.dictionarySearchTerm ? ' match your search' : ''}. Add words from the transcript!</p>`}
-              </div>
-            </div>
-          ` : ''}
+                  <div class="dictionary-list">
+                    ${filteredDictionaryEntries.length > 0
+                      ? filteredDictionaryEntries.map((entry) => {
+                          const entryWordKey = entry.word.toLowerCase().trim();
+                          return html`
+                            <div
+                              class="dictionary-entry ${this.expandedDictionaryWords.has(
+                                entryWordKey
+                              )
+                                ? 'expanded'
+                                : ''}"
+                              @click=${() => this.toggleDictionaryWordExpansion(entryWordKey)}
+                              tabindex="0"
+                              role="button"
+                              aria-expanded="${this.expandedDictionaryWords.has(entryWordKey)}"
+                              aria-controls="details-${entryWordKey}"
+                              @keydown=${(e: KeyboardEvent) => {
+                                if (e.key === 'Enter' || e.key === ' ')
+                                  this.toggleDictionaryWordExpansion(entryWordKey);
+                              }}
+                            >
+                              <div class="dictionary-entry-summary">
+                                <span class="dictionary-entry-word">${entry.word}</span>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                  ${this.renderFrequencyInfo(entry.frequency, entry.rank)}
+                                  <button
+                                    class="delete-dictionary-entry-btn"
+                                    @click=${async (e: Event) => {
+                                      e.stopPropagation();
+                                      await this.handleDeleteDictionaryEntry(entryWordKey);
+                                    }}
+                                    title="Delete '${entry.word}' from dictionary"
+                                    aria-label="Delete ${entry.word} from dictionary for profile ${this
+                                      .currentProfile}"
+                                  >
+                                    <svg
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      viewBox="0 0 24 24"
+                                      width="18"
+                                      height="18"
+                                      fill="currentColor"
+                                    >
+                                      <path
+                                        d="M7 21q-.825 0-1.412-.587T5 19V6H4V4h5V3h6v1h5v2h-1v13q0 .825-.587 1.413T17 21zM17 6H7v13h10zM9 17h2V8H9zm4 0h2V8h-2z"
+                                      ></path>
+                                    </svg>
+                                  </button>
+                                  <span class="expand-arrow"
+                                    >${this.expandedDictionaryWords.has(entryWordKey)
+                                      ? '▼'
+                                      : '▶'}</span
+                                  >
+                                </div>
+                              </div>
+                              ${this.expandedDictionaryWords.has(entryWordKey)
+                                ? html`
+                                    <div
+                                      class="dictionary-entry-details"
+                                      id="details-${entryWordKey}"
+                                    >
+                                      ${entry.partOfSpeech && entry.partOfSpeech !== 'N/A'
+                                        ? html`<div class="popup-part-of-speech">
+                                            ${entry.partOfSpeech}
+                                          </div>`
+                                        : ''}
+                                      ${entry.translation && entry.translation !== 'N/A'
+                                        ? html` <div>
+                                            <span class="popup-label"
+                                              >Translation (to ${this.nativeLanguage})</span
+                                            ><span class="popup-content-text"
+                                              >${entry.translation}</span
+                                            >
+                                          </div>`
+                                        : ''}
+                                      ${entry.definition && entry.definition !== 'N/A'
+                                        ? html` <div>
+                                            <span class="popup-label"
+                                              >Definition (in ${this.nativeLanguage})</span
+                                            ><span class="popup-content-text"
+                                              >${entry.definition}</span
+                                            >
+                                          </div>`
+                                        : ''}
+                                      ${entry.sentenceContext
+                                        ? html` <div>
+                                            <span class="popup-label"
+                                              >Original Context (in ${this.targetLanguage})</span
+                                            ><span class="popup-content-text"
+                                              ><em>"${entry.sentenceContext}"</em></span
+                                            >
+                                          </div>`
+                                        : ''}
+                                    </div>
+                                  `
+                                : ''}
+                            </div>
+                          `;
+                        })
+                      : html`<p style="text-align:center; color: #8a80a5; margin-top: 20px;">
+                          No words in
+                          dictionary${this.dictionarySearchTerm ? ' match your search' : ''}. Add
+                          words from the transcript!
+                        </p>`}
+                  </div>
+                </div>
+              `
+            : ''}
+          ${this.activeTab === 'flashcards'
+            ? html`
+                <flashcard-manager
+                  .flashcards=${this.flashcards}
+                  .flashcardQueue=${this.flashcardQueue}
+                  .currentIndex=${this.currentFlashcardQueueIndex}
+                  .flipState=${this.flashcardFlipState}
+                  .intervals=${this.flashcardIntervals}
+                  .targetLanguage=${this.targetLanguage}
+                  @prev-card=${() => this.navigateFlashcard('prev')}
+                  @next-card=${() => this.navigateFlashcard('next')}
+                  @answer-card=${(e: CustomEvent<{ correct: boolean }>) =>
+                    this.handleFlashcardAnswer(
+                      this.flashcardQueue[this.currentFlashcardQueueIndex],
+                      e.detail.correct
+                    )}
+                ></flashcard-manager>
+              `
+            : ''}
+          ${this.activeTab === 'evaluate'
+            ? html`
+                <div
+                  class="evaluate-content"
+                  id="evaluate-content"
+                  role="tabpanel"
+                  aria-labelledby="evaluate-tab-button"
+                >
+                  ${this.isDiagnosticSessionActive
+                    ? html`
+                        <h3>Diagnostic Session Active</h3>
+                        <p>
+                          The "Evaluate" feature will be available after you complete the initial
+                          diagnostic session for ${this.currentProfile}.
+                        </p>
+                        <p>Please continue the diagnostic with the AI tutor.</p>
+                      `
+                    : html`
+                        <h3>Evaluate Your ${this.targetLanguage} (${this.currentProfile})</h3>
+                        ${this.isEvaluating
+                          ? html` <p>Evaluating transcript...</p> `
+                          : this.evaluationError
+                            ? html`
+                                <p class="evaluation-error-message">
+                                  Error: ${this.evaluationError}
+                                </p>
+                                <button
+                                  class="evaluate-button"
+                                  @click=${this.handleEvaluateTranscript}
+                                >
+                                  Try Again
+                                </button>
+                              `
+                            : this.evaluationResult
+                              ? html`
+                                  <h4>General Areas for Improvement</h4>
+                                  ${this.evaluationResult.improvementAreas.length > 0
+                                    ? this.evaluationResult.improvementAreas.map(
+                                        (area) => html`
+                                          <div class="suggestion-item">
+                                            <p>
+                                              <strong>Category (in ${this.targetLanguage}):</strong>
+                                              ${area.category}
+                                            </p>
+                                            <p>
+                                              <strong>Focus (in ${this.nativeLanguage}):</strong>
+                                              ${area.description}
+                                            </p>
+                                          </div>
+                                        `
+                                      )
+                                    : html`<p>
+                                        Great job! No broad areas for improvement identified in this
+                                        transcript.
+                                      </p>`}
 
-          ${this.activeTab === 'flashcards' ? html`
-            <flashcard-manager
-              .flashcards=${this.flashcards}
-              .flashcardQueue=${this.flashcardQueue}
-              .currentIndex=${this.currentFlashcardQueueIndex}
-              .flipState=${this.flashcardFlipState}
-              .intervals=${this.flashcardIntervals}
-              .targetLanguage=${this.targetLanguage}
-              @prev-card=${() => this.navigateFlashcard('prev')}
-              @next-card=${() => this.navigateFlashcard('next')}
-              @answer-card=${(e: CustomEvent<{ correct: boolean }>) => this.handleFlashcardAnswer(this.flashcardQueue[this.currentFlashcardQueueIndex], e.detail.correct)}
-            ></flashcard-manager>
-          ` : ''}
-
-          ${this.activeTab === 'evaluate' ? html`
-            <div class="evaluate-content" id="evaluate-content" role="tabpanel" aria-labelledby="evaluate-tab-button">
-              ${this.isDiagnosticSessionActive ? html`
-                <h3>Diagnostic Session Active</h3>
-                <p>The "Evaluate" feature will be available after you complete the initial diagnostic session for ${this.currentProfile}.</p>
-                <p>Please continue the diagnostic with the AI tutor.</p>
-              ` : html`
-                <h3>Evaluate Your ${this.targetLanguage} (${this.currentProfile})</h3>
-                ${this.isEvaluating ? html`
-                  <p>Evaluating transcript...</p>
-                ` : this.evaluationError ? html`
-                  <p class="evaluation-error-message">Error: ${this.evaluationError}</p>
-                  <button class="evaluate-button" @click=${this.handleEvaluateTranscript}>Try Again</button>
-                ` : this.evaluationResult ? html`
-                  <h4>General Areas for Improvement</h4>
-                  ${this.evaluationResult.improvementAreas.length > 0 ? this.evaluationResult.improvementAreas.map(area => html`
-                    <div class="suggestion-item">
-                      <p><strong>Category (in ${this.targetLanguage}):</strong> ${area.category}</p>
-                      <p><strong>Focus (in ${this.nativeLanguage}):</strong> ${area.description}</p>
-                    </div>
-                  `) : html`<p>Great job! No broad areas for improvement identified in this transcript.</p>`}
-
-                  <h4>Overall Performance (CEFR Level)</h4>
-                  <p class="evaluation-cefr-level">${this.evaluationResult.cefrLevel}</p>
-                  <button class="evaluate-button" @click=${this.handleEvaluateTranscript} ?disabled=${this.isEvaluating}>
-                    ${this.isEvaluating ? 'Re-evaluating...' : 'Re-evaluate Transcript'}
-                  </button>
-                ` : html`
-                  <p>Get feedback on your conversation performance. This will send the current transcript to an AI for evaluation based on broad categories.</p>
-                  <button class="evaluate-button" @click=${this.handleEvaluateTranscript} ?disabled=${this.isEvaluating || this.transcriptHistory.length === 0} title="${this.transcriptHistory.length === 0 ? 'Have a conversation first' : 'Upload transcript'}">
-                    ${this.isEvaluating ? 'Evaluating...' : 'Upload Transcript for Evaluation'}
-                  </button>
-                `}
-              `}
-            </div>
-          ` : ''}
-
+                                  <h4>Overall Performance (CEFR Level)</h4>
+                                  <p class="evaluation-cefr-level">
+                                    ${this.evaluationResult.cefrLevel}
+                                  </p>
+                                  <button
+                                    class="evaluate-button"
+                                    @click=${this.handleEvaluateTranscript}
+                                    ?disabled=${this.isEvaluating}
+                                  >
+                                    ${this.isEvaluating
+                                      ? 'Re-evaluating...'
+                                      : 'Re-evaluate Transcript'}
+                                  </button>
+                                `
+                              : html`
+                                  <p>
+                                    Get feedback on your conversation performance. This will send
+                                    the current transcript to an AI for evaluation based on broad
+                                    categories.
+                                  </p>
+                                  <button
+                                    class="evaluate-button"
+                                    @click=${this.handleEvaluateTranscript}
+                                    ?disabled=${this.isEvaluating ||
+                                    this.transcriptHistory.length === 0}
+                                    title="${this.transcriptHistory.length === 0
+                                      ? 'Have a conversation first'
+                                      : 'Upload transcript'}"
+                                  >
+                                    ${this.isEvaluating
+                                      ? 'Evaluating...'
+                                      : 'Upload Transcript for Evaluation'}
+                                  </button>
+                                `}
+                      `}
+                </div>
+              `
+            : ''}
         </div>
       </div>
 
-      ${this.showMicrophoneSelector ? html`
-        <div class="popup-overlay" @click=${this.closeMicrophoneSelector} role="presentation"></div>
-        <div class="microphone-context-menu"
-             style="top: ${this.microphonePopupY}px; left: ${this.microphonePopupX}px;"
-             role="dialog" aria-labelledby="microphone-selector-title" aria-modal="true">
-          <div class="microphone-menu-header" id="microphone-selector-title">
-            Select Microphone
-          </div>
-          ${this.availableAudioDevices.length > 0 ? html`
-            <div class="microphone-menu-items">
-              ${this.availableAudioDevices.map(device => html`
-                <div 
-                  class="microphone-menu-item ${device.deviceId === this.selectedAudioDeviceId ? 'selected' : ''}"
-                  @click=${() => this.selectAudioDevice(device.deviceId)}
-                >
-                  <span class="microphone-device-name">
-                    ${device.label?.replace(/^Default - /, '') || 'Unknown Device'}
-                  </span>
-                  ${device.deviceId === this.selectedAudioDeviceId ? html`
-                    <span class="microphone-selected-check">✓</span>
-                  ` : ''}
-                </div>
-              `)}
-            </div>
-            <div class="microphone-menu-separator"></div>
-            <div class="microphone-menu-item" @click=${this.enumerateAudioDevices}>
-              <span>🔄 Refresh Devices</span>
-            </div>
-          ` : html`
-            <div class="microphone-menu-items">
-              <div class="microphone-menu-item disabled">
-                <span>No microphones found</span>
+      ${this.showMicrophoneSelector
+        ? html`
+            <div
+              class="popup-overlay"
+              @click=${this.closeMicrophoneSelector}
+              role="presentation"
+            ></div>
+            <div
+              class="microphone-context-menu"
+              style="top: ${this.microphonePopupY}px; left: ${this.microphonePopupX}px;"
+              role="dialog"
+              aria-labelledby="microphone-selector-title"
+              aria-modal="true"
+            >
+              <div class="microphone-menu-header" id="microphone-selector-title">
+                Select Microphone
               </div>
+              ${this.availableAudioDevices.length > 0
+                ? html`
+                    <div class="microphone-menu-items">
+                      ${this.availableAudioDevices.map(
+                        (device) => html`
+                          <div
+                            class="microphone-menu-item ${device.deviceId ===
+                            this.selectedAudioDeviceId
+                              ? 'selected'
+                              : ''}"
+                            @click=${() => this.selectAudioDevice(device.deviceId)}
+                          >
+                            <span class="microphone-device-name">
+                              ${device.label?.replace(/^Default - /, '') || 'Unknown Device'}
+                            </span>
+                            ${device.deviceId === this.selectedAudioDeviceId
+                              ? html` <span class="microphone-selected-check">✓</span> `
+                              : ''}
+                          </div>
+                        `
+                      )}
+                    </div>
+                    <div class="microphone-menu-separator"></div>
+                    <div class="microphone-menu-item" @click=${this.enumerateAudioDevices}>
+                      <span>🔄 Refresh Devices</span>
+                    </div>
+                  `
+                : html`
+                    <div class="microphone-menu-items">
+                      <div class="microphone-menu-item disabled">
+                        <span>No microphones found</span>
+                      </div>
+                    </div>
+                    <div class="microphone-menu-separator"></div>
+                    <div class="microphone-menu-item" @click=${this.enumerateAudioDevices}>
+                      <span>🔄 Refresh Devices</span>
+                    </div>
+                  `}
             </div>
-            <div class="microphone-menu-separator"></div>
-            <div class="microphone-menu-item" @click=${this.enumerateAudioDevices}>
-              <span>🔄 Refresh Devices</span>
-            </div>
-          `}
-        </div>
-      ` : ''}
-
-      ${this.popupData ? html`
-        <dictionary-popup
-          .popupData=${this.popupData}
-          .loading=${this.isPopupLoading}
-          .error=${this.popupError}
-          .inDictionary=${isWordInPopupDictionary}
-          .nativeLanguage=${this.nativeLanguage}
-          .targetLanguage=${this.targetLanguage}
-          .disableToggle=${dictionaryButtonDisabledState}
-          @close-popup=${this.closePopup}
-          @toggle-dictionary=${(e: CustomEvent<WordPopupData>) => this.handleToggleDictionary(e.detail)}
-        ></dictionary-popup>
-      ` : ''}
+          `
+        : ''}
+      ${this.popupData
+        ? html`
+            <dictionary-popup
+              .popupData=${this.popupData}
+              .loading=${this.isPopupLoading}
+              .error=${this.popupError}
+              .inDictionary=${isWordInPopupDictionary}
+              .nativeLanguage=${this.nativeLanguage}
+              .targetLanguage=${this.targetLanguage}
+              .disableToggle=${dictionaryButtonDisabledState}
+              @close-popup=${this.closePopup}
+              @toggle-dictionary=${(e: CustomEvent<WordPopupData>) =>
+                this.handleToggleDictionary(e.detail)}
+            ></dictionary-popup>
+          `
+        : ''}
     `;
   }
 
   render() {
     if (this.appState === 'languageSelection') {
       return this.renderLanguageSelectionScreen();
-    } else { 
+    } else {
       return this.renderMainApplication();
     }
   }
@@ -4875,10 +5501,10 @@ In ${this.targetLanguage}:
       // Prevent default spacebar behavior (scrolling)
       event.preventDefault();
       this.isSpacebarPressed = true;
-      
+
       console.log('🎤 ================ SPACEBAR PRESSED ================');
       console.log('🎤 Push-to-talk ACTIVATED - Should start recording');
-      
+
       if (this.openAIVoiceSession && this.openAIVoiceSession.connected) {
         if (this.isModelSpeaking) {
           // Interrupt AI like Python version
@@ -4905,10 +5531,10 @@ In ${this.targetLanguage}:
     if (event.code === 'Space' && this.isSpacebarPressed) {
       event.preventDefault();
       this.isSpacebarPressed = false;
-      
+
       console.log('🎤 ================ SPACEBAR RELEASED ================');
       console.log('🎤 Push-to-talk DEACTIVATED - Should commit and create response');
-      
+
       if (this.openAIVoiceSession) {
         // Always call stopRecording - let the voice service decide if it should process
         console.log('🎤 Stopping recording and triggering AI response...');
@@ -4921,33 +5547,33 @@ In ${this.targetLanguage}:
 
   connectedCallback() {
     super.connectedCallback();
-    
+
     // Add keyboard event listeners for spacebar push-to-talk
     document.addEventListener('keydown', this.boundHandleKeyDown);
     document.addEventListener('keyup', this.boundHandleKeyUp);
-    
+
     // Add mouse event listeners for panel dragging
     document.addEventListener('mousemove', this.boundHandlePanelDragMove);
     document.addEventListener('mouseup', this.boundHandlePanelDragEnd);
-    
+
     // Add click-outside handler for microphone selector
     document.addEventListener('click', this.handleClickOutsideMicSelector.bind(this));
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    
+
     // Remove keyboard event listeners
     document.removeEventListener('keydown', this.boundHandleKeyDown);
     document.removeEventListener('keyup', this.boundHandleKeyUp);
-    
-    // Remove mouse event listeners  
+
+    // Remove mouse event listeners
     document.removeEventListener('mousemove', this.boundHandlePanelDragMove);
     document.removeEventListener('mouseup', this.boundHandlePanelDragEnd);
-    
+
     // Remove click-outside handler for microphone selector
     document.removeEventListener('click', this.handleClickOutsideMicSelector.bind(this));
-    
+
     // Cleanup session and audio
     if (this.openAIVoiceSession) {
       this.openAIVoiceSession.disconnect();
@@ -4962,77 +5588,91 @@ In ${this.targetLanguage}:
     const waitingScreen = html`
       <div class="video-screen waiting-screen">
         <div class="waiting-content">
-          ${this.callStatus !== 'idle' ? html`
-            <!-- Remote video area during calls -->
-            <div class="remote-video-container">
-              ${this.remoteVideoStream ? html`
-                <video 
-                  id="remote-video" 
-                  class="remote-video" 
-                  autoplay 
-                  playsinline
-                ></video>
-                <div class="video-label remote-label">Remote User</div>
-              ` : html`
-                <div class="video-placeholder remote-placeholder">
-                  <div class="placeholder-content">
-                    ${this.callStatus === 'hosting' ? html`
-                      <div class="call-status">
-                        <div class="call-code-display">
-                          <span class="call-code-label">Share this code:</span>
-                          <span class="call-code-value">${this.callCode}</span>
+          ${this.callStatus !== 'idle'
+            ? html`
+                <!-- Remote video area during calls -->
+                <div class="remote-video-container">
+                  ${this.remoteVideoStream
+                    ? html`
+                        <video id="remote-video" class="remote-video" autoplay playsinline></video>
+                        <div class="video-label remote-label">Remote User</div>
+                      `
+                    : html`
+                        <div class="video-placeholder remote-placeholder">
+                          <div class="placeholder-content">
+                            ${this.callStatus === 'hosting'
+                              ? html`
+                                  <div class="call-status">
+                                    <div class="call-code-display">
+                                      <span class="call-code-label">Share this code:</span>
+                                      <span class="call-code-value">${this.callCode}</span>
+                                    </div>
+                                    <div class="waiting-text">Waiting for someone to join...</div>
+                                  </div>
+                                `
+                              : this.callStatus === 'joining'
+                                ? html`
+                                    <div class="call-status">
+                                      <div class="connecting-text">Connecting to call...</div>
+                                    </div>
+                                  `
+                                : this.callStatus === 'connected'
+                                  ? html`
+                                      <div class="call-status">
+                                        <div class="connecting-text">
+                                          Establishing video connection...
+                                        </div>
+                                      </div>
+                                    `
+                                  : html` <div class="no-call-text">No active call</div> `}
+                          </div>
                         </div>
-                        <div class="waiting-text">Waiting for someone to join...</div>
-                      </div>
-                    ` : this.callStatus === 'joining' ? html`
-                      <div class="call-status">
-                        <div class="connecting-text">Connecting to call...</div>
-                      </div>
-                    ` : this.callStatus === 'connected' ? html`
-                      <div class="call-status">
-                        <div class="connecting-text">Establishing video connection...</div>
-                      </div>
-                    ` : html`
-                      <div class="no-call-text">No active call</div>
-                    `}
-                  </div>
+                      `}
+                </div>
+              `
+            : html`
+                <!-- AI sphere when no call is active -->
+                <div class="ai-visual-placeholder">
+                  <gdm-live-audio-visuals-3d
+                    .inputNode=${this.inputNode}
+                    .outputNode=${this.outputNode}
+                  ></gdm-live-audio-visuals-3d>
                 </div>
               `}
-            </div>
-          ` : html`
-            <!-- AI sphere when no call is active -->
-            <div class="ai-visual-placeholder">
-              <gdm-live-audio-visuals-3d .inputNode=${this.inputNode} .outputNode=${this.outputNode}></gdm-live-audio-visuals-3D>
-            </div>
-          `}
         </div>
       </div>
     `;
 
     const renderWebcamWithSubtitles = (isPip: boolean = false) => html`
-      ${this.isVideoLoading ? html`
-        <div class="video-loading">
-          <div class="loading-spinner"></div>
-          <span>Starting camera...</span>
-        </div>
-      ` : this.videoStream ? html`
-        <video 
-          id="${isPip ? 'webcam-video-pip' : 'webcam-video'}" 
-          class="webcam-video" 
-          autoplay 
-          muted 
-          playsinline
-        ></video>
-        ${this.leftPanelMode === 'video' && this.videoInterimTranscript && !isPip ? html`
-          <div class="video-subtitle-overlay interim">
-            <div class="video-subtitle-text">${this.videoInterimTranscript}</div>
-          </div>
-        ` : ''}
-      ` : html`
-        <div class="video-loading">
-          <span>Camera not available</span>
-        </div>
-      `}
+      ${this.isVideoLoading
+        ? html`
+            <div class="video-loading">
+              <div class="loading-spinner"></div>
+              <span>Starting camera...</span>
+            </div>
+          `
+        : this.videoStream
+          ? html`
+              <video
+                id="${isPip ? 'webcam-video-pip' : 'webcam-video'}"
+                class="webcam-video"
+                autoplay
+                muted
+                playsinline
+              ></video>
+              ${this.leftPanelMode === 'video' && this.videoInterimTranscript && !isPip
+                ? html`
+                    <div class="video-subtitle-overlay interim">
+                      <div class="video-subtitle-text">${this.videoInterimTranscript}</div>
+                    </div>
+                  `
+                : ''}
+            `
+          : html`
+              <div class="video-loading">
+                <span>Camera not available</span>
+              </div>
+            `}
     `;
 
     // Local video for video calling
@@ -5040,47 +5680,41 @@ In ${this.targetLanguage}:
       // Call active & layout NOT pip -> full size video fits container
       if (this.callStatus !== 'idle' && this.videoLayout !== 'pip') {
         return html`
-          <video
-            id="local-video"
-            class="webcam-video"
-            autoplay
-            muted
-            playsinline
-          ></video>
-          ${this.videoInterimTranscript ? html`
-            <div class="video-call-subtitle-overlay">
-              <div class="video-call-subtitle-text">${this.videoInterimTranscript}</div>
-            </div>
-          ` : ''}
+          <video id="local-video" class="webcam-video" autoplay muted playsinline></video>
+          ${this.videoInterimTranscript
+            ? html`
+                <div class="video-call-subtitle-overlay">
+                  <div class="video-call-subtitle-text">${this.videoInterimTranscript}</div>
+                </div>
+              `
+            : ''}
         `;
       }
 
       // Otherwise (idle or pip layout) -> small overlay container
       return html`
         <div class="local-video-container">
-          ${this.localStream ? html`
-            <video
-              id="local-video"
-              class="local-video"
-              autoplay
-              muted
-              playsinline
-            ></video>
-            <div class="video-label local-label">You</div>
-          ` : this.videoStream ? html`
-            <video
-              id="local-video-fallback"
-              class="local-video"
-              autoplay
-              muted
-              playsinline
-            ></video>
-            <div class="video-label local-label">You</div>
-          ` : html`
-            <div class="local-video-placeholder">
-              <span>Camera off</span>
-            </div>
-          `}
+          ${this.localStream
+            ? html`
+                <video id="local-video" class="local-video" autoplay muted playsinline></video>
+                <div class="video-label local-label">You</div>
+              `
+            : this.videoStream
+              ? html`
+                  <video
+                    id="local-video-fallback"
+                    class="local-video"
+                    autoplay
+                    muted
+                    playsinline
+                  ></video>
+                  <div class="video-label local-label">You</div>
+                `
+              : html`
+                  <div class="local-video-placeholder">
+                    <span>Camera off</span>
+                  </div>
+                `}
         </div>
       `;
     };
@@ -5093,19 +5727,19 @@ In ${this.targetLanguage}:
 
     // During video calls, always use two-screen layout regardless of PiP setting
     if (this.callStatus !== 'idle') {
-      console.log('🎥 [RENDER] Video call active, using two-screen layout. Call status:', this.callStatus);
-      return html`
-        ${waitingScreen}
-        ${webcamScreen}
-      `;
+      console.log(
+        '🎥 [RENDER] Video call active, using two-screen layout. Call status:',
+        this.callStatus
+      );
+      return html` ${waitingScreen} ${webcamScreen} `;
     }
-    
+
     // Only show PiP layout when NOT in a call and layout is set to pip
     if (this.videoLayout === 'pip' && this.callStatus === 'idle') {
       console.log('🎥 [RENDER] No call active, using PiP layout');
       return html`
         ${waitingScreen}
-        <div 
+        <div
           class="video-screen pip-overlay webcam-screen ${this.isDraggingPip ? 'dragging' : ''}"
           style="left: ${this.pipPosition.x}px; top: ${this.pipPosition.y}px;"
           @mousedown=${this.handlePipDragStart}
@@ -5115,11 +5749,13 @@ In ${this.targetLanguage}:
       `;
     } else {
       // Regular layouts (horizontal, vertical) or fallback when call is active
-      console.log('🎥 [RENDER] Using regular two-screen layout. Video layout:', this.videoLayout, 'Call status:', this.callStatus);
-      return html`
-        ${waitingScreen}
-        ${webcamScreen}
-      `;
+      console.log(
+        '🎥 [RENDER] Using regular two-screen layout. Video layout:',
+        this.videoLayout,
+        'Call status:',
+        this.callStatus
+      );
+      return html` ${waitingScreen} ${webcamScreen} `;
     }
   }
 
@@ -5128,7 +5764,7 @@ In ${this.targetLanguage}:
       console.log('🎙️ [VIDEO] Skipping speech recognition - mic is muted');
       return;
     }
-    
+
     // If VAD was previously initialized and merely paused (e.g., due to mute),
     // simply resume it instead of re-initialising the whole pipeline.
     if (this.isVADInitialized && this.micVAD) {
@@ -5144,20 +5780,19 @@ In ${this.targetLanguage}:
       }
     }
     console.log('🎙️ [VIDEO] ========== INITIALIZING WebRTC VAD SPEECH RECOGNITION ==========');
-    
+
     try {
       // Initialize WebRTC VAD
       await this.initWebRTCVAD();
-      
+
       this.videoConnectionStatus = 'connected';
       this.isVideoSpeechActive = true;
-      
     } catch (error) {
       console.error('🎙️ [VIDEO] Error initializing VAD speech recognition:', error);
       this.videoConnectionStatus = 'error';
       this.isVideoSpeechActive = false;
     }
-    
+
     console.log('🎙️ [VIDEO] ========== WebRTC VAD SPEECH RECOGNITION INITIALIZED ==========');
   }
 
@@ -5166,105 +5801,103 @@ In ${this.targetLanguage}:
       console.log('🎙️ [VIDEO] VAD already initialized');
       return;
     }
-    
+
     try {
       console.log('🎙️ [VIDEO] Initializing WebRTC VAD...');
-      
+
       // Initialize the VAD
       this.micVAD = await MicVAD.new({
         onSpeechStart: () => {
           console.log('🎙️ [VIDEO] WebRTC VAD: Speech started');
-          
+
           // Create a new placeholder for this speech segment
           const placeholderId = `video-speech-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
           const placeholderMessage: TranscriptMessage = {
             speaker: 'user',
             text: 'Recording audio...',
-            id: placeholderId
+            id: placeholderId,
           };
-          
+
           this.transcriptHistory = [...this.transcriptHistory, placeholderMessage];
           this.videoTranscriptHistory = [...this.videoTranscriptHistory, placeholderMessage];
           this.currentVideoPlaceholderId = placeholderId;
           this.requestUpdate();
         },
-        
+
         onSpeechEnd: (audio: Float32Array) => {
           console.log('🎙️ [VIDEO] WebRTC VAD: Speech ended, audio length:', audio.length);
-          
+
           // Get the placeholder ID for this specific speech segment
           const speechPlaceholderId = this.currentVideoPlaceholderId;
-          
+
           if (!speechPlaceholderId) {
             console.log('🎙️ [VIDEO] No placeholder ID for this speech segment, skipping');
             return;
           }
-          
+
           // Update placeholder to processing state
           this.updatePlaceholderText(speechPlaceholderId, 'Processing your speech...');
-          
+
           // Convert Float32Array to Blob and send immediately
           const audioBlob = this.convertFloat32ArrayToBlob(audio);
-          
+
           // Send this speech segment directly to Whisper
           this.sendVideoAudioToWhisper(audioBlob, undefined, speechPlaceholderId);
-          
+
           // Clear the placeholder ID since we've sent this segment
           this.currentVideoPlaceholderId = null;
         },
-        
+
         onVADMisfire: () => {
           console.log('🎙️ [VIDEO] WebRTC VAD: Misfire (false positive speech detection)');
-          
+
           // Remove the placeholder as it was a false positive
           if (this.currentVideoPlaceholderId) {
             this.removePlaceholderById(this.currentVideoPlaceholderId);
             this.currentVideoPlaceholderId = null;
           }
         },
-        
+
         // Sensitivity settings
         positiveSpeechThreshold: 0.5, // Lower = more sensitive to speech
         negativeSpeechThreshold: 0.35, // Higher = less likely to stop speech detection
         minSpeechFrames: 3, // Minimum frames before considering it speech
-        
+
         // Prevent very short speech segments
         preSpeechPadFrames: 1,
         redemptionFrames: 6, // ~180ms silence detection (6 frames × ~30ms/frame = ~180ms)
       });
-      
+
       console.log('🎙️ [VIDEO] WebRTC VAD initialized successfully');
       this.isVADInitialized = true;
-      
-      
+
       // Start VAD
       this.micVAD.start();
       console.log('🎙️ [VIDEO] WebRTC VAD started');
-      
     } catch (error) {
       console.error('🎙️ [VIDEO] Error initializing WebRTC VAD:', error);
       throw error;
     }
   }
-  
+
   private convertFloat32ArrayToBlob(float32Array: Float32Array): Blob {
     // Convert Float32Array to WAV blob
     const length = float32Array.length;
     const buffer = new ArrayBuffer(44 + length * 2);
     const view = new DataView(buffer);
-    
+
     // WAV header
     const writeString = (offset: number, string: string) => {
       for (let i = 0; i < string.length; i++) {
         view.setUint8(offset + i, string.charCodeAt(i));
       }
     };
-    
+
     // RIFF chunk descriptor
     writeString(0, 'RIFF');
     view.setUint32(4, 36 + length * 2, true);
     writeString(8, 'WAVE');
-    
+
     // FMT sub-chunk
     writeString(12, 'fmt ');
     view.setUint32(16, 16, true);
@@ -5274,26 +5907,26 @@ In ${this.targetLanguage}:
     view.setUint32(28, 32000, true); // Byte rate
     view.setUint16(32, 2, true);
     view.setUint16(34, 16, true);
-    
+
     // Data sub-chunk
     writeString(36, 'data');
     view.setUint32(40, length * 2, true);
-    
+
     // Convert float samples to 16-bit PCM
     let offset = 44;
     for (let i = 0; i < length; i++) {
       const sample = Math.max(-1, Math.min(1, float32Array[i]));
-      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
       offset += 2;
     }
-    
+
     return new Blob([buffer], { type: 'audio/wav' });
   }
-  
+
   private sendAccumulatedSpeechToWhisper() {
     if (this.pendingSpeechChunks.length === 0) {
       console.log('🎙️ [VIDEO] No speech chunks to send');
-      
+
       // Remove placeholder if no speech was detected
       if (this.currentVideoPlaceholderId) {
         this.removePlaceholderById(this.currentVideoPlaceholderId);
@@ -5301,15 +5934,21 @@ In ${this.targetLanguage}:
       }
       return;
     }
-    
-    console.log(`🎙️ [VIDEO] Sending ${this.pendingSpeechChunks.length} accumulated speech chunks to Whisper`);
-    
+
+    console.log(
+      `🎙️ [VIDEO] Sending ${this.pendingSpeechChunks.length} accumulated speech chunks to Whisper`
+    );
+
     // Combine all speech chunks into one blob
     const combinedBlob = new Blob(this.pendingSpeechChunks, { type: 'audio/wav' });
-    
+
     // Send to Whisper with current placeholder ID
-    this.sendVideoAudioToWhisper(combinedBlob, undefined, this.currentVideoPlaceholderId || undefined);
-    
+    this.sendVideoAudioToWhisper(
+      combinedBlob,
+      undefined,
+      this.currentVideoPlaceholderId || undefined
+    );
+
     // Clear the accumulated chunks
     this.pendingSpeechChunks = [];
     this.currentVideoPlaceholderId = null;
@@ -5317,35 +5956,46 @@ In ${this.targetLanguage}:
 
   private removePlaceholderById(placeholderId: string) {
     console.log(`🗑️ [VIDEO] Removing placeholder: ${placeholderId}`);
-    
+
     // Remove from both transcript arrays
-    this.transcriptHistory = this.transcriptHistory.filter(msg => msg.id !== placeholderId);
-    this.videoTranscriptHistory = this.videoTranscriptHistory.filter(msg => msg.id !== placeholderId);
-    
-    this.requestUpdate();
-  }
-  
-  private updatePlaceholderText(placeholderId: string, newText: string) {
-    console.log(`🔄 [VIDEO] Updating placeholder ${placeholderId} to: "${newText}"`);
-    
-    // Update in both transcript arrays
-    this.transcriptHistory = this.transcriptHistory.map(msg => 
-      msg.id === placeholderId ? { ...msg, text: newText } : msg
+    this.transcriptHistory = this.transcriptHistory.filter((msg) => msg.id !== placeholderId);
+    this.videoTranscriptHistory = this.videoTranscriptHistory.filter(
+      (msg) => msg.id !== placeholderId
     );
-    this.videoTranscriptHistory = this.videoTranscriptHistory.map(msg => 
-      msg.id === placeholderId ? { ...msg, text: newText } : msg
-    );
-    
+
     this.requestUpdate();
   }
 
-  private async sendVideoAudioToWhisper(audioBlob: Blob, sessionId?: string, placeholderId?: string) {
+  private updatePlaceholderText(placeholderId: string, newText: string) {
+    console.log(`🔄 [VIDEO] Updating placeholder ${placeholderId} to: "${newText}"`);
+
+    // Update in both transcript arrays
+    this.transcriptHistory = this.transcriptHistory.map((msg) =>
+      msg.id === placeholderId ? { ...msg, text: newText } : msg
+    );
+    this.videoTranscriptHistory = this.videoTranscriptHistory.map((msg) =>
+      msg.id === placeholderId ? { ...msg, text: newText } : msg
+    );
+
+    this.requestUpdate();
+  }
+
+  private async sendVideoAudioToWhisper(
+    audioBlob: Blob,
+    sessionId?: string,
+    placeholderId?: string
+  ) {
     try {
-      console.log('🎯 [VIDEO] Sending audio to Whisper API...', audioBlob.size, 'bytes', sessionId ? `session: ${sessionId}` : '');
-      
+      console.log(
+        '🎯 [VIDEO] Sending audio to Whisper API...',
+        audioBlob.size,
+        'bytes',
+        sessionId ? `session: ${sessionId}` : ''
+      );
+
       const formData = new FormData();
       formData.append('audio', audioBlob, 'audio.webm');
-      
+
       // Add language parameter if not set to auto-detect
       if (this.selectedVideoLanguage !== 'auto') {
         formData.append('language', this.selectedVideoLanguage);
@@ -5353,20 +6003,23 @@ In ${this.targetLanguage}:
       } else {
         console.log('🌐 [VIDEO] Using automatic language detection');
       }
-      
+
       // Use the same backend host as the WebSocket connection
       const protocol = window.location.protocol;
       const backendHost = 'polycast-server.onrender.com';
       const transcribeUrl = `${protocol}//${backendHost}/api/transcribe`;
-      
+
       const response = await fetch(transcribeUrl, {
         method: 'POST',
         body: formData,
       });
-      
+
       console.log('🔍 [VIDEO] Response status:', response.status, response.statusText);
-      console.log('🔍 [VIDEO] Response headers:', Object.fromEntries(response.headers.entries() || []));
-      
+      console.log(
+        '🔍 [VIDEO] Response headers:',
+        Object.fromEntries(response.headers.entries() || [])
+      );
+
       if (!response.ok) {
         console.error('❌ [VIDEO] API request failed with status:', response.status);
         // Try to parse as JSON, but handle cases where response is not JSON
@@ -5389,12 +6042,15 @@ In ${this.targetLanguage}:
         }
         throw new Error(errorMessage);
       }
-      
+
       // Get the response as text first to debug what we're actually getting
       const responseText = await response.text();
       console.log('🔍 [VIDEO] Raw response text length:', responseText.length);
-      console.log('🔍 [VIDEO] Raw response text (first 200 chars):', responseText.substring(0, 200));
-      
+      console.log(
+        '🔍 [VIDEO] Raw response text (first 200 chars):',
+        responseText.substring(0, 200)
+      );
+
       // Try to parse as JSON
       let data;
       try {
@@ -5403,10 +6059,12 @@ In ${this.targetLanguage}:
       } catch (jsonError) {
         console.error('❌ [VIDEO] Failed to parse response as JSON:', jsonError);
         console.error('❌ [VIDEO] Full response text:', responseText);
-        throw new Error(`Invalid JSON response from server. Response: "${responseText.substring(0, 100)}..."`);
+        throw new Error(
+          `Invalid JSON response from server. Response: "${responseText.substring(0, 100)}..."`
+        );
       }
       const transcribedText = data.text?.trim();
-      
+
       if (transcribedText) {
         console.log('✅ [VIDEO] Transcription received:', transcribedText);
         // Broadcast transcript to peer if in a call
@@ -5414,10 +6072,10 @@ In ${this.targetLanguage}:
           this.signalingSocket.emit('transcript-message', { text: transcribedText });
           console.log('📨 [VIDEO] Sent transcript-message to peer');
         }
-        
+
         // Use the passed placeholder ID, or fall back to currentVideoPlaceholderId
         const targetPlaceholderId = placeholderId || this.currentVideoPlaceholderId;
-        
+
         if (targetPlaceholderId) {
           // Find the specific placeholder message to replace using stored ID
           let placeholderIndex = -1;
@@ -5428,35 +6086,39 @@ In ${this.targetLanguage}:
               break;
             }
           }
-          
+
           if (placeholderIndex !== -1) {
             // Create the final transcript message
             const transcriptMessage: TranscriptMessage = {
               speaker: 'user',
               text: transcribedText,
-              id: `video_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+              id: `video_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             };
-            
+
             // Replace specific placeholder in both arrays
             const updatedTranscriptHistory = [...this.transcriptHistory];
             const updatedVideoTranscriptHistory = [...this.videoTranscriptHistory];
-            
+
             updatedTranscriptHistory[placeholderIndex] = transcriptMessage;
             updatedVideoTranscriptHistory[placeholderIndex] = transcriptMessage;
-            
+
             this.transcriptHistory = updatedTranscriptHistory;
             this.videoTranscriptHistory = updatedVideoTranscriptHistory;
-            
-            console.log(`✅ [VIDEO] Replaced placeholder ${targetPlaceholderId} with transcription (session: ${sessionId})`);
+
+            console.log(
+              `✅ [VIDEO] Replaced placeholder ${targetPlaceholderId} with transcription (session: ${sessionId})`
+            );
           } else {
-            console.log(`⚠️ [VIDEO] Placeholder ${targetPlaceholderId} not found, adding new transcript`);
+            console.log(
+              `⚠️ [VIDEO] Placeholder ${targetPlaceholderId} not found, adding new transcript`
+            );
             // Add new transcript if placeholder not found
             const transcriptMessage: TranscriptMessage = {
               speaker: 'user',
               text: transcribedText,
-              id: `video_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+              id: `video_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             };
-            
+
             this.transcriptHistory = [...this.transcriptHistory, transcriptMessage];
             this.videoTranscriptHistory = [...this.videoTranscriptHistory, transcriptMessage];
           }
@@ -5466,75 +6128,76 @@ In ${this.targetLanguage}:
           const transcriptMessage: TranscriptMessage = {
             speaker: 'user',
             text: transcribedText,
-            id: `video_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+            id: `video_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           };
-          
+
           this.transcriptHistory = [...this.transcriptHistory, transcriptMessage];
           this.videoTranscriptHistory = [...this.videoTranscriptHistory, transcriptMessage];
         }
-        
+
         // Clean up session tracking
         if (sessionId) {
           this.activeVideoSessions.delete(sessionId);
           console.log(`🗑️ [VIDEO] Cleaned up session ${sessionId} after successful transcription`);
         }
-        
+
         // Clear the current placeholder ID if it matches
         if (targetPlaceholderId === this.currentVideoPlaceholderId) {
           this.currentVideoPlaceholderId = null;
         }
-        
+
         // Update UI
         this.requestUpdate();
-        
+
         // Auto-scroll to bottom of transcript
         setTimeout(() => {
-          const transcriptContainer = this.shadowRoot?.querySelector('.transcript-messages-container');
+          const transcriptContainer = this.shadowRoot?.querySelector(
+            '.transcript-messages-container'
+          );
           if (transcriptContainer) {
             transcriptContainer.scrollTop = transcriptContainer.scrollHeight;
           }
         }, 100);
       } else {
         console.log('🔕 [VIDEO] Empty transcription received - removing placeholder');
-        
+
         // Use the passed placeholder ID, or fall back to currentVideoPlaceholderId
         const targetPlaceholderId = placeholderId || this.currentVideoPlaceholderId;
         if (targetPlaceholderId) {
           this.removePlaceholderById(targetPlaceholderId);
         }
-        
+
         // Clean up session tracking
         if (sessionId) {
           this.activeVideoSessions.delete(sessionId);
           console.log(`🗑️ [VIDEO] Cleaned up session ${sessionId} after empty transcription`);
         }
-        
+
         // Clear the placeholder ID if it matches the one we just processed
         if (targetPlaceholderId === this.currentVideoPlaceholderId) {
           this.currentVideoPlaceholderId = null;
         }
       }
-      
     } catch (error) {
       console.error('❌ [VIDEO] Transcription error:', error);
-      
+
       // Use the passed placeholder ID, or fall back to currentVideoPlaceholderId
       const targetPlaceholderId = placeholderId || this.currentVideoPlaceholderId;
       if (targetPlaceholderId) {
         this.removePlaceholderById(targetPlaceholderId);
       }
-      
+
       // Clean up session tracking
       if (sessionId) {
         this.activeVideoSessions.delete(sessionId);
         console.log(`🗑️ [VIDEO] Cleaned up session ${sessionId} after transcription error`);
       }
-      
+
       // Clear the placeholder ID if it matches the one we just processed
       if (targetPlaceholderId === this.currentVideoPlaceholderId) {
         this.currentVideoPlaceholderId = null;
       }
-      
+
       this.videoInterimTranscript = `Error: ${error instanceof Error ? error.message : String(error)}`;
       setTimeout(() => {
         this.videoInterimTranscript = '';
@@ -5545,9 +6208,9 @@ In ${this.targetLanguage}:
 
   private stopVideoSpeechRecognition() {
     console.log('🎙️ [VIDEO] ========== STOPPING VIDEO SPEECH RECOGNITION ==========');
-    
+
     this.videoRecordingActive = false;
-    
+
     // Stop WebRTC VAD
     if (this.micVAD) {
       try {
@@ -5557,7 +6220,7 @@ In ${this.targetLanguage}:
         console.error('🎙️ [VIDEO] Error stopping WebRTC VAD:', error);
       }
     }
-    
+
     // Clear VAD timers
     if (this.vadSpeechTimer) {
       clearTimeout(this.vadSpeechTimer);
@@ -5597,7 +6260,7 @@ In ${this.targetLanguage}:
 
     // Stop audio stream (if any)
     if (this.videoAudioStream) {
-      this.videoAudioStream.getTracks().forEach(track => {
+      this.videoAudioStream.getTracks().forEach((track) => {
         track.stop();
         console.log('🎙️ [VIDEO] Audio track stopped:', track.label);
       });
@@ -5613,7 +6276,7 @@ In ${this.targetLanguage}:
     this.videoAudioChunks = [];
     this.currentVideoPlaceholderId = null;
     this.pendingSpeechChunks = [];
-    
+
     // Clean up all active sessions and their placeholders
     for (const [sessionId, session] of this.activeVideoSessions) {
       if (session.placeholderId) {
@@ -5633,7 +6296,7 @@ In ${this.targetLanguage}:
     this.isVideoSpeechActive = false;
     this.videoInterimTranscript = '';
     this.videoConnectionStatus = 'disconnected';
-    
+
     console.log('🎙️ [VIDEO] ========== VIDEO SPEECH RECOGNITION STOPPED ==========');
   }
 
@@ -5641,18 +6304,22 @@ In ${this.targetLanguage}:
     // Find the most recent "Processing:" message and replace it
     const updatedHistory = [...this.transcriptHistory];
     for (let i = updatedHistory.length - 1; i >= 0; i--) {
-      if (updatedHistory[i].speaker === 'user' && updatedHistory[i].text.startsWith('Processing:')) {
+      if (
+        updatedHistory[i].speaker === 'user' &&
+        updatedHistory[i].text.startsWith('Processing:')
+      ) {
         // Simple cleaning for now - you can integrate with AI later
-        const cleaned = rawTranscript.charAt(0).toUpperCase() + rawTranscript.slice(1).toLowerCase();
+        const cleaned =
+          rawTranscript.charAt(0).toUpperCase() + rawTranscript.slice(1).toLowerCase();
         updatedHistory[i] = {
           ...updatedHistory[i],
-          text: cleaned
+          text: cleaned,
         };
         break;
       }
     }
     this.transcriptHistory = updatedHistory;
-    
+
     // Save to video transcript history
     this.videoTranscriptHistory = [...this.transcriptHistory];
     this.saveProfileData();
@@ -5664,10 +6331,10 @@ In ${this.targetLanguage}:
     console.log('🎙️ [VIDEO] Currently muted:', this.isVideoMicMuted);
     console.log('🎙️ [VIDEO] Current connection status:', this.videoConnectionStatus);
     console.log('🎙️ [VIDEO] Video session exists:', !!this.videoVoiceSession);
-    
+
     this.isVideoMicMuted = !this.isVideoMicMuted;
     console.log('🎙️ [VIDEO] New muted state:', this.isVideoMicMuted);
-    
+
     if (this.isVideoMicMuted) {
       console.log('🔇 [VIDEO] Muting mic - stopping speech recognition');
       this.stopVideoSpeechRecognition();
@@ -5675,7 +6342,7 @@ In ${this.targetLanguage}:
       console.log('🎤 [VIDEO] Unmuting mic - starting speech recognition');
       this.initVideoSpeechRecognition();
     }
-    
+
     this.requestUpdate();
     console.log('🎙️ [VIDEO] ========== MIC TOGGLE COMPLETE ==========');
   }
@@ -5697,11 +6364,11 @@ In ${this.targetLanguage}:
     return new Promise((resolve) => {
       const samples: number[] = [];
       const dataArray = new Uint8Array(analyser.fftSize);
-      
+
       const calibrationInterval = setInterval(() => {
         analyser.getByteTimeDomainData(dataArray);
         samples.push(this.rawRMS(dataArray));
-        
+
         if (samples.length >= 750 / this.VIDEO_FRAME_MS) {
           clearInterval(calibrationInterval);
           const baseline = this.average(samples);
@@ -5715,97 +6382,95 @@ In ${this.targetLanguage}:
   // Video calling handler methods
   private async handleHostCall() {
     if (this.callStatus !== 'idle') return;
-    
+
     console.log('📞 [HOST] Starting host call process');
     console.log('📞 [HOST] Previous call status:', this.callStatus);
     console.log('📞 [HOST] Previous video layout:', this.videoLayout);
-    
+
     this.isHostingCall = true;
     this.callStatus = 'hosting';
     this.callError = null;
-    
+
     console.log('📞 [HOST] New call status:', this.callStatus);
     console.log('📞 [HOST] Triggering re-render...');
-    
+
     try {
       // Connect to signaling server if not already connected
       if (!this.signalingSocket) {
         await this.connectToSignalingServer();
       }
-      
+
       // Register profile with signaling server
       this.signalingSocket?.emit('register-profile', {
         profile: this.currentProfile,
         nativeLanguage: this.nativeLanguage,
-        targetLanguage: this.targetLanguage
+        targetLanguage: this.targetLanguage,
       });
-      
+
       // Request to host a call
       this.signalingSocket?.emit('host-call', {});
-      
     } catch (error) {
       console.error('❌ Error hosting call:', error);
       this.callStatus = 'error';
       this.callError = `Failed to host call: ${error instanceof Error ? error.message : String(error)}`;
       this.isHostingCall = false;
     }
-    
+
     this.requestUpdate();
   }
-  
+
   private async handleJoinCall() {
     if (this.callStatus !== 'idle' || this.joinCodeInput.length !== 5) return;
-    
+
     this.isJoiningCall = true;
     this.callStatus = 'joining';
     this.callError = null;
-    
+
     try {
       // Connect to signaling server if not already connected
       if (!this.signalingSocket) {
         await this.connectToSignalingServer();
       }
-      
+
       // Register profile with signaling server
       this.signalingSocket?.emit('register-profile', {
         profile: this.currentProfile,
         nativeLanguage: this.nativeLanguage,
-        targetLanguage: this.targetLanguage
+        targetLanguage: this.targetLanguage,
       });
-      
+
       // Request to join a call
       this.signalingSocket?.emit('join-call', {
-        code: this.joinCodeInput
+        code: this.joinCodeInput,
       });
-      
     } catch (error) {
       console.error('❌ Error joining call:', error);
       this.callStatus = 'error';
       this.callError = `Failed to join call: ${error instanceof Error ? error.message : String(error)}`;
       this.isJoiningCall = false;
     }
-    
+
     this.requestUpdate();
   }
-  
+
   private handleEndCall() {
     console.log('🔚 Ending call');
-    
+
     // Clean up WebRTC
     if (this.peerConnection) {
       this.peerConnection.close();
       this.peerConnection = null;
     }
-    
+
     // Clean up local stream
     if (this.localStream) {
-      this.localStream.getTracks().forEach(track => track.stop());
+      this.localStream.getTracks().forEach((track) => track.stop());
       this.localStream = null;
     }
-    
+
     // Clean up remote stream
     this.remoteVideoStream = null;
-    
+
     // Clean up call state
     this.callStatus = 'idle';
     this.callCode = null;
@@ -5814,15 +6479,15 @@ In ${this.targetLanguage}:
     this.callError = null;
     this.joinCodeInput = '';
     this.remoteSocketId = null; // Clear remote socket ID
-    
+
     // Notify signaling server
     if (this.signalingSocket?.connected) {
       this.signalingSocket.emit('end-call');
     }
-    
+
     this.requestUpdate();
   }
-  
+
   private async connectToSignalingServer(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
@@ -5830,44 +6495,43 @@ In ${this.targetLanguage}:
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const backendHost = 'polycast-server.onrender.com';
         const signalingUrl = `${window.location.protocol}//${backendHost}`;
-        
+
         this.signalingSocket = io(signalingUrl, {
           path: '/socket.io',
           transports: ['polling'], // Force polling transport initially
           forceNew: true,
-          timeout: 10000
+          timeout: 10000,
         });
-        
+
         this.signalingSocket.on('connect', () => {
           console.log('📞 Connected to signaling server via proxy');
           console.log('🔗 Socket ID:', this.signalingSocket?.id);
           console.log('🚀 Transport:', this.signalingSocket?.io.engine.transport.name);
           resolve();
         });
-        
+
         this.signalingSocket.on('disconnect', (reason) => {
           console.log('📞 Disconnected from signaling server:', reason);
         });
-        
+
         this.signalingSocket.on('connect_error', (error) => {
           console.error('❌ Signaling server connection error:', error);
           console.error('❌ Error details:', {
             stack: error.stack,
-            ...error
+            ...error,
           });
           reject(error);
         });
-        
+
         // Handle signaling events
         this.setupSignalingEventHandlers();
-        
       } catch (error) {
         console.error('❌ Socket.IO setup error:', error);
         reject(error);
       }
     });
   }
-  
+
   private setupSignalingEventHandlers() {
     if (!this.signalingSocket) return;
 
@@ -5886,7 +6550,7 @@ In ${this.targetLanguage}:
       this.callStatus = 'joining';
       this.remoteSocketId = data.hostSocketId; // Store host socket ID
       this.requestUpdate();
-      
+
       // Set up WebRTC as joiner
       this.setupWebRTCConnection(false);
     });
@@ -5896,7 +6560,7 @@ In ${this.targetLanguage}:
       console.log(`🤝 Someone is joining your call: ${data.joinerProfile}`);
       this.remoteSocketId = data.joinerSocketId; // Store joiner socket ID
       this.requestUpdate();
-      
+
       // Set up WebRTC as host (if not already set up)
       if (!this.peerConnection) {
         this.setupWebRTCConnection(true);
@@ -5948,7 +6612,7 @@ In ${this.targetLanguage}:
       const transcriptMessage: TranscriptMessage = {
         speaker: 'partner',
         text: data.text,
-        id: `partner_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        id: `partner_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       };
       this.transcriptHistory = [...this.transcriptHistory, transcriptMessage];
       this.videoTranscriptHistory = [...this.videoTranscriptHistory, transcriptMessage];
@@ -5959,31 +6623,31 @@ In ${this.targetLanguage}:
       }, 100);
     });
   }
-  
+
   private async setupWebRTCConnection(isHost: boolean) {
     console.log(`🔗 Setting up WebRTC connection (${isHost ? 'host' : 'joiner'})`);
-    
+
     try {
       // Create RTCPeerConnection
       this.peerConnection = new RTCPeerConnection(this.rtcConfiguration);
-      
+
       // Set up event handlers
       this.peerConnection.onicecandidate = (event) => {
         if (event.candidate && this.remoteSocketId) {
           console.log('🧊 Sending ICE candidate');
           this.signalingSocket?.emit('webrtc-ice-candidate', {
             candidate: event.candidate,
-            targetSocketId: this.remoteSocketId
+            targetSocketId: this.remoteSocketId,
           });
         }
       };
-      
+
       this.peerConnection.ontrack = (event) => {
         console.log('📹 Received remote video stream');
         this.remoteVideoStream = event.streams[0];
         this.callStatus = 'connected';
         this.requestUpdate();
-        
+
         // Set up remote video element
         this.updateComplete.then(() => {
           const remoteVideo = this.shadowRoot?.querySelector('#remote-video') as HTMLVideoElement;
@@ -5992,50 +6656,54 @@ In ${this.targetLanguage}:
           }
         });
       };
-      
+
       this.peerConnection.onconnectionstatechange = () => {
         console.log('🔗 Connection state:', this.peerConnection?.connectionState);
         if (this.peerConnection?.connectionState === 'connected') {
           console.log('✅ WebRTC connection established');
           this.callStatus = 'connected';
-        } else if (this.peerConnection?.connectionState === 'disconnected' || 
-                   this.peerConnection?.connectionState === 'failed') {
+        } else if (
+          this.peerConnection?.connectionState === 'disconnected' ||
+          this.peerConnection?.connectionState === 'failed'
+        ) {
           console.log('❌ WebRTC connection lost');
           this.handleEndCall();
         }
         this.requestUpdate();
       };
-      
+
       // Get local media stream (video + audio)
       this.localStream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 640, max: 1280 },
           height: { ideal: 480, max: 720 },
-          facingMode: 'user'
+          facingMode: 'user',
         },
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true
-        }
+          autoGainControl: true,
+        },
       });
-      
+
       // Add local stream to peer connection
-      this.localStream.getTracks().forEach(track => {
+      this.localStream.getTracks().forEach((track) => {
         this.peerConnection?.addTrack(track, this.localStream!);
       });
-      
+
       // Set up local video display
       this.requestUpdate();
       this.updateComplete.then(() => {
         const localVideo = this.shadowRoot?.querySelector('#local-video') as HTMLVideoElement;
-        const localVideoFallback = this.shadowRoot?.querySelector('#local-video-fallback') as HTMLVideoElement;
-        
+        const localVideoFallback = this.shadowRoot?.querySelector(
+          '#local-video-fallback'
+        ) as HTMLVideoElement;
+
         console.log('🎥 Setting up local video display');
         console.log('🎥 Local video element found:', !!localVideo);
         console.log('🎥 Local video fallback element found:', !!localVideoFallback);
         console.log('🎥 Local stream available:', !!this.localStream);
-        
+
         if (localVideo && this.localStream) {
           localVideo.srcObject = this.localStream;
           localVideo.muted = true; // Mute local audio to prevent feedback
@@ -6048,19 +6716,18 @@ In ${this.targetLanguage}:
           console.warn('⚠️ Could not set up local video display');
         }
       });
-      
+
       // If joiner, create and send offer
       if (!isHost) {
         const offer = await this.peerConnection.createOffer();
         await this.peerConnection.setLocalDescription(offer);
-        
+
         console.log('📡 Sending offer to host');
         this.signalingSocket?.emit('webrtc-offer', {
           offer: offer,
-          targetSocketId: this.remoteSocketId
+          targetSocketId: this.remoteSocketId,
         });
       }
-      
     } catch (error) {
       console.error('❌ Error setting up WebRTC:', error);
       this.callStatus = 'error';
@@ -6068,29 +6735,28 @@ In ${this.targetLanguage}:
       this.requestUpdate();
     }
   }
-  
+
   private async handleWebRTCOffer(offer: any, callerSocketId: string) {
     console.log('📡 Handling WebRTC offer from:', callerSocketId);
-    
+
     try {
       if (!this.peerConnection) {
         console.log('🔗 Creating peer connection for incoming offer');
         await this.setupWebRTCConnection(true); // Set up as host
       }
-      
+
       // Set remote description (the offer)
       await this.peerConnection!.setRemoteDescription(new RTCSessionDescription(offer));
-      
+
       // Create and send answer
       const answer = await this.peerConnection!.createAnswer();
       await this.peerConnection!.setLocalDescription(answer);
-      
+
       console.log('📡 Sending answer to joiner');
       this.signalingSocket?.emit('webrtc-answer', {
         answer: answer,
-        targetSocketId: callerSocketId
+        targetSocketId: callerSocketId,
       });
-      
     } catch (error) {
       console.error('❌ Error handling WebRTC offer:', error);
       this.callStatus = 'error';
@@ -6098,19 +6764,18 @@ In ${this.targetLanguage}:
       this.requestUpdate();
     }
   }
-  
+
   private async handleWebRTCAnswer(answer: any) {
     console.log('📡 Handling WebRTC answer');
-    
+
     try {
       if (!this.peerConnection) {
         throw new Error('No peer connection available');
       }
-      
+
       // Set remote description (the answer)
       await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
       console.log('✅ WebRTC answer processed');
-      
     } catch (error) {
       console.error('❌ Error handling WebRTC answer:', error);
       this.callStatus = 'error';
@@ -6118,20 +6783,19 @@ In ${this.targetLanguage}:
       this.requestUpdate();
     }
   }
-  
+
   private async handleICECandidate(candidate: any) {
     console.log('🧊 Handling ICE candidate');
-    
+
     try {
       if (!this.peerConnection) {
         console.warn('⚠️ No peer connection available for ICE candidate');
         return;
       }
-      
+
       // Add ICE candidate to peer connection
       await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
       console.log('✅ ICE candidate added');
-      
     } catch (error) {
       console.error('❌ Error handling ICE candidate:', error);
       // ICE candidate errors are usually non-fatal, so don't change call status
@@ -6140,7 +6804,7 @@ In ${this.targetLanguage}:
 
   private handleClickOutsideMicSelector(event: MouseEvent) {
     const target = event.target as Element;
-    
+
     // Check if click is outside microphone popup
     if (this.showMicrophoneSelector) {
       // If clicked on the popup overlay, close the popup
@@ -6148,19 +6812,19 @@ In ${this.targetLanguage}:
         this.closeMicrophoneSelector();
         return;
       }
-      
+
       // If clicked on the microphone button itself, don't close
       const micButton = target.closest('.microphone-selector-button');
       if (micButton) {
         return;
       }
-      
+
       // If clicked on the popup itself, don't close
       const popup = target.closest('.microphone-context-menu');
       if (popup) {
         return;
       }
-      
+
       // Otherwise, close the popup
       this.closeMicrophoneSelector();
     }

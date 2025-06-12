@@ -60,31 +60,69 @@ export class FlashcardManager extends LitElement {
 
   render() {
     const currentId = this.flashcardQueue[this.currentIndex];
-    const card = this.flashcards.find(fc => fc.id === currentId);
+    const card = this.flashcards.find((fc) => fc.id === currentId);
     const flipped = currentId ? this.flipState.get(currentId) === true : false;
     return html`
       <div class="flashcards-content">
-        ${!card ? html`<p class="no-flashcards-message">No cards</p>` : html`
-          <div class="flashcard-viewer" @click=${() => currentId && this.flip(currentId)}>
-            <div class="flashcard-container ${flipped ? 'flipped' : ''}">
-              <div class="flashcard card-front">
-                ${card.exampleSentences[0]?.english || ''}
+        ${!card
+          ? html`<p class="no-flashcards-message">No cards</p>`
+          : html`
+              <div class="flashcard-viewer" @click=${() => currentId && this.flip(currentId)}>
+                <div class="flashcard-container ${flipped ? 'flipped' : ''}">
+                  <div class="flashcard card-front">${card.exampleSentences[0]?.english || ''}</div>
+                  <div class="flashcard card-back">
+                    ${card.exampleSentences[0]?.portugueseTranslation || ''}
+                  </div>
+                </div>
               </div>
-              <div class="flashcard card-back">
-                ${card.exampleSentences[0]?.portugueseTranslation || ''}
+              <div class="flashcard-nav">
+                <button
+                  @click=${() =>
+                    this.dispatchEvent(
+                      new CustomEvent('prev-card', { bubbles: true, composed: true })
+                    )}
+                >
+                  ◄
+                </button>
+                <span class="card-count"
+                  >${this.currentIndex + 1}/${this.flashcardQueue.length}</span
+                >
+                <button
+                  @click=${() =>
+                    this.dispatchEvent(
+                      new CustomEvent('next-card', { bubbles: true, composed: true })
+                    )}
+                >
+                  ►
+                </button>
               </div>
-            </div>
-          </div>
-          <div class="flashcard-nav">
-            <button @click=${() => this.dispatchEvent(new CustomEvent('prev-card', { bubbles: true, composed: true }))}>◄</button>
-            <span class="card-count">${this.currentIndex + 1}/${this.flashcardQueue.length}</span>
-            <button @click=${() => this.dispatchEvent(new CustomEvent('next-card', { bubbles: true, composed: true }))}>►</button>
-          </div>
-          <div class="flashcard-actions">
-            <button @click=${() => this.dispatchEvent(new CustomEvent('answer-card', { detail: { correct: false }, bubbles: true, composed: true }))}>Incorrect</button>
-            <button @click=${() => this.dispatchEvent(new CustomEvent('answer-card', { detail: { correct: true }, bubbles: true, composed: true }))}>Correct</button>
-          </div>
-        `}
+              <div class="flashcard-actions">
+                <button
+                  @click=${() =>
+                    this.dispatchEvent(
+                      new CustomEvent('answer-card', {
+                        detail: { correct: false },
+                        bubbles: true,
+                        composed: true,
+                      })
+                    )}
+                >
+                  Incorrect
+                </button>
+                <button
+                  @click=${() =>
+                    this.dispatchEvent(
+                      new CustomEvent('answer-card', {
+                        detail: { correct: true },
+                        bubbles: true,
+                        composed: true,
+                      })
+                    )}
+                >
+                  Correct
+                </button>
+              </div>
+            `}
       </div>
     `;
   }
