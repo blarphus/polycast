@@ -56,6 +56,11 @@ interface EvaluationError {
     error: string;
 }
 
+// Added helper to support conversational text chat with Gemini
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
 
 export async function fetchWordDetailsFromApi(
   word: string,
@@ -301,5 +306,35 @@ Only return the JSON object. Do not include any markdown formatting like \`\`\`j
   } catch (e: any) {
     console.error("Error evaluating transcript via API:", e);
     return { error: (e as Error).message || "API error during evaluation." };
+  }
+}
+
+// Added helper to support conversational text chat with Gemini
+export async function chatWithGemini(
+  history: ChatMessage[],
+  targetLanguage: string,
+  nativeLanguage: string
+): Promise<string> {
+  if (!ai) throw new Error('Gemini API client not initialized in service.');
+
+  try {
+    // Build a single prompt string based on chat history. Gemini supports multi-turn via formatted text.
+    const formattedHistory = history
+      .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
+      .join('\n');
+
+    const systemPrompt = `You are a helpful AI language partner. Reply in ${targetLanguage}. If the user switches languages, follow their lead.`;
+
+    const prompt = `${systemPrompt}\n${formattedHistory}\nAssistant:`;
+
+    const response: GenerateContentResponse = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: prompt,
+    });
+
+    return response.text?.trim() || '';
+  } catch (e: any) {
+    console.error('Error during chatWithGemini:', e);
+    throw e;
   }
 }

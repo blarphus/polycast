@@ -13,7 +13,8 @@ import {
   fetchWordDetailsFromApi, 
   fetchWordFrequencyFromApi, 
   fetchExampleSentencesFromApi, 
-  fetchEvaluationFromApi 
+  fetchEvaluationFromApi, 
+  chatWithGemini
 } from './gemini-api-service';
 import { MicVAD, utils } from '@ricky0123/vad-web';
 import { io, Socket } from 'socket.io-client';
@@ -166,6 +167,11 @@ export class GdmLiveAudio extends LitElement {
   @state() availableVoices: string[] = [];
   @state() selectedVoice: string = 'alloy';
 
+  // AI submode (voice vs text)
+  @state() aiSubMode: 'voice' | 'text' = 'voice';
+  @state() textInput: string = '';
+  @state() isSendingText: boolean = false;
+  
   // Video mode state
   @state() leftPanelMode: 'ai' | 'video' = 'ai';
   @state() videoStream: MediaStream | null = null;
@@ -4504,58 +4510,79 @@ In ${this.targetLanguage}:
 
           ${this.leftPanelMode === 'ai' ? html`
             <!-- AI Mode Interface -->
-            <div class="controls">
-              <button 
-                id="recordButton" 
-                @click=${this.isRecording ? this.stopRecording : this.startRecording} 
-                ?disabled=${!this.openAIVoiceSession || this.isInitializingSession || this.isModelSpeaking} 
-                class="${this.isRecording ? 'recording' : 'not-recording'}"
-                aria-label="${this.isRecording ? 'Stop Recording' : 'Start Recording'}">
-                ${this.isRecording ? html`
-                  <svg viewBox="0 0 100 100" width="40px" height="40px" fill="#ffffff" xmlns="http://www.w3.org/2000/svg">
-                    <rect x="15" y="15" width="70" height="70" rx="10" />
-                  </svg>
-                ` : html`
-                  <svg viewBox="0 0 100 100" width="40px" height="40px" fill="#c80000" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="50" cy="50" r="45" />
-                  </svg>
-                `}
-              </button>
-              
-              <!-- Audio Controls -->
-              <div class="audio-controls">
+            <div class="ai-submode-selector">
+              <button class="${this.aiSubMode === 'voice' ? 'active' : ''}" @click=${() => this.aiSubMode = 'voice'}>🎤 Voice</button>
+              <button class="${this.aiSubMode === 'text' ? 'active' : ''}" @click=${() => this.aiSubMode = 'text'}>💬 Text</button>
+            </div>
+
+            ${this.aiSubMode === 'voice' ? html`
+              <div class="controls">
                 <button 
-                  class="microphone-selector-button ${this.hasMicrophone ? '' : 'no-microphone'}"
-                  @click=${this.handleMicrophoneButtonClick}
-                  title="${this.hasMicrophone ? 'Select microphone device' : 'No microphone detected'}"
-                  aria-label="Microphone device selector"
-                >
-                  <span class="mic-icon">🎤</span>
-                  <span class="mic-label">${this.hasMicrophone ? 
-                    (() => {
-                      const device = this.availableAudioDevices.find(d => d.deviceId === this.selectedAudioDeviceId);
-                      const label = device?.label?.replace(/^Default - /, '') || 'Default';
-                      return label.length > 20 ? label.substring(0, 20) + '...' : label;
-                    })() 
-                    : 'No Mic'}</span>
-                  <span class="dropdown-arrow">▼</span>
+                  id="recordButton" 
+                  @click=${this.isRecording ? this.stopRecording : this.startRecording} 
+                  ?disabled=${!this.openAIVoiceSession || this.isInitializingSession || this.isModelSpeaking} 
+                  class="${this.isRecording ? 'recording' : 'not-recording'}"
+                  aria-label="${this.isRecording ? 'Stop Recording' : 'Start Recording'}">
+                  ${this.isRecording ? html`
+                    <svg viewBox="0 0 100 100" width="40px" height="40px" fill="#ffffff" xmlns="http://www.w3.org/2000/svg">
+                      <rect x="15" y="15" width="70" height="70" rx="10" />
+                    </svg>
+                  ` : html`
+                    <svg viewBox="0 0 100 100" width="40px" height="40px" fill="#c80000" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="50" cy="50" r="45" />
+                    </svg>
+                  `}
                 </button>
                 
-                <select 
-                  class="voice-selector"
-                  .value=${this.selectedVoice}
-                  @change=${(e: Event) => this.selectVoice((e.target as HTMLSelectElement).value)}
-                  title="Select AI voice"
-                  aria-label="AI voice selector"
-                >
-                  ${this.availableVoices.map(voice => html`
-                    <option value=${voice}>${voice}</option>
-                  `)}
-                </select>
+                <!-- Audio Controls -->
+                <div class="audio-controls">
+                  <button 
+                    class="microphone-selector-button ${this.hasMicrophone ? '' : 'no-microphone'}"
+                    @click=${this.handleMicrophoneButtonClick}
+                    title="${this.hasMicrophone ? 'Select microphone device' : 'No microphone detected'}"
+                    aria-label="Microphone device selector"
+                  >
+                    <span class="mic-icon">🎤</span>
+                    <span class="mic-label">${this.hasMicrophone ? 
+                      (() => {
+                        const device = this.availableAudioDevices.find(d => d.deviceId === this.selectedAudioDeviceId);
+                        const label = device?.label?.replace(/^Default - /, '') || 'Default';
+                        return label.length > 20 ? label.substring(0, 20) + '...' : label;
+                      })() 
+                      : 'No Mic'}</span>
+                    <span class="dropdown-arrow">▼</span>
+                  </button>
+                  
+                  <select 
+                    class="voice-selector"
+                    .value=${this.selectedVoice}
+                    @change=${(e: Event) => this.selectVoice((e.target as HTMLSelectElement).value)}
+                    title="Select AI voice"
+                    aria-label="AI voice selector"
+                  >
+                    ${this.availableVoices.map(voice => html`
+                      <option value=${voice}>${voice}</option>
+                    `)}
+                  </select>
+                </div>
               </div>
-            </div>
-            <div id="status" role="status" aria-live="polite"> ${this.error || this.status} </div>
-            <gdm-live-audio-visuals-3d .inputNode=${this.inputNode} .outputNode=${this.outputNode}></gdm-live-audio-visuals-3d>
+              <div id="status" role="status" aria-live="polite"> ${this.error || this.status} </div>
+              <gdm-live-audio-visuals-3d .inputNode=${this.inputNode} .outputNode=${this.outputNode}></gdm-live-audio-visuals-3d>
+            ` : html`
+              <!-- Text Chat Mode -->
+              <div class="text-chat-container">
+                <textarea
+                  class="text-chat-input"
+                  placeholder="Type your message..."
+                  rows="3"
+                  .value=${this.textInput}
+                  @input=${(e: Event) => this.textInput = (e.target as HTMLTextAreaElement).value}
+                ></textarea>
+                <button class="send-text-button" @click=${() => this.sendTextMessage()} ?disabled=${this.isSendingText || this.textInput.trim() === ''}>
+                  ${this.isSendingText ? '⏳ Sending...' : 'Send'}
+                </button>
+              </div>
+            `}
           ` : html`
             <!-- Video Mode Interface -->
             <div class="video-interface">
@@ -6329,6 +6356,46 @@ In ${this.targetLanguage}:
       
       // Otherwise, close the popup
       this.closeMicrophoneSelector();
+    }
+  }
+
+  // --- Text Chat Handling ---
+  private async sendTextMessage() {
+    const message = this.textInput.trim();
+    if (!message) return;
+
+    // Append user message to transcript
+    const userMsg: TranscriptMessage = {
+      speaker: 'user',
+      text: message,
+      id: `user-${crypto.randomUUID()}`
+    };
+    this.transcriptHistory = [...this.transcriptHistory, userMsg];
+    this.textInput = '';
+    this.isSendingText = true;
+    try {
+      // Build chat history from existing transcript (user & model messages)
+      const chatHistory = this.transcriptHistory
+        .filter(msg => msg.speaker === 'user' || msg.speaker === 'model')
+        .map(msg => ({
+          role: msg.speaker === 'user' ? 'user' : 'assistant',
+          content: msg.text
+        }));
+
+      const aiReply = await chatWithGemini(chatHistory as any, this.targetLanguage, this.nativeLanguage);
+
+      const modelMsg: TranscriptMessage = {
+        speaker: 'model',
+        text: aiReply,
+        id: `model-${crypto.randomUUID()}`
+      };
+      this.transcriptHistory = [...this.transcriptHistory, modelMsg];
+    } catch (err: any) {
+      console.error('Error sending text chat message:', err);
+      this.error = err?.message || 'Failed to send message.';
+    } finally {
+      this.isSendingText = false;
+      this.requestUpdate();
     }
   }
 }
