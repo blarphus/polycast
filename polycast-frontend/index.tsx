@@ -2903,6 +2903,7 @@ export class GdmLiveAudio extends LitElement {
       if (response.ok) {
         const data = await response.json();
         console.log('✅ Retrieved assistant instructions:', data.instructions);
+        // Use assistant instructions exactly as they are, no modifications
         return data.instructions || this.getFallbackInstructions();
       } else {
         console.warn('⚠️ Failed to fetch assistant instructions, using fallback');
@@ -2915,7 +2916,8 @@ export class GdmLiveAudio extends LitElement {
   }
 
   private getFallbackInstructions(): string {
-    return `I am a language learner who speaks ${this.nativeLanguage} and is trying to learn ${this.targetLanguage}. Please conduct our conversation primarily in ${this.targetLanguage}. When I ask for definitions or translations, provide definitions in ${this.nativeLanguage} and translations from ${this.targetLanguage} to ${this.nativeLanguage}.`;
+    // Simple fallback if assistant can't be fetched
+    return 'You are a helpful AI assistant.';
   }
 
   private async getRegularSystemInstruction(): Promise<string> {
