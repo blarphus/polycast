@@ -125,7 +125,7 @@ export class GdmLiveAudio extends LitElement {
   @state() selectedVoice: string = 'alloy';
 
   // Video mode state
-  @state() leftPanelMode: 'ai' | 'video' = 'ai';
+  @state() leftPanelMode: 'ai' | 'video' = 'video';
   @state() videoStream: MediaStream | null = null;
   @state() isVideoLoading = false;
   @state() videoLayout: 'vertical' | 'horizontal' | 'pip' = 'vertical';
@@ -197,6 +197,12 @@ export class GdmLiveAudio extends LitElement {
   @state() callError: string | null = null;
   @state() remoteVideoStream: MediaStream | null = null;
   @state() joinCodeInput = '';
+  
+  // Profile-based calling state
+  @state() onlineProfiles: string[] = [];
+  @state() selectedProfile: string = '';
+  @state() incomingCall: { callId: string; callerProfile: string } | null = null;
+  @state() currentCallId: string | null = null;
 
   // Socket.IO and WebRTC
   private signalingSocket: Socket | null = null;
@@ -376,6 +382,8 @@ export class GdmLiveAudio extends LitElement {
           this.initVideoSpeechRecognition();
         }, 500);
       }
+      // Connect to signaling server for video calling
+      this.connectToSignalingServer().catch(console.error);
     }
 
     this.saveProfileData();
@@ -2394,6 +2402,162 @@ export class GdmLiveAudio extends LitElement {
       height: 100%;
       object-fit: cover;
       background: #2a2438;
+    }
+
+    /* Incoming Call Notification Styles */
+    .incoming-call-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+      backdrop-filter: blur(4px);
+    }
+
+    .incoming-call-notification {
+      background: linear-gradient(135deg, #3c3152 0%, #2a2438 100%);
+      border: 2px solid #8a5cf5;
+      border-radius: 16px;
+      padding: 24px;
+      text-align: center;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      max-width: 400px;
+      width: 90%;
+      animation: slideInDown 0.3s ease-out;
+    }
+
+    @keyframes slideInDown {
+      from {
+        opacity: 0;
+        transform: translateY(-50px) scale(0.9);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .incoming-call-avatar {
+      font-size: 3rem;
+      margin-bottom: 16px;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(1.1);
+      }
+    }
+
+    .incoming-call-info h3 {
+      color: #ffffff;
+      margin: 0 0 8px 0;
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+
+    .incoming-call-info p {
+      color: #b4b4b4;
+      margin: 0 0 24px 0;
+      font-size: 1.1rem;
+    }
+
+    .incoming-call-buttons {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+    }
+
+    .call-action-btn {
+      border: none;
+      border-radius: 8px;
+      padding: 12px 24px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      min-width: 100px;
+    }
+
+    .call-action-btn.accept-btn {
+      background: linear-gradient(135deg, #4ade80 0%, #16a34a 100%);
+      color: white;
+    }
+
+    .call-action-btn.accept-btn:hover {
+      background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+      transform: translateY(-1px);
+    }
+
+    .call-action-btn.reject-btn {
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      color: white;
+    }
+
+    .call-action-btn.reject-btn:hover {
+      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+      transform: translateY(-1px);
+    }
+
+    .call-action-btn:active {
+      transform: translateY(0);
+    }
+
+    /* Profile calling UI improvements */
+    .profile-calling-group {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .profile-selector {
+      background: #3c3152;
+      border: 1px solid #6b5b95;
+      border-radius: 6px;
+      color: #e0e0e0;
+      padding: 8px 12px;
+      font-size: 0.9rem;
+      min-width: 180px;
+      cursor: pointer;
+    }
+
+    .profile-selector:focus {
+      outline: none;
+      border-color: #8a5cf5;
+    }
+
+    .profile-selector option {
+      background: #3c3152;
+      color: #e0e0e0;
+    }
+
+    .call-profile-btn {
+      background: linear-gradient(135deg, #8a5cf5 0%, #6b46c1 100%);
+    }
+
+    .call-profile-btn:hover:not(:disabled) {
+      background: linear-gradient(135deg, #6b46c1 0%, #553c9a 100%);
+    }
+
+    .call-profile-btn:disabled {
+      background: #4a4a4a;
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+
+    .no-profiles-message {
+      color: #888;
+      font-style: italic;
+      margin-top: 8px;
     }
   `;
 
@@ -4879,107 +5043,23 @@ In ${this.targetLanguage}:
           <!-- Mode Selector -->
           <div class="mode-selector">
             <button
-              class="mode-tab ${this.leftPanelMode === 'ai' ? 'active' : ''}"
-              @click=${() => this.handleModeSwitch('ai')}
-              aria-pressed="${this.leftPanelMode === 'ai'}"
-            >
-              🤖 AI Mode
-            </button>
-            <button
               class="mode-tab ${this.leftPanelMode === 'video' ? 'active' : ''}"
               @click=${() => this.handleModeSwitch('video')}
               aria-pressed="${this.leftPanelMode === 'video'}"
             >
-              📹 Video Mode
+              Video Mode
+            </button>
+            <button
+              class="mode-tab ${this.leftPanelMode === 'ai' ? 'active' : ''}"
+              @click=${() => this.handleModeSwitch('ai')}
+              aria-pressed="${this.leftPanelMode === 'ai'}"
+            >
+              AI Mode
             </button>
           </div>
 
-          ${this.leftPanelMode === 'ai'
+          ${this.leftPanelMode === 'video'
             ? html`
-                <!-- AI Mode Interface -->
-                <div class="controls">
-                  <button
-                    id="recordButton"
-                    @click=${this.isRecording ? this.stopRecording : this.startRecording}
-                    ?disabled=${!this.openAIVoiceSession ||
-                    this.isInitializingSession ||
-                    this.isModelSpeaking}
-                    class="${this.isRecording ? 'recording' : 'not-recording'}"
-                    aria-label="${this.isRecording ? 'Stop Recording' : 'Start Recording'}"
-                  >
-                    ${this.isRecording
-                      ? html`
-                          <svg
-                            viewBox="0 0 100 100"
-                            width="40px"
-                            height="40px"
-                            fill="#ffffff"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <rect x="15" y="15" width="70" height="70" rx="10" />
-                          </svg>
-                        `
-                      : html`
-                          <svg
-                            viewBox="0 0 100 100"
-                            width="40px"
-                            height="40px"
-                            fill="#c80000"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <circle cx="50" cy="50" r="45" />
-                          </svg>
-                        `}
-                  </button>
-
-                  <!-- Audio Controls -->
-                  <div class="audio-controls">
-                    <button
-                      class="microphone-selector-button ${this.hasMicrophone
-                        ? ''
-                        : 'no-microphone'}"
-                      @click=${this.handleMicrophoneButtonClick}
-                      title="${this.hasMicrophone
-                        ? 'Select microphone device'
-                        : 'No microphone detected'}"
-                      aria-label="Microphone device selector"
-                    >
-                      <span class="mic-icon">🎤</span>
-                      <span class="mic-label"
-                        >${this.hasMicrophone
-                          ? (() => {
-                              const device = this.availableAudioDevices.find(
-                                (d) => d.deviceId === this.selectedAudioDeviceId
-                              );
-                              const label = device?.label?.replace(/^Default - /, '') || 'Default';
-                              return label.length > 20 ? label.substring(0, 20) + '...' : label;
-                            })()
-                          : 'No Mic'}</span
-                      >
-                      <span class="dropdown-arrow">▼</span>
-                    </button>
-
-                    <select
-                      class="voice-selector"
-                      .value=${this.selectedVoice}
-                      @change=${(e: Event) =>
-                        this.selectVoice((e.target as HTMLSelectElement).value)}
-                      title="Select AI voice"
-                      aria-label="AI voice selector"
-                    >
-                      ${this.availableVoices.map(
-                        (voice) => html` <option value=${voice}>${voice}</option> `
-                      )}
-                    </select>
-                  </div>
-                </div>
-                <div id="status" role="status" aria-live="polite">${this.error || this.status}</div>
-                <gdm-live-audio-visuals-3d
-                  .inputNode=${this.inputNode}
-                  .outputNode=${this.outputNode}
-                ></gdm-live-audio-visuals-3d>
-              `
-            : html`
                 <!-- Video Mode Interface -->
                 <div class="video-interface">
                   <!-- Layout Selector -->
@@ -5038,7 +5118,7 @@ In ${this.targetLanguage}:
                         : () => this.startWebcam()}
                       ?disabled=${this.isVideoLoading}
                     >
-                      ${this.videoStream ? '📹 Stop Camera' : '📷 Start Camera'}
+                      ${this.videoStream ? 'Stop Camera' : 'Start Camera'}
                     </button>
                     <button
                       class="video-control-btn ${!this.isVideoMicMuted ? 'active' : ''}"
@@ -5048,90 +5128,174 @@ In ${this.targetLanguage}:
                         : 'Mute microphone (disable subtitles)'}"
                     >
                       ${this.isVideoMicMuted
-                        ? '🔇 Mic Off'
+                        ? 'Mic Off'
                         : this.videoConnectionStatus === 'connecting'
-                          ? '⏳ Connecting...'
+                          ? 'Connecting...'
                           : this.videoConnectionStatus === 'connected'
-                            ? '🎤 Mic On'
+                            ? 'Mic On'
                             : this.videoConnectionStatus === 'error'
-                              ? '❌ Mic Error'
-                              : '🎤 Mic On'}
+                              ? 'Mic Error'
+                              : 'Mic On'}
                     </button>
 
                     <!-- Video Calling Controls -->
                     <div class="video-calling-section">
                       ${this.callStatus === 'idle'
                         ? html`
-                            <button
-                              class="video-control-btn host-call-btn"
-                              @click=${this.handleHostCall}
-                              ?disabled=${this.isHostingCall}
-                            >
-                              📞 Host Call
-                            </button>
-
-                            <div class="join-call-group">
-                              <input
-                                type="text"
-                                class="join-code-input"
-                                placeholder="Enter 5-digit code"
-                                maxlength="5"
-                                .value=${this.joinCodeInput}
-                                @input=${(e: Event) =>
-                                  (this.joinCodeInput = (e.target as HTMLInputElement).value)}
-                                ?disabled=${this.isJoiningCall}
-                              />
-                              <button
-                                class="video-control-btn join-call-btn"
-                                @click=${this.handleJoinCall}
-                                ?disabled=${this.isJoiningCall || this.joinCodeInput.length !== 5}
+                            <div class="profile-calling-group">
+                              <select
+                                class="profile-selector"
+                                .value=${this.selectedProfile}
+                                @change=${(e: Event) => {
+                                  this.selectedProfile = (e.target as HTMLSelectElement).value;
+                                  this.requestUpdate();
+                                }}
+                                @focus=${() => this.requestOnlineProfiles()}
                               >
-                                ${this.isJoiningCall ? '⏳ Joining...' : '🤝 Join Call'}
+                                <option value="" disabled>Select a profile to call</option>
+                                ${this.onlineProfiles.map(
+                                  (profile) => html`
+                                    <option value=${profile}>${profile}</option>
+                                  `
+                                )}
+                              </select>
+                              <button
+                                class="video-control-btn call-profile-btn"
+                                @click=${() => this.callProfile(this.selectedProfile)}
+                                ?disabled=${!this.selectedProfile || this.onlineProfiles.length === 0}
+                              >
+                                Call
                               </button>
                             </div>
+                            
+                            ${this.onlineProfiles.length === 0
+                              ? html`<div class="no-profiles-message">No other profiles online</div>`
+                              : ''}
                           `
                         : html`
                             <div class="call-status-display">
-                              ${this.callStatus === 'hosting'
+                              ${this.callStatus === 'joining'
                                 ? html`
                                     <div class="call-info">
-                                      <span class="call-code">Code: ${this.callCode}</span>
-                                      <span class="call-status"
-                                        >Waiting for someone to join...</span
-                                      >
+                                      <span class="call-status">Calling ${this.selectedProfile}...</span>
                                     </div>
                                   `
-                                : this.callStatus === 'joining'
+                                : this.callStatus === 'connected'
                                   ? html`
                                       <div class="call-info">
-                                        <span class="call-status">Connecting to call...</span>
+                                        <span class="call-status">Connected with ${this.selectedProfile}</span>
                                       </div>
                                     `
-                                  : this.callStatus === 'connected'
+                                  : this.callStatus === 'hosting'
                                     ? html`
                                         <div class="call-info">
-                                          <span class="call-status">🟢 Connected!</span>
+                                          <span class="call-code">Code: ${this.callCode}</span>
+                                          <span class="call-status">Waiting for someone to join...</span>
                                         </div>
                                       `
                                     : this.callStatus === 'error'
                                       ? html`
                                           <div class="call-info error">
-                                            <span class="call-status">❌ ${this.callError}</span>
+                                            <span class="call-status">Error: ${this.callError}</span>
                                           </div>
                                         `
                                       : ''}
 
                               <button
                                 class="video-control-btn end-call-btn"
-                                @click=${this.handleEndCall}
+                                @click=${() => this.endCurrentCall()}
                               >
-                                📞 End Call
+                                End Call
                               </button>
                             </div>
                           `}
                     </div>
                   </div>
                 </div>
+              `
+            : html`
+                <!-- AI Mode Interface -->
+                <div class="controls">
+                  <button
+                    id="recordButton"
+                    @click=${this.isRecording ? this.stopRecording : this.startRecording}
+                    ?disabled=${!this.openAIVoiceSession ||
+                    this.isInitializingSession ||
+                    this.isModelSpeaking}
+                    class="${this.isRecording ? 'recording' : 'not-recording'}"
+                    aria-label="${this.isRecording ? 'Stop Recording' : 'Start Recording'}"
+                  >
+                    ${this.isRecording
+                      ? html`
+                          <svg
+                            viewBox="0 0 100 100"
+                            width="40px"
+                            height="40px"
+                            fill="#ffffff"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <rect x="15" y="15" width="70" height="70" rx="10" />
+                          </svg>
+                        `
+                      : html`
+                          <svg
+                            viewBox="0 0 100 100"
+                            width="40px"
+                            height="40px"
+                            fill="#c80000"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <circle cx="50" cy="50" r="45" />
+                          </svg>
+                        `}
+                  </button>
+
+                  <!-- Audio Controls -->
+                  <div class="audio-controls">
+                    <button
+                      class="microphone-selector-button ${this.hasMicrophone
+                        ? ''
+                        : 'no-microphone'}"
+                      @click=${this.handleMicrophoneButtonClick}
+                      title="${this.hasMicrophone
+                        ? 'Select microphone device'
+                        : 'No microphone detected'}"
+                      aria-label="Microphone device selector"
+                    >
+                      <span class="mic-icon">Mic</span>
+                      <span class="mic-label"
+                        >${this.hasMicrophone
+                          ? (() => {
+                              const device = this.availableAudioDevices.find(
+                                (d) => d.deviceId === this.selectedAudioDeviceId
+                              );
+                              const label = device?.label?.replace(/^Default - /, '') || 'Default';
+                              return label.length > 20 ? label.substring(0, 20) + '...' : label;
+                            })()
+                          : 'No Mic'}</span
+                      >
+                      <span class="dropdown-arrow">▼</span>
+                    </button>
+
+                    <select
+                      class="voice-selector"
+                      .value=${this.selectedVoice}
+                      @change=${(e: Event) =>
+                        this.selectVoice((e.target as HTMLSelectElement).value)}
+                      title="Select AI voice"
+                      aria-label="AI voice selector"
+                    >
+                      ${this.availableVoices.map(
+                        (voice) => html` <option value=${voice}>${voice}</option> `
+                      )}
+                    </select>
+                  </div>
+                </div>
+                <div id="status" role="status" aria-live="polite">${this.error || this.status}</div>
+                <gdm-live-audio-visuals-3d
+                  .inputNode=${this.inputNode}
+                  .outputNode=${this.outputNode}
+                ></gdm-live-audio-visuals-3d>
               `}
         </div>
         <div class="panel-divider" @mousedown=${this.handlePanelDragStart}></div>
@@ -5547,12 +5711,47 @@ In ${this.targetLanguage}:
     `;
   }
 
+  private renderIncomingCallNotification() {
+    if (!this.incomingCall) return '';
+
+    return html`
+      <div class="incoming-call-overlay">
+        <div class="incoming-call-notification">
+          <div class="incoming-call-avatar">
+            📞
+          </div>
+          <div class="incoming-call-info">
+            <h3>Incoming Call</h3>
+            <p>${this.incomingCall.callerProfile} is calling you</p>
+          </div>
+          <div class="incoming-call-buttons">
+            <button
+              class="call-action-btn accept-btn"
+              @click=${this.acceptIncomingCall}
+            >
+              Accept
+            </button>
+            <button
+              class="call-action-btn reject-btn"
+              @click=${this.rejectIncomingCall}
+            >
+              Reject
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   render() {
-    if (this.appState === 'languageSelection') {
-      return this.renderLanguageSelectionScreen();
-    } else {
-      return this.renderMainApplication();
-    }
+    const mainContent = this.appState === 'languageSelection' 
+      ? this.renderLanguageSelectionScreen() 
+      : this.renderMainApplication();
+
+    return html`
+      ${mainContent}
+      ${this.incomingCall ? this.renderIncomingCallNotification() : ''}
+    `;
   }
 
   private handleKeyDown(event: KeyboardEvent) {
@@ -6448,6 +6647,80 @@ In ${this.targetLanguage}:
   }
 
   // Video calling handler methods
+  // Profile-based calling methods
+  private async requestOnlineProfiles() {
+    if (this.signalingSocket) {
+      this.signalingSocket.emit('get-online-profiles');
+    }
+  }
+
+  private async callProfile(targetProfile: string) {
+    if (!this.signalingSocket || !targetProfile) {
+      console.error('Cannot call profile: no signaling connection or target profile');
+      return;
+    }
+    
+    console.log(`📞 Calling profile: ${targetProfile}`);
+    this.selectedProfile = targetProfile;
+    this.callStatus = 'joining';
+    this.callError = null;
+    this.requestUpdate();
+    
+    this.signalingSocket.emit('call-profile', { targetProfile });
+  }
+
+  private acceptIncomingCall() {
+    if (!this.signalingSocket || !this.incomingCall) {
+      console.error('Cannot accept call: no signaling connection or incoming call');
+      return;
+    }
+    
+    console.log(`✅ Accepting call from: ${this.incomingCall.callerProfile}`);
+    this.signalingSocket.emit('accept-call', { callId: this.incomingCall.callId });
+  }
+
+  private rejectIncomingCall() {
+    if (!this.signalingSocket || !this.incomingCall) {
+      console.error('Cannot reject call: no signaling connection or incoming call');
+      return;
+    }
+    
+    console.log(`❌ Rejecting call from: ${this.incomingCall.callerProfile}`);
+    this.signalingSocket.emit('reject-call', { callId: this.incomingCall.callId });
+    this.incomingCall = null;
+    this.requestUpdate();
+  }
+
+  private handleCallEnded() {
+    console.log('📞 Handling call end cleanup');
+    this.currentCallId = null;
+    this.callStatus = 'idle';
+    this.incomingCall = null;
+    this.selectedProfile = '';
+    this.remoteVideoStream = null;
+    this.remoteSocketId = null;
+    
+    // Clean up WebRTC connection
+    if (this.peerConnection) {
+      this.peerConnection.close();
+      this.peerConnection = null;
+    }
+    
+    this.requestUpdate();
+  }
+
+  private endCurrentCall() {
+    if (!this.signalingSocket || !this.currentCallId) {
+      console.error('Cannot end call: no signaling connection or current call');
+      return;
+    }
+    
+    console.log('📞 Ending current call');
+    this.signalingSocket.emit('end-call', { callId: this.currentCallId });
+    this.handleCallEnded();
+  }
+
+  // Legacy methods (keep for backward compatibility)
   private async handleHostCall() {
     if (this.callStatus !== 'idle') return;
 
@@ -6604,6 +6877,68 @@ In ${this.targetLanguage}:
     if (!this.signalingSocket) return;
 
     // Call successfully hosted
+    // Profile-based calling handlers
+    this.signalingSocket.on('online-profiles-updated', (data: any) => {
+      console.log('📱 Online profiles updated:', data.profiles);
+      this.onlineProfiles = data.profiles.filter((p: string) => p !== this.currentProfile);
+      this.requestUpdate();
+    });
+
+    this.signalingSocket.on('online-profiles', (data: any) => {
+      console.log('📱 Got online profiles:', data.profiles);
+      this.onlineProfiles = data.profiles;
+      this.requestUpdate();
+    });
+
+    this.signalingSocket.on('incoming-call', (data: any) => {
+      console.log('📞 Incoming call from:', data.callerProfile);
+      this.incomingCall = {
+        callId: data.callId,
+        callerProfile: data.callerProfile
+      };
+      this.requestUpdate();
+    });
+
+    this.signalingSocket.on('call-initiated', (data: any) => {
+      console.log('📞 Call initiated to:', data.targetProfile);
+      this.currentCallId = data.callId;
+      this.callStatus = 'joining';
+      this.requestUpdate();
+    });
+
+    this.signalingSocket.on('call-accepted', (data: any) => {
+      console.log('✅ Call accepted by:', data.calleeProfile || data.callerProfile);
+      this.currentCallId = data.callId;
+      this.callStatus = 'connected';
+      this.incomingCall = null;
+      
+      // Set up WebRTC connection
+      const isInitiator = !!data.calleeProfile; // If we get calleeProfile, we're the caller
+      this.setupWebRTCConnection(isInitiator);
+      this.requestUpdate();
+    });
+
+    this.signalingSocket.on('call-rejected', (data: any) => {
+      console.log('❌ Call rejected by:', data.calleeProfile);
+      this.currentCallId = null;
+      this.callStatus = 'idle';
+      this.callError = `Call rejected by ${data.calleeProfile}`;
+      this.requestUpdate();
+    });
+
+    this.signalingSocket.on('call-ended', (data: any) => {
+      console.log('📞 Call ended:', data.reason || 'Unknown reason');
+      this.handleCallEnded();
+    });
+
+    this.signalingSocket.on('call-error', (data: any) => {
+      console.log('❌ Call error:', data.message);
+      this.callStatus = 'error';
+      this.callError = data.message;
+      this.requestUpdate();
+    });
+
+    // Legacy handlers (for backward compatibility)
     this.signalingSocket.on('call-hosted', (data: any) => {
       console.log(`🏠 Call hosted with code: ${data.code}`);
       this.callCode = data.code;

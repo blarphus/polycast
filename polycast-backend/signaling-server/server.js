@@ -18,15 +18,24 @@ const io = socketIo(server, {
 app.use(cors());
 app.use(express.json());
 
-// In-memory storage for active calls
-const activeCalls = new Map(); // code -> { hostSocketId, hostProfile, joiners: [] }
+// In-memory storage for active calls and online profiles
+const activeCalls = new Map(); // callId -> { callerSocketId, calleeSocketId, callerProfile, calleeProfile }
 const socketProfiles = new Map(); // socketId -> profile info
+const onlineProfiles = new Map(); // profile -> socketId
+const profileSockets = new Map(); // profile -> socketId (for quick lookup)
 
 const PORT = process.env.PORT || 3002;
 
-// Utility function to generate 5-digit call codes
-function generateCallCode() {
-  return Math.floor(10000 + Math.random() * 90000).toString();
+// Utility function to generate unique call IDs
+function generateCallId() {
+  return `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+// Broadcast online profiles to all connected clients
+function broadcastOnlineProfiles() {
+  const profiles = Array.from(onlineProfiles.keys());
+  console.log(`📢 Broadcasting online profiles: ${profiles.join(', ')}`);
+  io.emit('online-profiles-updated', { profiles });
 }
 
 // Socket.IO connection handling
@@ -36,16 +45,154 @@ io.on('connection', (socket) => {
   // Handle client profile registration
   socket.on('register-profile', (data) => {
     console.log(`👤 Profile registered: ${data.profile} (${socket.id})`);
+    
+    // Remove any existing registration for this profile
+    const existingSocketId = profileSockets.get(data.profile);
+    if (existingSocketId && existingSocketId !== socket.id) {
+      console.log(`👤 Profile ${data.profile} already registered on ${existingSocketId}, removing old registration`);
+      socketProfiles.delete(existingSocketId);
+      onlineProfiles.delete(data.profile);
+    }
+    
+    // Register the profile
     socketProfiles.set(socket.id, {
       profile: data.profile,
       nativeLanguage: data.nativeLanguage,
       targetLanguage: data.targetLanguage
     });
+    
+    // Track profile as online
+    onlineProfiles.set(data.profile, socket.id);
+    profileSockets.set(data.profile, socket.id);
+    
+    console.log(`✅ Profile ${data.profile} is now online. Total online: ${onlineProfiles.size}`);
+    
+    // Broadcast updated online profiles to all clients
+    broadcastOnlineProfiles();
   });
 
-  // Handle hosting a new call
+  // Handle getting online profiles (for dropdown)
+  socket.on('get-online-profiles', () => {
+    const profiles = Array.from(onlineProfiles.keys());
+    const currentProfile = socketProfiles.get(socket.id)?.profile;
+    // Exclude the requester's own profile
+    const otherProfiles = profiles.filter(p => p !== currentProfile);
+    socket.emit('online-profiles', { profiles: otherProfiles });
+  });
+
+  // Handle calling another profile
+  socket.on('call-profile', (data) => {
+    const { targetProfile } = data;
+    const callerProfile = socketProfiles.get(socket.id)?.profile;
+    
+    if (!callerProfile) {
+      socket.emit('call-error', { message: 'Profile not registered' });
+      return;
+    }
+    
+    const targetSocketId = profileSockets.get(targetProfile);
+    if (!targetSocketId) {
+      socket.emit('call-error', { message: 'Target profile not online' });
+      return;
+    }
+    
+    const callId = generateCallId();
+    console.log(`📞 ${callerProfile} calling ${targetProfile} (call: ${callId})`);
+    
+    // Store the pending call
+    activeCalls.set(callId, {
+      callerSocketId: socket.id,
+      calleeSocketId: targetSocketId,
+      callerProfile: callerProfile,
+      calleeProfile: targetProfile,
+      status: 'ringing'
+    });
+    
+    // Send incoming call notification to target
+    io.to(targetSocketId).emit('incoming-call', {
+      callId: callId,
+      callerProfile: callerProfile
+    });
+    
+    // Confirm call initiated to caller
+    socket.emit('call-initiated', {
+      callId: callId,
+      targetProfile: targetProfile
+    });
+  });
+
+  // Handle accepting a call
+  socket.on('accept-call', (data) => {
+    const { callId } = data;
+    const call = activeCalls.get(callId);
+    
+    if (!call || call.calleeSocketId !== socket.id) {
+      socket.emit('call-error', { message: 'Invalid call' });
+      return;
+    }
+    
+    console.log(`✅ ${call.calleeProfile} accepted call from ${call.callerProfile}`);
+    
+    // Update call status
+    call.status = 'accepted';
+    
+    // Notify both parties that call was accepted
+    io.to(call.callerSocketId).emit('call-accepted', {
+      callId: callId,
+      calleeProfile: call.calleeProfile
+    });
+    
+    io.to(call.calleeSocketId).emit('call-accepted', {
+      callId: callId,
+      callerProfile: call.callerProfile
+    });
+  });
+
+  // Handle rejecting a call
+  socket.on('reject-call', (data) => {
+    const { callId } = data;
+    const call = activeCalls.get(callId);
+    
+    if (!call || call.calleeSocketId !== socket.id) {
+      socket.emit('call-error', { message: 'Invalid call' });
+      return;
+    }
+    
+    console.log(`❌ ${call.calleeProfile} rejected call from ${call.callerProfile}`);
+    
+    // Notify caller that call was rejected
+    io.to(call.callerSocketId).emit('call-rejected', {
+      callId: callId,
+      calleeProfile: call.calleeProfile
+    });
+    
+    // Remove the call
+    activeCalls.delete(callId);
+  });
+
+  // Handle ending a call
+  socket.on('end-call', (data) => {
+    const { callId } = data;
+    const call = activeCalls.get(callId);
+    
+    if (!call) {
+      return; // Call already ended
+    }
+    
+    console.log(`📞 Call ended: ${call.callerProfile} <-> ${call.calleeProfile}`);
+    
+    // Notify both parties
+    io.to(call.callerSocketId).emit('call-ended', { callId: callId });
+    io.to(call.calleeSocketId).emit('call-ended', { callId: callId });
+    
+    // Remove the call
+    activeCalls.delete(callId);
+  });
+
+  // Legacy host-call handler (to be removed)
   socket.on('host-call', (data) => {
-    const code = generateCallCode();
+    // For backward compatibility, still generate a code
+    const code = Math.floor(10000 + Math.random() * 90000).toString();
     const profileInfo = socketProfiles.get(socket.id);
     
     activeCalls.set(code, {
@@ -169,7 +316,29 @@ io.on('connection', (socket) => {
     const profileInfo = socketProfiles.get(socket.id);
     console.log(`❌ Disconnected: ${profileInfo?.profile || socket.id} (${socket.id})`);
     
-    // Clean up calls and notify participants
+    // Remove from online profiles
+    if (profileInfo?.profile) {
+      onlineProfiles.delete(profileInfo.profile);
+      profileSockets.delete(profileInfo.profile);
+      console.log(`📱 Profile ${profileInfo.profile} is now offline. Total online: ${onlineProfiles.size}`);
+      broadcastOnlineProfiles();
+    }
+    
+    // Clean up profile info
+    socketProfiles.delete(socket.id);
+    
+    // Clean up active calls
+    for (const [callId, call] of activeCalls.entries()) {
+      if (call.callerSocketId === socket.id || call.calleeSocketId === socket.id) {
+        // Notify the other party
+        const otherSocketId = call.callerSocketId === socket.id ? call.calleeSocketId : call.callerSocketId;
+        io.to(otherSocketId).emit('call-ended', { callId: callId, reason: 'Other party disconnected' });
+        activeCalls.delete(callId);
+        console.log(`📞 Call ${callId} ended due to disconnection`);
+      }
+    }
+    
+    // Clean up legacy calls and notify participants
     for (const [code, callInfo] of activeCalls.entries()) {
       if (callInfo.hostSocketId === socket.id) {
         // Host disconnected - end the call
