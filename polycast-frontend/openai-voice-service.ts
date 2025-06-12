@@ -709,6 +709,35 @@ export class OpenAIVoiceSession {
     }
   }
 
+  sendTextMessage(text: string): void {
+    if (!this.isConnected) {
+      console.warn('Cannot send text message, not connected');
+      return;
+    }
+
+    console.log('💬 Sending text message:', text);
+
+    // Add the user message to the conversation
+    this.sendMessage({
+      type: 'conversation.item.create',
+      item: {
+        type: 'message',
+        role: 'user',
+        content: [
+          {
+            type: 'input_text',
+            text: text,
+          },
+        ],
+      },
+    });
+
+    // Trigger AI response
+    this.sendMessage({
+      type: 'response.create',
+    });
+  }
+
   disconnect(): void {
     if (this.ws) {
       this.ws.close();

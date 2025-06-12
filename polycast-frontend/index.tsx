@@ -3244,6 +3244,25 @@ In ${this.targetLanguage}:
     }
   }
 
+  private handleTextMessage(text: string) {
+    if (!this.openAIVoiceSession || !this.openAIVoiceSession.connected) {
+      console.error('Cannot send text message: AI session not connected');
+      return;
+    }
+
+    // Add user message to transcript
+    const userMessage: TranscriptMessage = {
+      speaker: 'user',
+      text: text,
+    };
+    this.transcriptHistory = [...this.transcriptHistory, userMessage];
+    this.aiTranscriptHistory = [...this.aiTranscriptHistory, userMessage];
+
+    // Send text message to AI
+    this.openAIVoiceSession.sendTextMessage(text);
+    this.status = 'AI is thinking...';
+  }
+
   private async reset() {
     this.stopRecording();
     if (this.openAIVoiceSession) {
@@ -5132,9 +5151,12 @@ In ${this.targetLanguage}:
                   .transcriptHistory=${this.transcriptHistory}
                   .transcriptFontSize=${this.transcriptFontSize}
                   .knownWordForms=${this.knownWordForms}
+                  .showTextInput=${this.leftPanelMode === 'ai'}
                   @word-click=${(
                     e: CustomEvent<{ word: string; sentence: string; event: MouseEvent }>
                   ) => this.handleWordClick(e.detail.event, e.detail.word, e.detail.sentence)}
+                  @text-message=${(e: CustomEvent<{ text: string }>) =>
+                    this.handleTextMessage(e.detail.text)}
                 ></transcript-viewer>
               `
             : ''}
