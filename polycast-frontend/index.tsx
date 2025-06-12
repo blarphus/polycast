@@ -281,9 +281,10 @@ export class GdmLiveAudio extends LitElement {
         videoElement.onloadedmetadata = () => {
           videoElement.play().catch(console.error);
         };
-        console.log('✅ Video element set up successfully');
+        console.log('✅ Video element set up successfully in startWebcam');
       } else {
-        console.warn('⚠️ Video element not found in DOM');
+        console.warn('⚠️ Video element not found in DOM during startWebcam - updated() will handle it');
+        // Don't worry if element isn't found - the updated() method will handle it
       }
     } catch (error: any) {
       console.error('❌ Error accessing webcam:', error);
@@ -2599,6 +2600,7 @@ export class GdmLiveAudio extends LitElement {
   constructor() {
     super();
     this.currentProfile = localStorage.getItem('lastActiveProfile') || this.profiles[0];
+    console.log(`👤 Constructor loaded profile: ${this.currentProfile}`);
 
     let initialWidth = parseInt(localStorage.getItem('rightPanelWidth') || '600', 10);
     initialWidth = Math.max(this.minRightPanelWidth, initialWidth);
@@ -2690,8 +2692,10 @@ export class GdmLiveAudio extends LitElement {
 
   private handleProfileChange(e: Event) {
     this.currentProfile = (e.target as HTMLSelectElement).value;
+    console.log(`👤 Profile changed to: ${this.currentProfile}`);
     localStorage.setItem('lastActiveProfile', this.currentProfile);
     this.loadProfileData();
+    this.requestUpdate();
   }
 
   private handleInitialNativeLanguageChange(e: Event) {
@@ -3646,12 +3650,15 @@ In ${this.targetLanguage}:
           videoElement = this.shadowRoot?.querySelector('#webcam-video-pip') as HTMLVideoElement;
         }
 
-        if (videoElement && this.videoStream && !videoElement.srcObject) {
-          videoElement.srcObject = this.videoStream;
-          videoElement.onloadedmetadata = () => {
-            videoElement.play().catch(console.error);
-          };
-          console.log('✅ Video element updated for layout change');
+        if (videoElement && this.videoStream) {
+          // Always set up the video element if it doesn't have the right source
+          if (videoElement.srcObject !== this.videoStream) {
+            videoElement.srcObject = this.videoStream;
+            videoElement.onloadedmetadata = () => {
+              videoElement.play().catch(console.error);
+            };
+            console.log('✅ Video element updated with stream');
+          }
         }
       }, 100);
     }
@@ -7034,12 +7041,14 @@ In ${this.targetLanguage}:
     // Profile-based calling handlers
     this.signalingSocket.on('online-profiles-updated', (data: any) => {
       console.log('📱 Online profiles updated:', data.profiles);
+      // This event sends ALL online profiles, we need to filter out ourselves
       this.onlineProfiles = data.profiles.filter((p: string) => p !== this.currentProfile);
       this.requestUpdate();
     });
 
     this.signalingSocket.on('online-profiles', (data: any) => {
       console.log('📱 Got online profiles:', data.profiles);
+      // This event already excludes our own profile
       this.onlineProfiles = data.profiles;
       this.requestUpdate();
     });
