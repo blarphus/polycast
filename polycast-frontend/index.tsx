@@ -5516,8 +5516,12 @@ In ${this.targetLanguage}:
   }
 
   private handleKeyDown(event: KeyboardEvent) {
+    // Check if user is typing in a text input - if so, don't trigger recording
+    const target = event.target as HTMLElement;
+    const isTypingInInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+    
     // Spacebar push-to-talk like Python implementation
-    if (event.code === 'Space' && !this.isSpacebarPressed) {
+    if (event.code === 'Space' && !this.isSpacebarPressed && !isTypingInInput) {
       // Prevent default spacebar behavior (scrolling)
       event.preventDefault();
       this.isSpacebarPressed = true;
@@ -5547,8 +5551,12 @@ In ${this.targetLanguage}:
   }
 
   private handleKeyUp(event: KeyboardEvent) {
+    // Check if user is typing in a text input - if so, don't trigger recording
+    const target = event.target as HTMLElement;
+    const isTypingInInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+    
     // Spacebar release - stop recording and trigger response
-    if (event.code === 'Space' && this.isSpacebarPressed) {
+    if (event.code === 'Space' && this.isSpacebarPressed && !isTypingInInput) {
       event.preventDefault();
       this.isSpacebarPressed = false;
 
