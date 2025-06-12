@@ -200,6 +200,7 @@ export class GdmLiveAudio extends LitElement {
   
   // Profile-based calling state
   @state() onlineProfiles: string[] = [];
+  @state() occupiedProfiles: string[] = [];
   @state() selectedProfile: string = '';
   @state() incomingCall: { callId: string; callerProfile: string } | null = null;
   @state() currentCallId: string | null = null;
@@ -2540,6 +2541,21 @@ export class GdmLiveAudio extends LitElement {
       color: #e0e0e0;
     }
 
+    .profile-selector option.online-profile {
+      color: #4ade80;
+      font-weight: 500;
+    }
+
+    .profile-selector option.offline-profile {
+      color: #9ca3af;
+      font-style: italic;
+    }
+
+    .profile-selector option:disabled {
+      color: #6b7280;
+      background: #2d2d2d;
+    }
+
     .call-profile-btn {
       background: linear-gradient(135deg, #8a5cf5 0%, #6b46c1 100%);
     }
@@ -2558,6 +2574,25 @@ export class GdmLiveAudio extends LitElement {
       color: #888;
       font-style: italic;
       margin-top: 8px;
+    }
+
+    /* Profile selection screen styles */
+    .occupied-profiles-info {
+      color: #f59e0b;
+      font-size: 0.9rem;
+      margin-top: 4px;
+      font-style: italic;
+    }
+
+    .no-profiles-available {
+      color: #ef4444;
+      font-size: 0.9rem;
+      margin-top: 4px;
+      font-weight: 500;
+      padding: 8px;
+      background: rgba(239, 68, 68, 0.1);
+      border-radius: 4px;
+      border-left: 3px solid #ef4444;
     }
   `;
 
@@ -3566,6 +3601,20 @@ In ${this.targetLanguage}:
           this.rightPanelWidth = validatedWidth;
           localStorage.setItem('rightPanelWidth', this.rightPanelWidth.toString());
         }
+      }
+    }
+
+    // Always connect to signaling server early to get occupied profiles
+    this.connectToSignalingServerForProfileCheck().catch(console.error);
+
+    // Auto-start camera since we default to video mode
+    if (this.leftPanelMode === 'video') {
+      this.startWebcam();
+      // Start speech recognition automatically if mic is unmuted
+      if (!this.isVideoMicMuted) {
+        setTimeout(() => {
+          this.initVideoSpeechRecognition();
+        }, 1000);
       }
     }
   }
@@ -4918,9 +4967,20 @@ In ${this.targetLanguage}:
             id="profile-select"
             .value=${this.currentProfile}
             @change=${this.handleProfileChange}
+            ?disabled=${this.profiles.filter(profile => !this.occupiedProfiles.includes(profile)).length === 0}
           >
-            ${this.profiles.map((profile) => html`<option value=${profile}>${profile}</option>`)}
+            ${this.profiles
+              .filter(profile => !this.occupiedProfiles.includes(profile))
+              .map((profile) => html`<option value=${profile}>${profile}</option>`)}
           </select>
+          ${this.occupiedProfiles.length > 0 
+            ? html`<div class="occupied-profiles-info">
+                ${this.occupiedProfiles.length} profile${this.occupiedProfiles.length > 1 ? 's' : ''} currently in use
+              </div>`
+            : ''}
+          ${this.profiles.filter(profile => !this.occupiedProfiles.includes(profile)).length === 0
+            ? html`<div class="no-profiles-available">All profiles are currently in use. Please try again later.</div>`
+            : ''}
         </div>
         <div class="language-selection-group">
           <label for="initial-native-lang-select">Your Native Language:</label>
@@ -5153,23 +5213,32 @@ In ${this.targetLanguage}:
                                 @focus=${() => this.requestOnlineProfiles()}
                               >
                                 <option value="" disabled>Select a profile to call</option>
-                                ${this.onlineProfiles.map(
-                                  (profile) => html`
-                                    <option value=${profile}>${profile}</option>
-                                  `
-                                )}
+                                ${this.profiles
+                                  .filter(profile => profile !== this.currentProfile)
+                                  .map((profile) => {
+                                    const isOnline = this.onlineProfiles.includes(profile);
+                                    return html`
+                                      <option 
+                                        value=${profile}
+                                        ?disabled=${!isOnline}
+                                        class="${isOnline ? 'online-profile' : 'offline-profile'}"
+                                      >
+                                        ${profile} ${isOnline ? '(online)' : '(offline)'}
+                                      </option>
+                                    `;
+                                  })}
                               </select>
                               <button
                                 class="video-control-btn call-profile-btn"
                                 @click=${() => this.callProfile(this.selectedProfile)}
-                                ?disabled=${!this.selectedProfile || this.onlineProfiles.length === 0}
+                                ?disabled=${!this.selectedProfile || !this.onlineProfiles.includes(this.selectedProfile)}
                               >
                                 Call
                               </button>
                             </div>
                             
                             ${this.onlineProfiles.length === 0
-                              ? html`<div class="no-profiles-message">No other profiles online</div>`
+                              ? html`<div class="no-profiles-message">No other users online</div>`
                               : ''}
                           `
                         : html`
@@ -6827,6 +6896,69 @@ In ${this.targetLanguage}:
     }
 
     this.requestUpdate();
+  }
+
+  private async connectToSignalingServerForProfileCheck(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      try {
+        // Connect to the signaling server just to get occupied profiles
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const backendHost = 'polycast-server.onrender.com';
+        const signalingUrl = `${window.location.protocol}//${backendHost}`;
+
+        const tempSocket = io(signalingUrl, {
+          path: '/socket.io',
+          transports: ['polling'],
+          forceNew: true,
+          timeout: 10000,
+        });
+
+        tempSocket.on('connect', () => {
+          console.log('📞 Connected to signaling server for profile check');
+          // Request occupied profiles
+          tempSocket.emit('get-occupied-profiles');
+        });
+
+        tempSocket.on('occupied-profiles', (data: any) => {
+          console.log('📋 Got occupied profiles:', data.profiles);
+          this.occupiedProfiles = data.profiles;
+          
+          // If current profile is occupied, reset to first available profile
+          if (this.occupiedProfiles.includes(this.currentProfile)) {
+            const availableProfiles = this.profiles.filter(profile => !this.occupiedProfiles.includes(profile));
+            if (availableProfiles.length > 0) {
+              this.currentProfile = availableProfiles[0];
+              console.log(`📋 Current profile occupied, switched to: ${this.currentProfile}`);
+            }
+          }
+          
+          this.requestUpdate();
+          // Disconnect temporary socket
+          tempSocket.disconnect();
+          resolve();
+        });
+
+        tempSocket.on('connect_error', (error) => {
+          console.error('❌ Profile check connection error:', error);
+          // Continue anyway, just with empty occupied profiles
+          this.occupiedProfiles = [];
+          tempSocket.disconnect();
+          resolve();
+        });
+
+        // Timeout after 5 seconds
+        setTimeout(() => {
+          if (tempSocket.connected) {
+            tempSocket.disconnect();
+          }
+          resolve();
+        }, 5000);
+
+      } catch (error) {
+        console.error('❌ Error connecting for profile check:', error);
+        resolve(); // Continue anyway
+      }
+    });
   }
 
   private async connectToSignalingServer(): Promise<void> {

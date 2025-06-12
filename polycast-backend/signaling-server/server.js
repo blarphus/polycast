@@ -80,6 +80,13 @@ io.on('connection', (socket) => {
     socket.emit('online-profiles', { profiles: otherProfiles });
   });
 
+  // Handle getting occupied profiles (for initial profile selection)
+  socket.on('get-occupied-profiles', () => {
+    const occupiedProfiles = Array.from(onlineProfiles.keys());
+    console.log(`📋 Sending occupied profiles: ${occupiedProfiles.join(', ')}`);
+    socket.emit('occupied-profiles', { profiles: occupiedProfiles });
+  });
+
   // Handle calling another profile
   socket.on('call-profile', (data) => {
     const { targetProfile } = data;
