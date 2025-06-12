@@ -151,6 +151,20 @@ export class TranscriptViewer extends LitElement {
     }
   }
 
+  private handleKeyDown(e: KeyboardEvent) {
+    // Prevent spacebar from triggering global recording when typing
+    if (e.code === 'Space') {
+      e.stopPropagation();
+    }
+  }
+
+  private handleKeyUp(e: KeyboardEvent) {
+    // Prevent spacebar from triggering global recording when typing
+    if (e.code === 'Space') {
+      e.stopPropagation();
+    }
+  }
+
   render() {
     return html`
       <div class="transcript-messages-container">
@@ -181,6 +195,8 @@ export class TranscriptViewer extends LitElement {
                 .value=${this.textInput}
                 @input=${this.handleTextInput}
                 @keypress=${this.handleKeyPress}
+                @keydown=${this.handleKeyDown}
+                @keyup=${this.handleKeyUp}
               />
               <button
                 class="send-button"
