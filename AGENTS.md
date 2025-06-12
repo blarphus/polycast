@@ -239,6 +239,23 @@ docs: Update API documentation
 3. Test API endpoints return expected responses
 4. Monitor memory usage and performance
 
+## Code Quality Automation (2024-06 Refactor)
+
+During the refactor we introduced mandatory formatting & lint commands.  Before you push code you **must** run:
+
+```bash
+npm run format && npm run lint
+```
+
+GitHub Actions (to be added later) will run `npm run format:check` and `npm run lint` on every PR.
+
+Configuration files:
+
+* `.prettierrc.json` — Prettier rules (single quotes, trailing commas, 100-col width)
+* `.eslintrc.cjs` — ESLint with TypeScript + Lit plugin + Prettier integration
+
+Keep these in mind when instructing an AI agent to create/modify files.
+
 ---
 
 **Remember**: This is a language learning app - prioritize accuracy of linguistic data, smooth audio experience, and fast word lookups. Every change should enhance the learning experience. 
