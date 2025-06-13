@@ -2665,10 +2665,34 @@ export class GdmLiveAudio extends LitElement {
     };
   }
 
+  private ensureVideoModeActive() {
+    // Ensure we're in video mode and all video components are properly initialized
+    if (this.leftPanelMode !== 'video') {
+      // If not in video mode, switch to it (this will handle everything)
+      this.handleModeSwitch('video');
+    } else {
+      // If already in video mode, ensure all video components are active
+      this.startWebcam();
+      
+      // Start speech recognition automatically if mic is unmuted
+      if (!this.isVideoMicMuted) {
+        // Add a small delay to ensure webcam is started first
+        setTimeout(() => {
+          this.initVideoSpeechRecognition();
+        }, 500);
+      }
+      
+      // Connect to signaling server for video calling if not already connected
+      if (!this.signalingSocket?.connected) {
+        this.connectToSignalingServer().catch(console.error);
+      }
+    }
+  }
+
   private getUIRendererCallbacks(): UIRendererCallbacks {
     return {
       // Video control callbacks
-      startWebcam: () => this.startWebcam(),
+      startWebcam: () => this.ensureVideoModeActive(),
       stopWebcam: () => this.stopWebcam(),
       toggleVideoMic: () => this.toggleVideoMic(),
       handleVideoLayoutChange: (layout) => this.handleVideoLayoutChange(layout),
@@ -2792,6 +2816,14 @@ export class GdmLiveAudio extends LitElement {
 
     this.appState = 'conversation';
     await this.requestUpdate();
+
+    // If we're in video mode, ensure it's properly activated
+    if (this.leftPanelMode === 'video') {
+      // Small delay to ensure DOM is ready
+      setTimeout(() => {
+        this.ensureVideoModeActive();
+      }, 100);
+    }
 
     await this.initClient();
 
@@ -3678,24 +3710,8 @@ In ${this.targetLanguage}:
       this.connectToSignalingServerForProfileCheck().catch(console.error);
     }
 
-    // Auto-start camera since we default to video mode
-    if (this.leftPanelMode === 'video') {
-      // Connect to signaling server for video calling if not already connected
-      if (!this.signalingSocket || !this.signalingSocket.connected) {
-        this.connectToSignalingServer().catch(console.error);
-      }
-      
-      // Delay camera startup to ensure DOM is fully rendered
-      setTimeout(() => {
-        this.startWebcam();
-        // Start speech recognition automatically if mic is unmuted
-        if (!this.isVideoMicMuted) {
-          setTimeout(() => {
-            this.initVideoSpeechRecognition();
-          }, 1000);
-        }
-      }, 500);
-    }
+    // Video mode initialization is now handled in handleStartConversation()
+    // when the app state transitions to 'conversation'
   }
 
   protected updated(changedProperties: Map<string | number | symbol, unknown>) {
