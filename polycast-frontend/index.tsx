@@ -273,24 +273,27 @@ export class GdmLiveAudio extends LitElement {
       await this.requestUpdate();
       await this.updateComplete;
 
-      // Set up the video element - handle both regular and PiP modes
-      let videoElement = this.shadowRoot?.querySelector('#webcam-video') as HTMLVideoElement;
+      // Give UIRenderer a moment to render the video elements
+      setTimeout(() => {
+        // Set up the video element - handle both regular and PiP modes
+        let videoElement = this.shadowRoot?.querySelector('#webcam-video') as HTMLVideoElement;
 
-      // If regular video element not found, try PiP video element
-      if (!videoElement) {
-        videoElement = this.shadowRoot?.querySelector('#webcam-video-pip') as HTMLVideoElement;
-      }
+        // If regular video element not found, try PiP video element
+        if (!videoElement) {
+          videoElement = this.shadowRoot?.querySelector('#webcam-video-pip') as HTMLVideoElement;
+        }
 
-      if (videoElement) {
-        videoElement.srcObject = stream;
-        videoElement.onloadedmetadata = () => {
-          videoElement.play().catch(console.error);
-        };
-        console.log('✅ Video element set up successfully in startWebcam');
-      } else {
-        console.warn('⚠️ Video element not found in DOM during startWebcam - updated() will handle it');
-        // Don't worry if element isn't found - the updated() method will handle it
-      }
+        if (videoElement) {
+          videoElement.srcObject = stream;
+          videoElement.onloadedmetadata = () => {
+            videoElement.play().catch(console.error);
+          };
+          console.log('✅ Video element set up successfully in startWebcam');
+        } else {
+          console.warn('⚠️ Video element not found in DOM during startWebcam - updated() will handle it');
+          // Don't worry if element isn't found - the updated() method will handle it
+        }
+      }, 100);
     } catch (error: any) {
       console.error('❌ Error accessing webcam:', error);
       this.isVideoLoading = false;
@@ -3726,8 +3729,26 @@ In ${this.targetLanguage}:
             };
             console.log('✅ Video element updated with stream');
           }
+        } else {
+          console.warn('⚠️ Video element still not found after DOM update, retrying...');
+          // Try one more time with longer delay
+          setTimeout(() => {
+            let retryVideoElement = this.shadowRoot?.querySelector('#webcam-video') as HTMLVideoElement;
+            if (!retryVideoElement) {
+              retryVideoElement = this.shadowRoot?.querySelector('#webcam-video-pip') as HTMLVideoElement;
+            }
+            if (retryVideoElement && this.videoStream) {
+              retryVideoElement.srcObject = this.videoStream;
+              retryVideoElement.onloadedmetadata = () => {
+                retryVideoElement.play().catch(console.error);
+              };
+              console.log('✅ Video element found on retry and updated with stream');
+            } else {
+              console.error('❌ Video element not found even after retry');
+            }
+          }, 300);
         }
-      }, 100);
+      }, 200);
     }
 
     // Set up local video elements for video calling when localStream becomes available or call status changes
@@ -6660,7 +6681,7 @@ In ${this.targetLanguage}:
         });
 
         tempSocket.on('connect_error', (error) => {
-          console.error('❌ Profile check connection error:', error);
+          console.warn('⚠️ Profile check connection failed (continuing offline):', error.message);
           // Continue anyway, just with empty occupied profiles
           this.occupiedProfiles = [];
           tempSocket.disconnect();
