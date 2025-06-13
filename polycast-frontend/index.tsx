@@ -269,12 +269,21 @@ export class GdmLiveAudio extends LitElement {
       this.isVideoLoading = false;
       this.status = 'Camera started successfully';
 
+      // Update UIRenderer state immediately with new video stream
+      if (this.uiRenderer) {
+        this.uiRenderer.updateState(this.getUIRendererState());
+      }
+
       // Trigger a re-render and then set up the video
       await this.requestUpdate();
       await this.updateComplete;
 
       // Give UIRenderer a moment to render the video elements
       setTimeout(() => {
+        console.log('🔍 Looking for video elements in DOM...');
+        console.log('🔍 Current videoStream:', !!this.videoStream);
+        console.log('🔍 Current isVideoLoading:', this.isVideoLoading);
+        
         // Set up the video element - handle both regular and PiP modes
         let videoElement = this.shadowRoot?.querySelector('#webcam-video') as HTMLVideoElement;
 
@@ -291,7 +300,7 @@ export class GdmLiveAudio extends LitElement {
           console.log('✅ Video element set up successfully in startWebcam');
         } else {
           console.warn('⚠️ Video element not found in DOM during startWebcam - updated() will handle it');
-          // Don't worry if element isn't found - the updated() method will handle it
+          console.log('🔍 Available elements in shadow DOM:', Array.from(this.shadowRoot?.querySelectorAll('*') || []).map(el => el.tagName + (el.id ? '#' + el.id : '')));
         }
       }, 100);
     } catch (error: any) {
