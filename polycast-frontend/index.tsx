@@ -280,10 +280,6 @@ export class GdmLiveAudio extends LitElement {
 
       // Give UIRenderer a moment to render the video elements
       setTimeout(() => {
-        console.log('🔍 Looking for video elements in DOM...');
-        console.log('🔍 Current videoStream:', !!this.videoStream);
-        console.log('🔍 Current isVideoLoading:', this.isVideoLoading);
-        
         // Set up the video element - handle both regular and PiP modes
         let videoElement = this.shadowRoot?.querySelector('#webcam-video') as HTMLVideoElement;
 
@@ -300,7 +296,6 @@ export class GdmLiveAudio extends LitElement {
           console.log('✅ Video element set up successfully in startWebcam');
         } else {
           console.warn('⚠️ Video element not found in DOM during startWebcam - updated() will handle it');
-          console.log('🔍 Available elements in shadow DOM:', Array.from(this.shadowRoot?.querySelectorAll('*') || []).map(el => el.tagName + (el.id ? '#' + el.id : '')));
         }
       }, 100);
     } catch (error: any) {
@@ -968,12 +963,20 @@ export class GdmLiveAudio extends LitElement {
       position: relative;
     }
 
-    .webcam-video,
+    .webcam-video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain; /* Preserve aspect ratio with black bars */
+      background: black;
+      transform: scaleX(-1); /* Mirror the webcam for natural self-view */
+    }
+
     .remote-video {
       width: 100%;
       height: 100%;
       object-fit: contain; /* Preserve aspect ratio with black bars */
       background: black;
+      /* Remote video should NOT be mirrored */
     }
 
     .video-loading {
@@ -2164,6 +2167,7 @@ export class GdmLiveAudio extends LitElement {
       height: 100%;
       object-fit: cover;
       background: #2a2438;
+      transform: scaleX(-1); /* Mirror the local video for natural self-view */
     }
 
     .local-video-placeholder {
