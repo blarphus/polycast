@@ -5,6 +5,7 @@ export interface UIRendererState {
   leftPanelMode: 'ai' | 'video';
   videoStream: MediaStream | null;
   isVideoLoading: boolean;
+  isCameraStopped: boolean;  // True when user manually stopped camera
   videoLayout: 'vertical' | 'horizontal' | 'pip';
   pipPosition: { x: number; y: number };
   isDraggingPip: boolean;
@@ -187,11 +188,17 @@ export class UIRenderer {
                   `
                 : ''}
             `
-          : html`
-              <div class="video-loading">
-                <span>Camera not available</span>
-              </div>
-            `}
+          : this.state.isCameraStopped
+            ? html`
+                <div class="video-loading">
+                  <span>Camera off</span>
+                </div>
+              `
+            : html`
+                <div class="video-loading">
+                  <span>Camera not available</span>
+                </div>
+              `}
     `;
 
     // Local video for video calling

@@ -130,6 +130,7 @@ export class GdmLiveAudio extends LitElement {
   @state() leftPanelMode: 'ai' | 'video' = 'video';
   @state() videoStream: MediaStream | null = null;
   @state() isVideoLoading = false;
+  @state() isCameraStopped = false; // True when user manually stopped camera
   @state() videoLayout: 'vertical' | 'horizontal' | 'pip' = 'vertical';
   @state() pipPosition = { x: 20, y: 20 }; // Position for draggable PiP
   @state() isDraggingPip = false;
@@ -248,6 +249,7 @@ export class GdmLiveAudio extends LitElement {
     if (this.videoStream) return;
 
     this.isVideoLoading = true;
+    this.isCameraStopped = false; // Clear stopped state when starting
     this.status = 'Starting camera...';
 
     try {
@@ -301,6 +303,7 @@ export class GdmLiveAudio extends LitElement {
     } catch (error: any) {
       console.error('❌ Error accessing webcam:', error);
       this.isVideoLoading = false;
+      this.isCameraStopped = false; // Camera failed, not manually stopped
 
       let errorMessage = 'Camera error: ';
       if (error.name === 'NotReadableError') {
@@ -355,6 +358,8 @@ export class GdmLiveAudio extends LitElement {
     if (this.videoStream) {
       this.videoStream.getTracks().forEach((track) => track.stop());
       this.videoStream = null;
+      this.isVideoLoading = false;
+      this.isCameraStopped = true; // Mark as manually stopped
       this.status = 'Camera stopped';
       this.requestUpdate();
     }
@@ -2651,6 +2656,7 @@ export class GdmLiveAudio extends LitElement {
       leftPanelMode: this.leftPanelMode,
       videoStream: this.videoStream,
       isVideoLoading: this.isVideoLoading,
+      isCameraStopped: this.isCameraStopped,
       videoLayout: this.videoLayout,
       pipPosition: this.pipPosition,
       isDraggingPip: this.isDraggingPip,
@@ -2685,6 +2691,7 @@ export class GdmLiveAudio extends LitElement {
       this.handleModeSwitch('video');
     } else {
       // If already in video mode, ensure all video components are active
+      this.isCameraStopped = false; // Clear stopped state when explicitly starting
       this.startWebcam();
       
       // Start speech recognition automatically if mic is unmuted
