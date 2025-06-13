@@ -12,6 +12,7 @@ import './transcript-viewer';
 import './dictionary-popup';
 import './flashcard-manager';
 import type { GdmLiveAudioVisuals3D } from './visual-3d';
+import type { UIRendererState, UIRendererCallbacks } from './modules/ui-renderer';
 import {
   fetchWordDetailsFromApi,
   fetchWordFrequencyFromApi,
@@ -30,6 +31,7 @@ import type {
   EvaluationData,
 } from './types';
 import { SUPPORTED_LANGUAGES, PROFILES } from './constants';
+import { UIRenderer } from './modules/ui-renderer';
 
 const SpeechRecognitionAPI =
   (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -237,6 +239,9 @@ export class GdmLiveAudio extends LitElement {
   private boundHandleKeyDown = this.handleKeyDown.bind(this);
   private boundHandleKeyUp = this.handleKeyUp.bind(this);
   private isSpacebarPressed = false;
+  
+  // UI Renderer instance
+  private uiRenderer: UIRenderer;
 
   // Video mode methods
   private async startWebcam() {
@@ -2612,10 +2617,67 @@ export class GdmLiveAudio extends LitElement {
     this.boundHandleKeyUp = this.handleKeyUp.bind(this);
 
     this.initializeAvailableVoices();
+    
+    // Initialize UIRenderer with state and callbacks
+    this.uiRenderer = new UIRenderer(
+      this.getUIRendererState(),
+      this.getUIRendererCallbacks()
+    );
   }
 
   private getProfileKey(key: string): string {
     return `${this.currentProfile}_${key}`;
+  }
+
+  private getUIRendererState(): UIRendererState {
+    return {
+      // Video state
+      leftPanelMode: this.leftPanelMode,
+      videoStream: this.videoStream,
+      isVideoLoading: this.isVideoLoading,
+      videoLayout: this.videoLayout,
+      pipPosition: this.pipPosition,
+      isDraggingPip: this.isDraggingPip,
+      
+      // Video calling state
+      callStatus: this.callStatus,
+      callCode: this.callCode,
+      remoteVideoStream: this.remoteVideoStream,
+      localStream: this.localStream,
+      onlineProfiles: this.onlineProfiles,
+      selectedProfile: this.selectedProfile,
+      currentProfile: this.currentProfile,
+      profiles: this.profiles,
+      incomingCall: this.incomingCall,
+      
+      // Video speech recognition state
+      videoInterimTranscript: this.videoInterimTranscript,
+      isVideoMicMuted: this.isVideoMicMuted,
+      videoConnectionStatus: this.videoConnectionStatus,
+      selectedVideoLanguage: this.selectedVideoLanguage,
+      
+      // Audio state (for AI sphere)
+      inputNode: this.inputNode,
+      outputNode: this.outputNode,
+    };
+  }
+
+  private getUIRendererCallbacks(): UIRendererCallbacks {
+    return {
+      // Video control callbacks
+      startWebcam: () => this.startWebcam(),
+      stopWebcam: () => this.stopWebcam(),
+      toggleVideoMic: () => this.toggleVideoMic(),
+      handleVideoLayoutChange: (layout) => this.handleVideoLayoutChange(layout),
+      handlePipDragStart: (e) => this.handlePipDragStart(e),
+      
+      // Video calling callbacks
+      requestOnlineProfiles: () => this.requestOnlineProfiles(),
+      handleCallProfile: () => this.callProfile(this.selectedProfile),
+      handleEndCall: () => this.endCurrentCall(),
+      handleAcceptCall: () => this.acceptIncomingCall(),
+      handleRejectCall: () => this.rejectIncomingCall(),
+    };
   }
 
   private loadProfileData() {
@@ -3635,6 +3697,11 @@ In ${this.targetLanguage}:
 
   protected updated(changedProperties: Map<string | number | symbol, unknown>) {
     super.updated(changedProperties);
+
+    // Update UIRenderer state when relevant properties change
+    if (this.uiRenderer) {
+      this.uiRenderer.updateState(this.getUIRendererState());
+    }
 
     // Set up video element when video stream becomes available OR when layout changes
     if (
@@ -5142,169 +5209,8 @@ In ${this.targetLanguage}:
           </div>
 
           ${this.leftPanelMode === 'video'
-            ? html`
-                <!-- Video Mode Interface -->
-                <div class="video-interface">
-                  <!-- Layout Selector -->
-                  <div class="video-layout-selector">
-                    <button
-                      class="layout-option vertical ${this.videoLayout === 'vertical'
-                        ? 'active'
-                        : ''}"
-                      @click=${() => this.handleVideoLayoutChange('vertical')}
-                      title="Vertical layout"
-                    ></button>
-                    <button
-                      class="layout-option horizontal ${this.videoLayout === 'horizontal'
-                        ? 'active'
-                        : ''}"
-                      @click=${() => this.handleVideoLayoutChange('horizontal')}
-                      title="Side by side"
-                    ></button>
-                    <button
-                      class="layout-option pip ${this.videoLayout === 'pip' ? 'active' : ''}"
-                      @click=${() => this.handleVideoLayoutChange('pip')}
-                      title="Picture-in-picture"
-                    ></button>
-                  </div>
-
-                  <!-- Video Container -->
-                  <div class="video-container ${this.videoLayout}">
-                    ${this.renderVideoScreens()}
-                  </div>
-
-                  <!-- Video Controls -->
-                  <div class="video-controls">
-                    <select
-                      class="video-language-select"
-                      .value=${this.selectedVideoLanguage}
-                      @change=${(e: Event) =>
-                        (this.selectedVideoLanguage = (e.target as HTMLSelectElement).value)}
-                      title="Select language for speech recognition"
-                    >
-                      <option value="auto">🌐 Auto-detect</option>
-                      <option value="en">🇺🇸 English</option>
-                      <option value="es">🇪🇸 Spanish</option>
-                      <option value="pt">🇵🇹 Portuguese</option>
-                      <option value="fr">🇫🇷 French</option>
-                      <option value="de">🇩🇪 German</option>
-                      <option value="it">🇮🇹 Italian</option>
-                      <option value="ja">🇯🇵 Japanese</option>
-                      <option value="ko">🇰🇷 Korean</option>
-                      <option value="zh">🇨🇳 Chinese</option>
-                    </select>
-
-                    <button
-                      class="video-control-btn ${this.videoStream ? 'active' : ''}"
-                      @click=${this.videoStream
-                        ? () => this.stopWebcam()
-                        : () => this.startWebcam()}
-                      ?disabled=${this.isVideoLoading}
-                    >
-                      ${this.videoStream ? 'Stop Camera' : 'Start Camera'}
-                    </button>
-                    <button
-                      class="video-control-btn ${!this.isVideoMicMuted ? 'active' : ''}"
-                      @click=${this.toggleVideoMic}
-                      title="${this.isVideoMicMuted
-                        ? 'Unmute microphone for subtitles'
-                        : 'Mute microphone (disable subtitles)'}"
-                    >
-                      ${this.isVideoMicMuted
-                        ? 'Mic Off'
-                        : this.videoConnectionStatus === 'connecting'
-                          ? 'Connecting...'
-                          : this.videoConnectionStatus === 'connected'
-                            ? 'Mic On'
-                            : this.videoConnectionStatus === 'error'
-                              ? 'Mic Error'
-                              : 'Mic On'}
-                    </button>
-
-                    <!-- Video Calling Controls -->
-                    <div class="video-calling-section">
-                      ${this.callStatus === 'idle'
-                        ? html`
-                            <div class="profile-calling-group">
-                              <select
-                                class="profile-selector"
-                                .value=${this.selectedProfile}
-                                @change=${(e: Event) => {
-                                  this.selectedProfile = (e.target as HTMLSelectElement).value;
-                                  this.requestUpdate();
-                                }}
-                                @focus=${() => this.requestOnlineProfiles()}
-                              >
-                                <option value="" disabled>Select a profile to call</option>
-                                ${this.profiles
-                                  .filter(profile => profile !== this.currentProfile)
-                                  .map((profile) => {
-                                    const isOnline = this.onlineProfiles.includes(profile);
-                                    return html`
-                                      <option 
-                                        value=${profile}
-                                        ?disabled=${!isOnline}
-                                        class="${isOnline ? 'online-profile' : 'offline-profile'}"
-                                      >
-                                        ${profile} ${isOnline ? '(online)' : '(offline)'}
-                                      </option>
-                                    `;
-                                  })}
-                              </select>
-                              <button
-                                class="video-control-btn call-profile-btn"
-                                @click=${() => this.callProfile(this.selectedProfile)}
-                                ?disabled=${!this.selectedProfile || !this.onlineProfiles.includes(this.selectedProfile)}
-                              >
-                                Call
-                              </button>
-                            </div>
-                            
-                            ${this.onlineProfiles.length === 0
-                              ? html`<div class="no-profiles-message">No other users online</div>`
-                              : ''}
-                          `
-                        : html`
-                            <div class="call-status-display">
-                              ${this.callStatus === 'joining'
-                                ? html`
-                                    <div class="call-info">
-                                      <span class="call-status">Calling ${this.selectedProfile}...</span>
-                                    </div>
-                                  `
-                                : this.callStatus === 'connected'
-                                  ? html`
-                                      <div class="call-info">
-                                        <span class="call-status">Connected with ${this.selectedProfile}</span>
-                                      </div>
-                                    `
-                                  : this.callStatus === 'hosting'
-                                    ? html`
-                                        <div class="call-info">
-                                          <span class="call-code">Code: ${this.callCode}</span>
-                                          <span class="call-status">Waiting for someone to join...</span>
-                                        </div>
-                                      `
-                                    : this.callStatus === 'error'
-                                      ? html`
-                                          <div class="call-info error">
-                                            <span class="call-status">Error: ${this.callError}</span>
-                                          </div>
-                                        `
-                                      : ''}
-
-                              <button
-                                class="video-control-btn end-call-btn"
-                                @click=${() => this.endCurrentCall()}
-                              >
-                                End Call
-                              </button>
-                            </div>
-                          `}
-                    </div>
-                  </div>
-                </div>
-              `
+            ? this.uiRenderer.renderVideoInterface()
+            
             : html`
                 <!-- AI Mode Interface -->
                 <div class="controls">
@@ -5803,37 +5709,6 @@ In ${this.targetLanguage}:
     `;
   }
 
-  private renderIncomingCallNotification() {
-    if (!this.incomingCall) return '';
-
-    return html`
-      <div class="incoming-call-overlay">
-        <div class="incoming-call-notification">
-          <div class="incoming-call-avatar">
-            📞
-          </div>
-          <div class="incoming-call-info">
-            <h3>Incoming Call</h3>
-            <p>${this.incomingCall.callerProfile} is calling you</p>
-          </div>
-          <div class="incoming-call-buttons">
-            <button
-              class="call-action-btn accept-btn"
-              @click=${this.acceptIncomingCall}
-            >
-              Accept
-            </button>
-            <button
-              class="call-action-btn reject-btn"
-              @click=${this.rejectIncomingCall}
-            >
-              Reject
-            </button>
-          </div>
-        </div>
-      </div>
-    `;
-  }
 
   render() {
     const mainContent = this.appState === 'languageSelection' 
@@ -5842,7 +5717,7 @@ In ${this.targetLanguage}:
 
     return html`
       ${mainContent}
-      ${this.incomingCall ? this.renderIncomingCallNotification() : ''}
+      ${this.incomingCall ? this.uiRenderer.renderIncomingCallNotification() : ''}
     `;
   }
 
@@ -5943,180 +5818,6 @@ In ${this.targetLanguage}:
     this.stopVideoSpeechRecognition();
   }
 
-  private renderVideoScreens() {
-    const waitingScreen = html`
-      <div class="video-screen waiting-screen">
-        <div class="waiting-content">
-          ${this.callStatus !== 'idle'
-            ? html`
-                <!-- Remote video area during calls -->
-                <div class="remote-video-container">
-                  ${this.remoteVideoStream
-                    ? html`
-                        <video id="remote-video" class="remote-video" autoplay playsinline></video>
-                        <div class="video-label remote-label">Remote User</div>
-                      `
-                    : html`
-                        <div class="video-placeholder remote-placeholder">
-                          <div class="placeholder-content">
-                            ${this.callStatus === 'hosting'
-                              ? html`
-                                  <div class="call-status">
-                                    <div class="call-code-display">
-                                      <span class="call-code-label">Share this code:</span>
-                                      <span class="call-code-value">${this.callCode}</span>
-                                    </div>
-                                    <div class="waiting-text">Waiting for someone to join...</div>
-                                  </div>
-                                `
-                              : this.callStatus === 'joining'
-                                ? html`
-                                    <div class="call-status">
-                                      <div class="connecting-text">Connecting to call...</div>
-                                    </div>
-                                  `
-                                : this.callStatus === 'connected'
-                                  ? html`
-                                      <div class="call-status">
-                                        <div class="connecting-text">
-                                          Establishing video connection...
-                                        </div>
-                                      </div>
-                                    `
-                                  : html` <div class="no-call-text">No active call</div> `}
-                          </div>
-                        </div>
-                      `}
-                </div>
-              `
-            : html`
-                <!-- AI sphere when no call is active -->
-                <div class="ai-visual-placeholder">
-                  <gdm-live-audio-visuals-3d
-                    .inputNode=${this.inputNode}
-                    .outputNode=${this.outputNode}
-                  ></gdm-live-audio-visuals-3d>
-                </div>
-              `}
-        </div>
-      </div>
-    `;
-
-    const renderWebcamWithSubtitles = (isPip: boolean = false) => html`
-      ${this.isVideoLoading
-        ? html`
-            <div class="video-loading">
-              <div class="loading-spinner"></div>
-              <span>Starting camera...</span>
-            </div>
-          `
-        : this.videoStream
-          ? html`
-              <video
-                id="${isPip ? 'webcam-video-pip' : 'webcam-video'}"
-                class="webcam-video"
-                autoplay
-                muted
-                playsinline
-              ></video>
-              ${this.leftPanelMode === 'video' && this.videoInterimTranscript && !isPip
-                ? html`
-                    <div class="video-subtitle-overlay interim">
-                      <div class="video-subtitle-text">${this.videoInterimTranscript}</div>
-                    </div>
-                  `
-                : ''}
-            `
-          : html`
-              <div class="video-loading">
-                <span>Camera not available</span>
-              </div>
-            `}
-    `;
-
-    // Local video for video calling
-    const renderLocalVideo = () => {
-      // Call active & layout NOT pip -> full size video fits container
-      if (this.callStatus !== 'idle' && this.videoLayout !== 'pip') {
-        return html`
-          <video id="local-video" class="webcam-video" autoplay muted playsinline></video>
-          ${this.videoInterimTranscript
-            ? html`
-                <div class="video-call-subtitle-overlay">
-                  <div class="video-call-subtitle-text">${this.videoInterimTranscript}</div>
-                </div>
-              `
-            : ''}
-        `;
-      }
-
-      // Otherwise (idle or pip layout) -> small overlay container
-      return html`
-        <div class="local-video-container">
-          ${this.localStream
-            ? html`
-                <video id="local-video" class="local-video" autoplay muted playsinline></video>
-                <div class="video-label local-label">You</div>
-              `
-            : this.videoStream
-              ? html`
-                  <video
-                    id="local-video-fallback"
-                    class="local-video"
-                    autoplay
-                    muted
-                    playsinline
-                  ></video>
-                  <div class="video-label local-label">You</div>
-                `
-              : html`
-                  <div class="local-video-placeholder">
-                    <span>Camera off</span>
-                  </div>
-                `}
-        </div>
-      `;
-    };
-
-    const webcamScreen = html`
-      <div class="video-screen ${this.videoLayout === 'pip' ? 'main' : ''} webcam-screen">
-        ${this.callStatus !== 'idle' ? renderLocalVideo() : renderWebcamWithSubtitles(false)}
-      </div>
-    `;
-
-    // During video calls, always use two-screen layout regardless of PiP setting
-    if (this.callStatus !== 'idle') {
-      console.log(
-        '🎥 [RENDER] Video call active, using two-screen layout. Call status:',
-        this.callStatus
-      );
-      return html` ${waitingScreen} ${webcamScreen} `;
-    }
-
-    // Only show PiP layout when NOT in a call and layout is set to pip
-    if (this.videoLayout === 'pip' && this.callStatus === 'idle') {
-      console.log('🎥 [RENDER] No call active, using PiP layout');
-      return html`
-        ${waitingScreen}
-        <div
-          class="video-screen pip-overlay webcam-screen ${this.isDraggingPip ? 'dragging' : ''}"
-          style="left: ${this.pipPosition.x}px; top: ${this.pipPosition.y}px;"
-          @mousedown=${this.handlePipDragStart}
-        >
-          ${renderWebcamWithSubtitles(true)}
-        </div>
-      `;
-    } else {
-      // Regular layouts (horizontal, vertical) or fallback when call is active
-      console.log(
-        '🎥 [RENDER] Using regular two-screen layout. Video layout:',
-        this.videoLayout,
-        'Call status:',
-        this.callStatus
-      );
-      return html` ${waitingScreen} ${webcamScreen} `;
-    }
-  }
 
   private async initVideoSpeechRecognition() {
     if (this.isVideoMicMuted) {
