@@ -125,7 +125,20 @@ export class UIRenderer {
       <div class="controls">
         <button
           id="recordButton"
-          @click=${this.state.isRecording ? this.callbacks.stopRecording : this.callbacks.startRecording}
+          @click=${(e: Event) => {
+            console.log('🎤 Record button clicked! State:', {
+              openAIVoiceSession: !!this.state.openAIVoiceSession,
+              isInitializingSession: this.state.isInitializingSession,
+              isModelSpeaking: this.state.isModelSpeaking,
+              isRecording: this.state.isRecording,
+              buttonDisabled: !this.state.openAIVoiceSession || this.state.isInitializingSession || this.state.isModelSpeaking
+            });
+            if (this.state.isRecording) {
+              this.callbacks.stopRecording();
+            } else {
+              this.callbacks.startRecording();
+            }
+          }}
           ?disabled=${!this.state.openAIVoiceSession ||
           this.state.isInitializingSession ||
           this.state.isModelSpeaking}
