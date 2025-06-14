@@ -241,6 +241,7 @@ export class GdmLiveAudio extends LitElement {
   private boundHandleKeyDown = this.handleKeyDown.bind(this);
   private boundHandleKeyUp = this.handleKeyUp.bind(this);
   private isSpacebarPressed = false;
+  private recordingMode: 'button' | 'spacebar' | null = null;
   
   // UI Renderer instance
   private uiRenderer: UIRenderer;
@@ -3542,7 +3543,7 @@ In ${this.targetLanguage}:
     }
   }
 
-  private async startRecording() {
+  private async startRecording(mode: 'button' | 'spacebar' = 'button') {
     if (this.isRecording) return;
 
     if (!this.openAIVoiceSession || !this.openAIVoiceSession.connected) {
@@ -3562,13 +3563,20 @@ In ${this.targetLanguage}:
     this.status = 'Starting recording...';
 
     try {
-      // Start recording through the OpenAI voice service - PYTHON STYLE
+      // Start recording through the OpenAI voice service
       this.openAIVoiceSession.startRecording();
 
       this.isRecording = true;
-      this.status = '🔴 Recording... Speak now. Release SPACEBAR or click stop when done.';
+      this.recordingMode = mode;
+      
+      // Set appropriate status message based on recording mode
+      if (mode === 'button') {
+        this.status = '🔴 Recording... Speak now. Click stop when done.';
+      } else {
+        this.status = '🔴 Recording... Speak now. Release SPACEBAR when done.';
+      }
+      
       this.error = ''; // Clear any previous errors
-
 
       // Start browser speech recognition for display purposes only
       this.startUserSpeechRecognition();
@@ -3579,12 +3587,19 @@ In ${this.targetLanguage}:
     }
   }
 
-  private stopRecording() {
+  private stopRecording(mode: 'button' | 'spacebar' = 'button') {
+    // Only allow stopping if we're in the correct mode or forcing stop
+    if (this.recordingMode && this.recordingMode !== mode && mode !== 'button') {
+      // Spacebar can't stop button mode, but button can stop any mode
+      return;
+    }
+
     // Let the voice service handle its own recording state
     this.isRecording = false;
+    this.recordingMode = null;
     this.status = 'Processing... Please wait for AI response.';
 
-    // Stop recording and trigger AI response - PYTHON STYLE
+    // Stop recording and trigger AI response
     if (this.openAIVoiceSession) {
       this.openAIVoiceSession.stopRecording();
     }
@@ -5349,7 +5364,7 @@ In ${this.targetLanguage}:
           this.status = '🔴 Recording... Speak now. Release SPACEBAR when done.';
           // Note: Don't set this.isRecording = true here, let the voice service handle it
         } else if (!this.isRecording) {
-          this.startRecording();
+          this.startRecording('spacebar');
         } else {
         }
       } else {
@@ -5370,7 +5385,7 @@ In ${this.targetLanguage}:
 
       if (this.openAIVoiceSession) {
         // Always call stopRecording - let the voice service decide if it should process
-        this.stopRecording();
+        this.stopRecording('spacebar');
       } else {
       }
     }
