@@ -394,6 +394,8 @@ export class GdmLiveAudio extends LitElement {
     if (mode === 'ai') {
       this.stopWebcam();
       this.stopVideoSpeechRecognition();
+      // Initialize AI mode
+      this.initClient();
     } else {
       this.stopRecording();
       this.startWebcam();
