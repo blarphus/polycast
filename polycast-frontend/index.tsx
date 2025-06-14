@@ -246,20 +246,8 @@ export class GdmLiveAudio extends LitElement {
 
   // Video mode methods
   private async startWebcam() {
-    console.log('🎬 startWebcam() called');
-    console.log('🎬 Current state:', {
-      videoStream: !!this.videoStream,
-      isVideoLoading: this.isVideoLoading,
-      isCameraStopped: this.isCameraStopped,
-      leftPanelMode: this.leftPanelMode
-    });
+    if (this.videoStream) return;
 
-    if (this.videoStream) {
-      console.log('🎬 Camera already running, returning early');
-      return;
-    }
-
-    console.log('🎬 Setting loading state and starting camera...');
     this.isVideoLoading = true;
     this.isCameraStopped = false; // Clear stopped state when starting
     this.status = 'Starting camera...';
@@ -267,7 +255,6 @@ export class GdmLiveAudio extends LitElement {
     try {
       // First check if we have permission
       const permissions = await navigator.permissions.query({ name: 'camera' as PermissionName });
-      console.log('Camera permission status:', permissions.state);
 
       // Try with more basic constraints first
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -282,17 +269,10 @@ export class GdmLiveAudio extends LitElement {
       this.videoStream = stream;
       this.isVideoLoading = false;
       this.status = 'Camera started successfully';
-      
-      console.log('🎬 Camera started successfully! New state:', {
-        videoStream: !!this.videoStream,
-        isVideoLoading: this.isVideoLoading,
-        isCameraStopped: this.isCameraStopped
-      });
 
       // Update UIRenderer state immediately with new video stream
       if (this.uiRenderer) {
         this.uiRenderer.updateState(this.getUIRendererState());
-        console.log('🎬 UIRenderer state updated');
       }
 
       // Trigger a re-render and then set up the video
@@ -314,7 +294,6 @@ export class GdmLiveAudio extends LitElement {
           videoElement.onloadedmetadata = () => {
             videoElement.play().catch(console.error);
           };
-          console.log('✅ Video element set up successfully in startWebcam');
         } else {
           console.warn('⚠️ Video element not found in DOM during startWebcam - updated() will handle it');
         }
@@ -347,7 +326,6 @@ export class GdmLiveAudio extends LitElement {
 
   private async tryBasicCamera() {
     try {
-      console.log('🔄 Trying basic camera settings...');
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: false,
@@ -374,13 +352,6 @@ export class GdmLiveAudio extends LitElement {
   }
 
   private stopWebcam() {
-    console.log('🛑 stopWebcam() called');
-    console.log('🛑 Current state before stop:', {
-      videoStream: !!this.videoStream,
-      isVideoLoading: this.isVideoLoading,
-      isCameraStopped: this.isCameraStopped
-    });
-
     if (this.videoStream) {
       this.videoStream.getTracks().forEach((track) => track.stop());
       this.videoStream = null;
@@ -388,21 +359,12 @@ export class GdmLiveAudio extends LitElement {
       this.isCameraStopped = true; // Mark as manually stopped
       this.status = 'Camera stopped';
       
-      console.log('🛑 Camera stopped! New state:', {
-        videoStream: !!this.videoStream,
-        isVideoLoading: this.isVideoLoading,
-        isCameraStopped: this.isCameraStopped
-      });
-      
       // Update UIRenderer state immediately
       if (this.uiRenderer) {
         this.uiRenderer.updateState(this.getUIRendererState());
-        console.log('🛑 UIRenderer state updated');
       }
       
       this.requestUpdate();
-    } else {
-      console.log('🛑 No video stream to stop');
     }
   }
 
@@ -2667,7 +2629,6 @@ export class GdmLiveAudio extends LitElement {
   constructor() {
     super();
     this.currentProfile = localStorage.getItem('lastActiveProfile') || this.profiles[0];
-    console.log(`👤 Constructor loaded profile: ${this.currentProfile}`);
 
     let initialWidth = parseInt(localStorage.getItem('rightPanelWidth') || '600', 10);
     initialWidth = Math.max(this.minRightPanelWidth, initialWidth);
@@ -2719,28 +2680,48 @@ export class GdmLiveAudio extends LitElement {
       videoConnectionStatus: this.videoConnectionStatus,
       selectedVideoLanguage: this.selectedVideoLanguage,
       
-      // Audio state (for AI sphere)
+      // AI mode state
+      isRecording: this.isRecording,
+      openAIVoiceSession: this.openAIVoiceSession,
+      isInitializingSession: this.isInitializingSession,
+      isModelSpeaking: this.isModelSpeaking,
+      hasMicrophone: this.hasMicrophone,
+      availableAudioDevices: this.availableAudioDevices,
+      selectedAudioDeviceId: this.selectedAudioDeviceId,
+      selectedVoice: this.selectedVoice,
+      availableVoices: this.availableVoices,
+      error: this.error,
+      status: this.status,
       inputNode: this.inputNode,
       outputNode: this.outputNode,
+      
+      // Right panel state
+      activeTab: this.activeTab,
+      transcriptHistory: this.transcriptHistory,
+      fontSize: this.fontSize,
+      knownWordForms: this.knownWordForms,
+      searchQuery: this.searchQuery,
+      sortBy: this.sortBy,
+      dictionaryEntries: Array.from(this.dictionaryEntries.entries()).map(([word, entry]) => ({
+        word,
+        ...entry
+      })),
+      expandedWords: this.expandedWords,
+      flashcards: this.flashcards,
+      currentCardIndex: this.currentCardIndex,
+      isFlipped: this.isFlipped,
+      evaluationResult: this.evaluationResult,
+      isEvaluating: this.isEvaluating,
+      diagnosticSession: this.diagnosticSession,
     };
   }
 
   private ensureVideoModeActive() {
-    console.log('▶️ ensureVideoModeActive() called (Start Camera button pressed)');
-    console.log('▶️ Current state:', {
-      leftPanelMode: this.leftPanelMode,
-      videoStream: !!this.videoStream,
-      isVideoLoading: this.isVideoLoading,
-      isCameraStopped: this.isCameraStopped
-    });
-
     // Ensure we're in video mode and all video components are properly initialized
     if (this.leftPanelMode !== 'video') {
-      console.log('▶️ Not in video mode, switching to video mode');
       // If not in video mode, switch to it (this will handle everything)
       this.handleModeSwitch('video');
     } else {
-      console.log('▶️ Already in video mode, starting camera components...');
       // If already in video mode, ensure all video components are active
       this.isCameraStopped = false; // Clear stopped state when explicitly starting
       this.startWebcam();
@@ -2775,6 +2756,40 @@ export class GdmLiveAudio extends LitElement {
       handleEndCall: () => this.endCurrentCall(),
       handleAcceptCall: () => this.acceptIncomingCall(),
       handleRejectCall: () => this.rejectIncomingCall(),
+      
+      // AI mode callbacks
+      startRecording: () => this.startRecording(),
+      stopRecording: () => this.stopRecording(),
+      handleMicrophoneButtonClick: () => this.handleMicrophoneButtonClick(),
+      selectVoice: (voice: string) => this.selectVoice(voice),
+      
+      // Right panel callbacks
+      handleTabClick: (tab) => {
+        this.activeTab = tab;
+        if (this.uiRenderer) this.uiRenderer.updateState(this.getUIRendererState());
+      },
+      handleWordClick: (word: string) => this.handleWordClick(word),
+      handleTextMessage: (message: string) => this.handleTextMessage(message),
+      handleSearchInput: (query: string) => {
+        this.searchQuery = query;
+        if (this.uiRenderer) this.uiRenderer.updateState(this.getUIRendererState());
+      },
+      handleSortChange: (sortBy) => {
+        this.sortBy = sortBy;
+        if (this.uiRenderer) this.uiRenderer.updateState(this.getUIRendererState());
+      },
+      toggleWordExpansion: (word: string) => {
+        if (this.expandedWords.has(word)) {
+          this.expandedWords.delete(word);
+        } else {
+          this.expandedWords.add(word);
+        }
+        if (this.uiRenderer) this.uiRenderer.updateState(this.getUIRendererState());
+      },
+      deleteWord: (word: string) => this.deleteWordFromDictionary(word),
+      handleFlashcardAnswer: (correct: boolean) => this.handleFlashcardAnswer(correct),
+      handleEvaluateTranscript: () => this.evaluateTranscript(),
+      retryEvaluation: () => this.evaluateTranscript(),
     };
   }
 
@@ -2852,7 +2867,6 @@ export class GdmLiveAudio extends LitElement {
 
   private handleProfileChange(e: Event) {
     this.currentProfile = (e.target as HTMLSelectElement).value;
-    console.log(`👤 Profile changed to: ${this.currentProfile}`);
     localStorage.setItem('lastActiveProfile', this.currentProfile);
     this.loadProfileData();
     this.requestUpdate();
@@ -2902,7 +2916,6 @@ export class GdmLiveAudio extends LitElement {
     import('./gemini-api-service.js').then((module) => {
       module
         .preloadTargetLanguage(this.targetLanguage.toLowerCase())
-        .then(() => console.log(`✅ Core vocabulary preloaded for ${this.targetLanguage}`))
         .catch((err) => console.warn(`⚠️ Failed to preload vocabulary: ${err}`));
     });
 
@@ -2950,9 +2963,7 @@ export class GdmLiveAudio extends LitElement {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const audioInputDevices = devices.filter((device) => device.kind === 'audioinput');
 
-      console.log('📱 Found audio input devices:', audioInputDevices.length);
       audioInputDevices.forEach((device) => {
-        console.log(`  - ${device.label || 'Unknown Device'} (${device.deviceId})`);
       });
 
       this.availableAudioDevices = audioInputDevices;
@@ -2960,7 +2971,6 @@ export class GdmLiveAudio extends LitElement {
 
       // If no devices found, try requesting permission first
       if (audioInputDevices.length === 0 || audioInputDevices.every((d) => !d.label)) {
-        console.log('🔓 Requesting microphone permission to get device labels...');
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
           // Stop the stream immediately, we just needed permission
@@ -2975,7 +2985,6 @@ export class GdmLiveAudio extends LitElement {
           this.availableAudioDevices = audioInputsWithLabels;
           this.hasMicrophone = audioInputsWithLabels.length > 0;
 
-          console.log('📱 Audio devices after permission:', audioInputsWithLabels.length);
         } catch (permissionError) {
           console.error('❌ Microphone permission denied:', permissionError);
           this.hasMicrophone = false;
@@ -3001,7 +3010,6 @@ export class GdmLiveAudio extends LitElement {
 
     // If session is active, reconnect with new device
     if (this.openAIVoiceSession && this.openAIVoiceSession.connected) {
-      console.log('🔄 Reconnecting with new audio device...');
       await this.openAIVoiceSession.disconnect();
       // Small delay to ensure cleanup
       setTimeout(() => {
@@ -3078,12 +3086,10 @@ export class GdmLiveAudio extends LitElement {
     const savedVoice = localStorage.getItem(`${this.currentProfile}_selectedVoice`);
     if (savedVoice && this.availableVoices.includes(savedVoice)) {
       this.selectedVoice = savedVoice;
-      console.log('🔊 Loaded saved voice for profile:', this.currentProfile, '→', savedVoice);
     } else {
       // Default to 'alloy' and save it
       this.selectedVoice = 'alloy';
       localStorage.setItem(`${this.currentProfile}_selectedVoice`, 'alloy');
-      console.log('🔊 Set default voice for profile:', this.currentProfile, '→ alloy');
     }
 
     this.requestUpdate();
@@ -3095,24 +3101,19 @@ export class GdmLiveAudio extends LitElement {
   }
 
   private selectVoice(voiceName: string) {
-    console.log('🔊 Voice selection changed:', this.selectedVoice, '→', voiceName);
     this.selectedVoice = voiceName;
 
     // Save preference for current profile
     localStorage.setItem(`${this.currentProfile}_selectedVoice`, voiceName);
-    console.log('💾 Saved voice preference for profile:', this.currentProfile);
 
     // If session is active, reconnect with new voice
     if (this.openAIVoiceSession && this.openAIVoiceSession.connected) {
-      console.log('🔄 Reconnecting OpenAI session with new voice:', voiceName);
       this.openAIVoiceSession.disconnect();
       // Small delay to ensure cleanup
       setTimeout(() => {
-        console.log('🔄 Initializing new session with voice:', voiceName);
         this.initSession();
       }, 500);
     } else {
-      console.log('ℹ️  Session not active, voice will be used on next connection');
     }
 
     this.requestUpdate();
@@ -3257,7 +3258,6 @@ export class GdmLiveAudio extends LitElement {
 
   private async fetchAssistantInstructions(): Promise<string> {
     try {
-      console.log('🤖 Fetching custom assistant instructions...');
       
       // We'll need to call this through the backend since browsers can't make direct OpenAI API calls
       // For now, let's add a fallback until we set up the backend endpoint
@@ -3273,7 +3273,6 @@ export class GdmLiveAudio extends LitElement {
 
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ Retrieved assistant instructions:', data.instructions);
         // Use assistant instructions exactly as they are, no modifications
         return data.instructions || this.getFallbackInstructions();
       } else {
@@ -3445,7 +3444,6 @@ In ${this.targetLanguage}:
       // Set up event handlers - SIMPLIFIED: Only handle complete AI transcripts
       this.openAIVoiceSession.onTranscriptUpdate = (transcript, isComplete) => {
         if (isComplete && transcript && transcript.trim()) {
-          console.log('📝 Adding AI transcript to history:', transcript);
           this.transcriptHistory = [
             ...this.transcriptHistory,
             { speaker: 'model', text: transcript.trim(), id: `model-${crypto.randomUUID()}` },
@@ -3468,7 +3466,6 @@ In ${this.targetLanguage}:
       // NEW: Handle user speech transcriptions
       this.openAIVoiceSession.onUserTranscriptUpdate = (transcript) => {
         if (transcript && transcript.trim()) {
-          console.log('📝 Adding/updating user transcript in history:', transcript);
 
           // Find the most recent user placeholder that needs to be replaced
           // (might not be the last message if AI responded already)
@@ -3490,16 +3487,12 @@ In ${this.targetLanguage}:
               id: updatedHistory[placeholderIndex].id,
             };
             this.transcriptHistory = updatedHistory;
-            console.log(
-              `✅ Replaced placeholder at index ${placeholderIndex} with real transcript`
-            );
           } else {
             // No placeholder found, add new user transcript
             this.transcriptHistory = [
               ...this.transcriptHistory,
               { speaker: 'user', text: transcript.trim(), id: `user-${crypto.randomUUID()}` },
             ];
-            console.log('➕ Added new user transcript (no placeholder found)');
           }
           this.requestUpdate(); // Trigger UI update
         }
@@ -3565,7 +3558,6 @@ In ${this.targetLanguage}:
             this.status = 'Ready! Click record or hold SPACEBAR to talk.';
           }
         } else {
-          console.log('Session closed');
           this.status = 'Session closed.';
           this.isInitializingSession = false;
           this.isRecording = false; // Stop recording if session closes
@@ -3611,16 +3603,13 @@ In ${this.targetLanguage}:
       return;
     }
 
-    console.log('🎤 Starting recording - resuming audio contexts...');
 
     // Ensure audio contexts are active
     if (this.inputAudioContext.state === 'suspended') {
       await this.inputAudioContext.resume();
-      console.log('✅ Input audio context resumed');
     }
     if (this.outputAudioContext.state === 'suspended') {
       await this.outputAudioContext.resume();
-      console.log('✅ Output audio context resumed');
     }
 
     this.status = 'Starting recording...';
@@ -3633,7 +3622,6 @@ In ${this.targetLanguage}:
       this.status = '🔴 Recording... Speak now. Release SPACEBAR or click stop when done.';
       this.error = ''; // Clear any previous errors
 
-      console.log('✅ Recording started successfully');
 
       // Start browser speech recognition for display purposes only
       this.startUserSpeechRecognition();
@@ -3790,16 +3778,7 @@ In ${this.targetLanguage}:
 
     // Update UIRenderer state when relevant properties change
     if (this.uiRenderer) {
-      const newState = this.getUIRendererState();
-      this.uiRenderer.updateState(newState);
-      
-      // Debug: Log current UI state
-      console.log('🔄 UIRenderer state updated in updated():', {
-        videoStream: !!newState.videoStream,
-        isVideoLoading: newState.isVideoLoading,
-        isCameraStopped: newState.isCameraStopped,
-        buttonShouldShow: newState.videoStream ? 'Stop Camera' : 'Start Camera'
-      });
+      this.uiRenderer.updateState(this.getUIRendererState());
     }
 
     // Set up video element when video stream becomes available OR when layout changes
@@ -3823,7 +3802,6 @@ In ${this.targetLanguage}:
             videoElement.onloadedmetadata = () => {
               videoElement.play().catch(console.error);
             };
-            console.log('✅ Video element updated with stream');
           }
         } else {
           console.warn('⚠️ Video element still not found after DOM update, retrying...');
@@ -3838,7 +3816,6 @@ In ${this.targetLanguage}:
               retryVideoElement.onloadedmetadata = () => {
                 retryVideoElement.play().catch(console.error);
               };
-              console.log('✅ Video element found on retry and updated with stream');
             } else {
               console.error('❌ Video element not found even after retry');
             }
@@ -3859,12 +3836,6 @@ In ${this.targetLanguage}:
           '#local-video-fallback'
         ) as HTMLVideoElement;
 
-        console.log('🎥 [UPDATE] Setting up local video display');
-        console.log('🎥 [UPDATE] Local video element found:', !!localVideo);
-        console.log('🎥 [UPDATE] Local video fallback element found:', !!localVideoFallback);
-        console.log('🎥 [UPDATE] Local stream available:', !!this.localStream);
-        console.log('🎥 [UPDATE] Video stream available:', !!this.videoStream);
-        console.log('🎥 [UPDATE] Call status:', this.callStatus);
 
         // Try to set localStream first, then fall back to videoStream
         const streamToUse = this.localStream || this.videoStream;
@@ -3875,14 +3846,12 @@ In ${this.targetLanguage}:
           localVideo.onloadedmetadata = () => {
             localVideo.play().catch(console.error);
           };
-          console.log('✅ [UPDATE] Local video stream set to local-video element');
         } else if (localVideoFallback && streamToUse && !localVideoFallback.srcObject) {
           localVideoFallback.srcObject = streamToUse;
           localVideoFallback.muted = true;
           localVideoFallback.onloadedmetadata = () => {
             localVideoFallback.play().catch(console.error);
           };
-          console.log('✅ [UPDATE] Local video stream set to local-video-fallback element');
         } else {
           console.warn('⚠️ [UPDATE] Could not set up local video display');
         }
@@ -4038,11 +4007,9 @@ In ${this.targetLanguage}:
           wordData.partOfSpeech,
           this.targetLanguage
         );
-        console.log(`📝 Adding ${wordForms.length} forms to known words:`, wordForms);
 
         // Add all forms to the known words set
         wordForms.forEach((form) => {
-          console.log(`➕ Adding form "${form}" to knownWordForms`);
           this.knownWordForms.add(form);
         });
 
@@ -4152,7 +4119,6 @@ In ${this.targetLanguage}:
           this.targetLanguage
         );
         wordForms.forEach((form) => this.knownWordForms.delete(form));
-        console.log(`🗑️ Removed ${wordForms.length} forms from known words:`, wordForms);
       }
 
       this.dictionaryEntries.delete(wordKey);
@@ -4366,7 +4332,6 @@ In ${this.targetLanguage}:
     const currentCardId = this.flashcardQueue[this.currentFlashcardQueueIndex];
     if (usePreloaded && currentCardId && this.preloadedUtterances.has(currentCardId)) {
       utterance = this.preloadedUtterances.get(currentCardId)!;
-      console.log(`🔊 Using preloaded utterance for instant playback`);
     } else {
       // Create new utterance
       utterance = new SpeechSynthesisUtterance(plainText);
@@ -4433,7 +4398,6 @@ In ${this.targetLanguage}:
     this.preloadedUtterances.set(cardId, utterance);
     this.currentPreloadingCardId = cardId;
 
-    console.log(`🎯 Preloaded TTS for card: ${cardId} - "${plainText}"`);
   }
 
   private mapLanguageToSpeechCode(languageName: string): string {
@@ -4607,7 +4571,6 @@ In ${this.targetLanguage}:
       !partOfSpeech.toLowerCase().includes('verb') &&
       !partOfSpeech.toLowerCase().includes('verbo')
     ) {
-      console.log(`📝 "${word}" is not a verb, returning base form only`);
       return [word.toLowerCase().trim()];
     }
 
@@ -4625,14 +4588,12 @@ In ${this.targetLanguage}:
 
   private async fetchSpanishVerbForms(word: string): Promise<string[]> {
     const baseWord = word.toLowerCase().trim();
-    console.log(`🔍 Fetching Spanish verb forms for "${baseWord}"`);
 
     try {
       // Determine which letter file to load
       const firstLetter = baseWord[0];
       const fileName = `./Conjugations/Spanish/by-letter/${firstLetter}.json`;
 
-      console.log(`📁 Loading conjugation file: ${fileName}`);
 
       // Fetch the conjugation file for this letter
       const response = await fetch(fileName);
@@ -5325,428 +5286,10 @@ In ${this.targetLanguage}:
             </button>
           </div>
 
-          ${this.leftPanelMode === 'video'
-            ? this.uiRenderer.renderVideoInterface()
-            
-            : html`
-                <!-- AI Mode Interface -->
-                <div class="controls">
-                  <button
-                    id="recordButton"
-                    @click=${this.isRecording ? this.stopRecording : this.startRecording}
-                    ?disabled=${!this.openAIVoiceSession ||
-                    this.isInitializingSession ||
-                    this.isModelSpeaking}
-                    class="${this.isRecording ? 'recording' : 'not-recording'}"
-                    aria-label="${this.isRecording ? 'Stop Recording' : 'Start Recording'}"
-                  >
-                    ${this.isRecording
-                      ? html`
-                          <svg
-                            viewBox="0 0 100 100"
-                            width="40px"
-                            height="40px"
-                            fill="#ffffff"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <rect x="15" y="15" width="70" height="70" rx="10" />
-                          </svg>
-                        `
-                      : html`
-                          <svg
-                            viewBox="0 0 100 100"
-                            width="40px"
-                            height="40px"
-                            fill="#c80000"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <circle cx="50" cy="50" r="45" />
-                          </svg>
-                        `}
-                  </button>
-
-                  <!-- Audio Controls -->
-                  <div class="audio-controls">
-                    <button
-                      class="microphone-selector-button ${this.hasMicrophone
-                        ? ''
-                        : 'no-microphone'}"
-                      @click=${this.handleMicrophoneButtonClick}
-                      title="${this.hasMicrophone
-                        ? 'Select microphone device'
-                        : 'No microphone detected'}"
-                      aria-label="Microphone device selector"
-                    >
-                      <span class="mic-icon">Mic</span>
-                      <span class="mic-label"
-                        >${this.hasMicrophone
-                          ? (() => {
-                              const device = this.availableAudioDevices.find(
-                                (d) => d.deviceId === this.selectedAudioDeviceId
-                              );
-                              const label = device?.label?.replace(/^Default - /, '') || 'Default';
-                              return label.length > 20 ? label.substring(0, 20) + '...' : label;
-                            })()
-                          : 'No Mic'}</span
-                      >
-                      <span class="dropdown-arrow">▼</span>
-                    </button>
-
-                    <select
-                      class="voice-selector"
-                      .value=${this.selectedVoice}
-                      @change=${(e: Event) =>
-                        this.selectVoice((e.target as HTMLSelectElement).value)}
-                      title="Select AI voice"
-                      aria-label="AI voice selector"
-                    >
-                      ${this.availableVoices.map(
-                        (voice) => html` <option value=${voice}>${voice}</option> `
-                      )}
-                    </select>
-                  </div>
-                </div>
-                <div id="status" role="status" aria-live="polite">${this.error || this.status}</div>
-                <gdm-live-audio-visuals-3d
-                  .inputNode=${this.inputNode}
-                  .outputNode=${this.outputNode}
-                ></gdm-live-audio-visuals-3d>
-              `}
+          ${this.uiRenderer.renderLeftPanelInterface()}
         </div>
         <div class="panel-divider" @mousedown=${this.handlePanelDragStart}></div>
-        <div class="right-panel" style="width: ${this.rightPanelWidth}px; flex-shrink: 0;">
-          <div class="tabs">
-            <button
-              class="${transcriptButtonClasses}"
-              @click=${() => (this.activeTab = 'transcript')}
-              aria-pressed="${this.activeTab === 'transcript'}"
-              aria-controls="transcript-content"
-            >
-              Transcript
-            </button>
-            <button
-              class="${dictionaryButtonClasses}"
-              @click=${() => (this.activeTab = 'dictionary')}
-              aria-pressed="${this.activeTab === 'dictionary'}"
-              aria-controls="dictionary-content"
-            >
-              Dictionary (${this.currentProfile})
-            </button>
-            <button
-              class="${flashcardsButtonClasses}"
-              @click=${() => (this.activeTab = 'flashcards')}
-              aria-pressed="${this.activeTab === 'flashcards'}"
-              aria-controls="flashcards-content"
-            >
-              Flashcards (${this.currentProfile})
-            </button>
-            <button
-              class="${evaluateButtonClasses}"
-              @click=${() => {
-                if (this.isDiagnosticSessionActive) {
-                  this.evaluationError =
-                    'Evaluation is available after the initial diagnostic session.';
-                  this.activeTab = 'evaluate';
-                  this.requestUpdate('activeTab', 'evaluationError');
-                } else {
-                  this.evaluationError = null;
-                  this.activeTab = 'evaluate';
-                }
-              }}
-              aria-pressed="${this.activeTab === 'evaluate'}"
-              aria-controls="evaluate-content"
-              ?disabled=${this.isInitializingSession}
-              title="${this.isDiagnosticSessionActive
-                ? 'Evaluation available after diagnostic'
-                : 'Evaluate conversation'}"
-            >
-              Evaluate
-            </button>
-          </div>
-
-          ${this.activeTab === 'transcript'
-            ? html`
-                <transcript-viewer
-                  .transcriptHistory=${this.transcriptHistory}
-                  .transcriptFontSize=${this.transcriptFontSize}
-                  .knownWordForms=${this.knownWordForms}
-                  .showTextInput=${this.leftPanelMode === 'ai'}
-                  @word-click=${(
-                    e: CustomEvent<{ word: string; sentence: string; event: MouseEvent }>
-                  ) => this.handleWordClick(e.detail.event, e.detail.word, e.detail.sentence)}
-                  @text-message=${(e: CustomEvent<{ text: string }>) =>
-                    this.handleTextMessage(e.detail.text)}
-                ></transcript-viewer>
-              `
-            : ''}
-          ${this.activeTab === 'dictionary'
-            ? html`
-                <div
-                  class="dictionary-content"
-                  id="dictionary-content"
-                  role="tabpanel"
-                  aria-labelledby="dictionary-tab-button"
-                >
-                  <div class="dictionary-controls">
-                    <div class="search-bar">
-                      <input
-                        type="search"
-                        placeholder="Search words... (Press '/' to focus)"
-                        .value=${this.dictionarySearchTerm}
-                        @input=${(e: Event) =>
-                          (this.dictionarySearchTerm = (e.target as HTMLInputElement).value)}
-                        aria-label="Search dictionary words"
-                      />
-                    </div>
-                    <span class="dictionary-word-count"
-                      >${filteredDictionaryEntries.length}
-                      word${filteredDictionaryEntries.length !== 1 ? 's' : ''}</span
-                    >
-                    <div class="dictionary-options">
-                      <select
-                        class="sort-by-select"
-                        .value=${this.dictionarySortOrder}
-                        @change=${(e: Event) =>
-                          (this.dictionarySortOrder = (e.target as HTMLSelectElement).value as any)}
-                        aria-label="Sort dictionary words by"
-                      >
-                        <option value="frequency_desc">Frequency (Most Common First)</option>
-                        <option value="frequency_asc">Frequency (Least Common First)</option>
-                        <option value="alphabetical">Alphabetical (A-Z)</option>
-                        <option value="alphabetical_reverse">Alphabetical (Z-A)</option>
-                        <option value="date_added_desc">Date Added (Newest First)</option>
-                        <option value="date_added_asc">Date Added (Oldest First)</option>
-                      </select>
-                      <button
-                        class="dictionary-action-button"
-                        title="Frequency Guide (Coming Soon)"
-                        disabled
-                      >
-                        <span class="icon">ℹ️</span> Frequency Guide
-                      </button>
-                    </div>
-                  </div>
-                  <div class="dictionary-list">
-                    ${filteredDictionaryEntries.length > 0
-                      ? filteredDictionaryEntries.map((entry) => {
-                          const entryWordKey = entry.word.toLowerCase().trim();
-                          return html`
-                            <div
-                              class="dictionary-entry ${this.expandedDictionaryWords.has(
-                                entryWordKey
-                              )
-                                ? 'expanded'
-                                : ''}"
-                              @click=${() => this.toggleDictionaryWordExpansion(entryWordKey)}
-                              tabindex="0"
-                              role="button"
-                              aria-expanded="${this.expandedDictionaryWords.has(entryWordKey)}"
-                              aria-controls="details-${entryWordKey}"
-                              @keydown=${(e: KeyboardEvent) => {
-                                if (e.key === 'Enter' || e.key === ' ')
-                                  this.toggleDictionaryWordExpansion(entryWordKey);
-                              }}
-                            >
-                              <div class="dictionary-entry-summary">
-                                <span class="dictionary-entry-word">${entry.word}</span>
-                                <div style="display: flex; align-items: center; gap: 10px;">
-                                  ${this.renderFrequencyInfo(entry.frequency, entry.rank)}
-                                  <button
-                                    class="delete-dictionary-entry-btn"
-                                    @click=${async (e: Event) => {
-                                      e.stopPropagation();
-                                      await this.handleDeleteDictionaryEntry(entryWordKey);
-                                    }}
-                                    title="Delete '${entry.word}' from dictionary"
-                                    aria-label="Delete ${entry.word} from dictionary for profile ${this
-                                      .currentProfile}"
-                                  >
-                                    <svg
-                                      xmlns="http://www.w3.org/2000/svg"
-                                      viewBox="0 0 24 24"
-                                      width="18"
-                                      height="18"
-                                      fill="currentColor"
-                                    >
-                                      <path
-                                        d="M7 21q-.825 0-1.412-.587T5 19V6H4V4h5V3h6v1h5v2h-1v13q0 .825-.587 1.413T17 21zM17 6H7v13h10zM9 17h2V8H9zm4 0h2V8h-2z"
-                                      ></path>
-                                    </svg>
-                                  </button>
-                                  <span class="expand-arrow"
-                                    >${this.expandedDictionaryWords.has(entryWordKey)
-                                      ? '▼'
-                                      : '▶'}</span
-                                  >
-                                </div>
-                              </div>
-                              ${this.expandedDictionaryWords.has(entryWordKey)
-                                ? html`
-                                    <div
-                                      class="dictionary-entry-details"
-                                      id="details-${entryWordKey}"
-                                    >
-                                      ${entry.partOfSpeech && entry.partOfSpeech !== 'N/A'
-                                        ? html`<div class="popup-part-of-speech">
-                                            ${entry.partOfSpeech}
-                                          </div>`
-                                        : ''}
-                                      ${entry.translation && entry.translation !== 'N/A'
-                                        ? html` <div>
-                                            <span class="popup-label"
-                                              >Translation (to ${this.nativeLanguage})</span
-                                            ><span class="popup-content-text"
-                                              >${entry.translation}</span
-                                            >
-                                          </div>`
-                                        : ''}
-                                      ${entry.definition && entry.definition !== 'N/A'
-                                        ? html` <div>
-                                            <span class="popup-label"
-                                              >Definition (in ${this.nativeLanguage})</span
-                                            ><span class="popup-content-text"
-                                              >${entry.definition}</span
-                                            >
-                                          </div>`
-                                        : ''}
-                                      ${entry.sentenceContext
-                                        ? html` <div>
-                                            <span class="popup-label"
-                                              >Original Context (in ${this.targetLanguage})</span
-                                            ><span class="popup-content-text"
-                                              ><em>"${entry.sentenceContext}"</em></span
-                                            >
-                                          </div>`
-                                        : ''}
-                                    </div>
-                                  `
-                                : ''}
-                            </div>
-                          `;
-                        })
-                      : html`<p style="text-align:center; color: #8a80a5; margin-top: 20px;">
-                          No words in
-                          dictionary${this.dictionarySearchTerm ? ' match your search' : ''}. Add
-                          words from the transcript!
-                        </p>`}
-                  </div>
-                </div>
-              `
-            : ''}
-          ${this.activeTab === 'flashcards'
-            ? html`
-                <flashcard-manager
-                  .flashcards=${this.flashcards}
-                  .flashcardQueue=${this.flashcardQueue}
-                  .currentIndex=${this.currentFlashcardQueueIndex}
-                  .flipState=${this.flashcardFlipState}
-                  .intervals=${this.flashcardIntervals}
-                  .targetLanguage=${this.targetLanguage}
-                  @prev-card=${() => this.navigateFlashcard('prev')}
-                  @next-card=${() => this.navigateFlashcard('next')}
-                  @answer-card=${(e: CustomEvent<{ correct: boolean }>) =>
-                    this.handleFlashcardAnswer(
-                      this.flashcardQueue[this.currentFlashcardQueueIndex],
-                      e.detail.correct
-                    )}
-                ></flashcard-manager>
-              `
-            : ''}
-          ${this.activeTab === 'evaluate'
-            ? html`
-                <div
-                  class="evaluate-content"
-                  id="evaluate-content"
-                  role="tabpanel"
-                  aria-labelledby="evaluate-tab-button"
-                >
-                  ${this.isDiagnosticSessionActive
-                    ? html`
-                        <h3>Diagnostic Session Active</h3>
-                        <p>
-                          The "Evaluate" feature will be available after you complete the initial
-                          diagnostic session for ${this.currentProfile}.
-                        </p>
-                        <p>Please continue the diagnostic with the AI tutor.</p>
-                      `
-                    : html`
-                        <h3>Evaluate Your ${this.targetLanguage} (${this.currentProfile})</h3>
-                        ${this.isEvaluating
-                          ? html` <p>Evaluating transcript...</p> `
-                          : this.evaluationError
-                            ? html`
-                                <p class="evaluation-error-message">
-                                  Error: ${this.evaluationError}
-                                </p>
-                                <button
-                                  class="evaluate-button"
-                                  @click=${this.handleEvaluateTranscript}
-                                >
-                                  Try Again
-                                </button>
-                              `
-                            : this.evaluationResult
-                              ? html`
-                                  <h4>General Areas for Improvement</h4>
-                                  ${this.evaluationResult.improvementAreas.length > 0
-                                    ? this.evaluationResult.improvementAreas.map(
-                                        (area) => html`
-                                          <div class="suggestion-item">
-                                            <p>
-                                              <strong>Category (in ${this.targetLanguage}):</strong>
-                                              ${area.category}
-                                            </p>
-                                            <p>
-                                              <strong>Focus (in ${this.nativeLanguage}):</strong>
-                                              ${area.description}
-                                            </p>
-                                          </div>
-                                        `
-                                      )
-                                    : html`<p>
-                                        Great job! No broad areas for improvement identified in this
-                                        transcript.
-                                      </p>`}
-
-                                  <h4>Overall Performance (CEFR Level)</h4>
-                                  <p class="evaluation-cefr-level">
-                                    ${this.evaluationResult.cefrLevel}
-                                  </p>
-                                  <button
-                                    class="evaluate-button"
-                                    @click=${this.handleEvaluateTranscript}
-                                    ?disabled=${this.isEvaluating}
-                                  >
-                                    ${this.isEvaluating
-                                      ? 'Re-evaluating...'
-                                      : 'Re-evaluate Transcript'}
-                                  </button>
-                                `
-                              : html`
-                                  <p>
-                                    Get feedback on your conversation performance. This will send
-                                    the current transcript to an AI for evaluation based on broad
-                                    categories.
-                                  </p>
-                                  <button
-                                    class="evaluate-button"
-                                    @click=${this.handleEvaluateTranscript}
-                                    ?disabled=${this.isEvaluating ||
-                                    this.transcriptHistory.length === 0}
-                                    title="${this.transcriptHistory.length === 0
-                                      ? 'Have a conversation first'
-                                      : 'Upload transcript'}"
-                                  >
-                                    ${this.isEvaluating
-                                      ? 'Evaluating...'
-                                      : 'Upload Transcript for Evaluation'}
-                                  </button>
-                                `}
-                      `}
-                </div>
-              `
-            : ''}
-        </div>
+        ${this.uiRenderer.renderRightPanel()}
       </div>
 
       ${this.showMicrophoneSelector
@@ -5849,26 +5392,20 @@ In ${this.targetLanguage}:
       event.preventDefault();
       this.isSpacebarPressed = true;
 
-      console.log('🎤 ================ SPACEBAR PRESSED ================');
-      console.log('🎤 Push-to-talk ACTIVATED - Should start recording');
 
       if (this.openAIVoiceSession && this.openAIVoiceSession.connected) {
         if (this.isModelSpeaking) {
           // Interrupt AI like Python version
-          console.log('🛑 AI is speaking - sending interrupt command');
           this.openAIVoiceSession.interruptAI();
           // Update local state immediately - the voice service will handle recording
           this.isModelSpeaking = false;
           this.status = '🔴 Recording... Speak now. Release SPACEBAR when done.';
           // Note: Don't set this.isRecording = true here, let the voice service handle it
         } else if (!this.isRecording) {
-          console.log('🎤 Starting recording session...');
           this.startRecording();
         } else {
-          console.log('⚠️ Already recording, ignoring spacebar press');
         }
       } else {
-        console.log('❌ Voice session not connected');
       }
     }
   }
@@ -5883,15 +5420,11 @@ In ${this.targetLanguage}:
       event.preventDefault();
       this.isSpacebarPressed = false;
 
-      console.log('🎤 ================ SPACEBAR RELEASED ================');
-      console.log('🎤 Push-to-talk DEACTIVATED - Should commit and create response');
 
       if (this.openAIVoiceSession) {
         // Always call stopRecording - let the voice service decide if it should process
-        console.log('🎤 Stopping recording and triggering AI response...');
         this.stopRecording();
       } else {
-        console.log('❌ Voice session not connected');
       }
     }
   }
@@ -5938,7 +5471,6 @@ In ${this.targetLanguage}:
 
   private async initVideoSpeechRecognition() {
     if (this.isVideoMicMuted) {
-      console.log('🎙️ [VIDEO] Skipping speech recognition - mic is muted');
       return;
     }
 
@@ -5946,7 +5478,6 @@ In ${this.targetLanguage}:
     // simply resume it instead of re-initialising the whole pipeline.
     if (this.isVADInitialized && this.micVAD) {
       try {
-        console.log('🎙️ [VIDEO] Resuming paused WebRTC VAD');
         this.micVAD.start();
         this.videoConnectionStatus = 'connected';
         this.isVideoSpeechActive = true;
@@ -5956,7 +5487,6 @@ In ${this.targetLanguage}:
         // If resuming fails, fall through to full initialisation logic below.
       }
     }
-    console.log('🎙️ [VIDEO] ========== INITIALIZING WebRTC VAD SPEECH RECOGNITION ==========');
 
     try {
       // Initialize WebRTC VAD
@@ -5970,22 +5500,18 @@ In ${this.targetLanguage}:
       this.isVideoSpeechActive = false;
     }
 
-    console.log('🎙️ [VIDEO] ========== WebRTC VAD SPEECH RECOGNITION INITIALIZED ==========');
   }
 
   private async initWebRTCVAD() {
     if (this.isVADInitialized) {
-      console.log('🎙️ [VIDEO] VAD already initialized');
       return;
     }
 
     try {
-      console.log('🎙️ [VIDEO] Initializing WebRTC VAD...');
 
       // Initialize the VAD
       this.micVAD = await MicVAD.new({
         onSpeechStart: () => {
-          console.log('🎙️ [VIDEO] WebRTC VAD: Speech started');
 
           // Create a new placeholder for this speech segment
           const placeholderId = `video-speech-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -6002,13 +5528,11 @@ In ${this.targetLanguage}:
         },
 
         onSpeechEnd: (audio: Float32Array) => {
-          console.log('🎙️ [VIDEO] WebRTC VAD: Speech ended, audio length:', audio.length);
 
           // Get the placeholder ID for this specific speech segment
           const speechPlaceholderId = this.currentVideoPlaceholderId;
 
           if (!speechPlaceholderId) {
-            console.log('🎙️ [VIDEO] No placeholder ID for this speech segment, skipping');
             return;
           }
 
@@ -6026,7 +5550,6 @@ In ${this.targetLanguage}:
         },
 
         onVADMisfire: () => {
-          console.log('🎙️ [VIDEO] WebRTC VAD: Misfire (false positive speech detection)');
 
           // Remove the placeholder as it was a false positive
           if (this.currentVideoPlaceholderId) {
@@ -6045,12 +5568,10 @@ In ${this.targetLanguage}:
         redemptionFrames: 6, // ~180ms silence detection (6 frames × ~30ms/frame = ~180ms)
       });
 
-      console.log('🎙️ [VIDEO] WebRTC VAD initialized successfully');
       this.isVADInitialized = true;
 
       // Start VAD
       this.micVAD.start();
-      console.log('🎙️ [VIDEO] WebRTC VAD started');
     } catch (error) {
       console.error('🎙️ [VIDEO] Error initializing WebRTC VAD:', error);
       throw error;
@@ -6102,7 +5623,6 @@ In ${this.targetLanguage}:
 
   private sendAccumulatedSpeechToWhisper() {
     if (this.pendingSpeechChunks.length === 0) {
-      console.log('🎙️ [VIDEO] No speech chunks to send');
 
       // Remove placeholder if no speech was detected
       if (this.currentVideoPlaceholderId) {
@@ -6132,7 +5652,6 @@ In ${this.targetLanguage}:
   }
 
   private removePlaceholderById(placeholderId: string) {
-    console.log(`🗑️ [VIDEO] Removing placeholder: ${placeholderId}`);
 
     // Remove from both transcript arrays
     this.transcriptHistory = this.transcriptHistory.filter((msg) => msg.id !== placeholderId);
@@ -6144,7 +5663,6 @@ In ${this.targetLanguage}:
   }
 
   private updatePlaceholderText(placeholderId: string, newText: string) {
-    console.log(`🔄 [VIDEO] Updating placeholder ${placeholderId} to: "${newText}"`);
 
     // Update in both transcript arrays
     this.transcriptHistory = this.transcriptHistory.map((msg) =>
@@ -6176,9 +5694,7 @@ In ${this.targetLanguage}:
       // Add language parameter if not set to auto-detect
       if (this.selectedVideoLanguage !== 'auto') {
         formData.append('language', this.selectedVideoLanguage);
-        console.log('🌐 [VIDEO] Using specified language:', this.selectedVideoLanguage);
       } else {
-        console.log('🌐 [VIDEO] Using automatic language detection');
       }
 
       // Use the same backend host as the WebSocket connection
@@ -6191,7 +5707,6 @@ In ${this.targetLanguage}:
         body: formData,
       });
 
-      console.log('🔍 [VIDEO] Response status:', response.status, response.statusText);
       console.log(
         '🔍 [VIDEO] Response headers:',
         Object.fromEntries(response.headers.entries() || [])
@@ -6222,7 +5737,6 @@ In ${this.targetLanguage}:
 
       // Get the response as text first to debug what we're actually getting
       const responseText = await response.text();
-      console.log('🔍 [VIDEO] Raw response text length:', responseText.length);
       console.log(
         '🔍 [VIDEO] Raw response text (first 200 chars):',
         responseText.substring(0, 200)
@@ -6232,7 +5746,6 @@ In ${this.targetLanguage}:
       let data;
       try {
         data = JSON.parse(responseText);
-        console.log('✅ [VIDEO] Successfully parsed JSON response:', data);
       } catch (jsonError) {
         console.error('❌ [VIDEO] Failed to parse response as JSON:', jsonError);
         console.error('❌ [VIDEO] Full response text:', responseText);
@@ -6243,11 +5756,9 @@ In ${this.targetLanguage}:
       const transcribedText = data.text?.trim();
 
       if (transcribedText) {
-        console.log('✅ [VIDEO] Transcription received:', transcribedText);
         // Broadcast transcript to peer if in a call
         if (this.callStatus !== 'idle' && this.signalingSocket?.connected) {
           this.signalingSocket.emit('transcript-message', { text: transcribedText });
-          console.log('📨 [VIDEO] Sent transcript-message to peer');
         }
 
         // Use the passed placeholder ID, or fall back to currentVideoPlaceholderId
@@ -6300,7 +5811,6 @@ In ${this.targetLanguage}:
             this.videoTranscriptHistory = [...this.videoTranscriptHistory, transcriptMessage];
           }
         } else {
-          console.log('⚠️ [VIDEO] No placeholder ID provided, adding new transcript');
           // Add new transcript if no placeholder ID
           const transcriptMessage: TranscriptMessage = {
             speaker: 'user',
@@ -6315,7 +5825,6 @@ In ${this.targetLanguage}:
         // Clean up session tracking
         if (sessionId) {
           this.activeVideoSessions.delete(sessionId);
-          console.log(`🗑️ [VIDEO] Cleaned up session ${sessionId} after successful transcription`);
         }
 
         // Clear the current placeholder ID if it matches
@@ -6336,7 +5845,6 @@ In ${this.targetLanguage}:
           }
         }, 100);
       } else {
-        console.log('🔕 [VIDEO] Empty transcription received - removing placeholder');
 
         // Use the passed placeholder ID, or fall back to currentVideoPlaceholderId
         const targetPlaceholderId = placeholderId || this.currentVideoPlaceholderId;
@@ -6347,7 +5855,6 @@ In ${this.targetLanguage}:
         // Clean up session tracking
         if (sessionId) {
           this.activeVideoSessions.delete(sessionId);
-          console.log(`🗑️ [VIDEO] Cleaned up session ${sessionId} after empty transcription`);
         }
 
         // Clear the placeholder ID if it matches the one we just processed
@@ -6367,7 +5874,6 @@ In ${this.targetLanguage}:
       // Clean up session tracking
       if (sessionId) {
         this.activeVideoSessions.delete(sessionId);
-        console.log(`🗑️ [VIDEO] Cleaned up session ${sessionId} after transcription error`);
       }
 
       // Clear the placeholder ID if it matches the one we just processed
@@ -6384,7 +5890,6 @@ In ${this.targetLanguage}:
   }
 
   private stopVideoSpeechRecognition() {
-    console.log('🎙️ [VIDEO] ========== STOPPING VIDEO SPEECH RECOGNITION ==========');
 
     this.videoRecordingActive = false;
 
@@ -6392,7 +5897,6 @@ In ${this.targetLanguage}:
     if (this.micVAD) {
       try {
         this.micVAD.pause();
-        console.log('🎙️ [VIDEO] WebRTC VAD stopped');
       } catch (error) {
         console.error('🎙️ [VIDEO] Error stopping WebRTC VAD:', error);
       }
@@ -6402,21 +5906,18 @@ In ${this.targetLanguage}:
     if (this.vadSpeechTimer) {
       clearTimeout(this.vadSpeechTimer);
       this.vadSpeechTimer = null;
-      console.log('🎙️ [VIDEO] VAD speech timer cleared');
     }
 
     // Stop old VAD detector (if any still running)
     if (this.videoSilenceDetector) {
       clearInterval(this.videoSilenceDetector);
       this.videoSilenceDetector = null;
-      console.log('🎙️ [VIDEO] Old VAD detector stopped');
     }
 
     // Stop MediaRecorder (if any still running)
     if (this.videoMediaRecorder && this.videoMediaRecorder.state === 'recording') {
       try {
         this.videoMediaRecorder.stop();
-        console.log('🎙️ [VIDEO] MediaRecorder stopped');
       } catch (error) {
         console.error('🎙️ [VIDEO] Error stopping MediaRecorder:', error);
       }
@@ -6427,7 +5928,6 @@ In ${this.targetLanguage}:
     if (this.videoAudioContext) {
       try {
         this.videoAudioContext.close();
-        console.log('🎙️ [VIDEO] Audio context closed');
       } catch (error) {
         console.error('🎙️ [VIDEO] Error closing audio context:', error);
       }
@@ -6439,7 +5939,6 @@ In ${this.targetLanguage}:
     if (this.videoAudioStream) {
       this.videoAudioStream.getTracks().forEach((track) => {
         track.stop();
-        console.log('🎙️ [VIDEO] Audio track stopped:', track.label);
       });
       this.videoAudioStream = null;
     }
@@ -6461,7 +5960,6 @@ In ${this.targetLanguage}:
       }
     }
     this.activeVideoSessions.clear();
-    console.log('🗑️ [VIDEO] Cleaned up all active sessions');
 
     // Clear any remaining timers
     if (this.videoSilenceTimer) {
@@ -6474,7 +5972,6 @@ In ${this.targetLanguage}:
     this.videoInterimTranscript = '';
     this.videoConnectionStatus = 'disconnected';
 
-    console.log('🎙️ [VIDEO] ========== VIDEO SPEECH RECOGNITION STOPPED ==========');
   }
 
   private cleanVideoTranscript(rawTranscript: string) {
@@ -6504,24 +6001,16 @@ In ${this.targetLanguage}:
   }
 
   private toggleVideoMic() {
-    console.log('🎙️ [VIDEO] ========== MIC TOGGLE CLICKED ==========');
-    console.log('🎙️ [VIDEO] Currently muted:', this.isVideoMicMuted);
-    console.log('🎙️ [VIDEO] Current connection status:', this.videoConnectionStatus);
-    console.log('🎙️ [VIDEO] Video session exists:', !!this.videoVoiceSession);
 
     this.isVideoMicMuted = !this.isVideoMicMuted;
-    console.log('🎙️ [VIDEO] New muted state:', this.isVideoMicMuted);
 
     if (this.isVideoMicMuted) {
-      console.log('🔇 [VIDEO] Muting mic - stopping speech recognition');
       this.stopVideoSpeechRecognition();
     } else {
-      console.log('🎤 [VIDEO] Unmuting mic - starting speech recognition');
       this.initVideoSpeechRecognition();
     }
 
     this.requestUpdate();
-    console.log('🎙️ [VIDEO] ========== MIC TOGGLE COMPLETE ==========');
   }
 
   // Voice Activity Detection helper functions
@@ -6549,7 +6038,6 @@ In ${this.targetLanguage}:
         if (samples.length >= 750 / this.VIDEO_FRAME_MS) {
           clearInterval(calibrationInterval);
           const baseline = this.average(samples);
-          console.log(`Video noise floor calibrated: ${baseline.toFixed(4)}`);
           resolve(baseline);
         }
       }, this.VIDEO_FRAME_MS);
@@ -6570,7 +6058,6 @@ In ${this.targetLanguage}:
       return;
     }
     
-    console.log(`📞 Calling profile: ${targetProfile}`);
     this.selectedProfile = targetProfile;
     this.callStatus = 'joining';
     this.callError = null;
@@ -6585,7 +6072,6 @@ In ${this.targetLanguage}:
       return;
     }
     
-    console.log(`✅ Accepting call from: ${this.incomingCall.callerProfile}`);
     this.signalingSocket.emit('accept-call', { callId: this.incomingCall.callId });
   }
 
@@ -6595,14 +6081,12 @@ In ${this.targetLanguage}:
       return;
     }
     
-    console.log(`❌ Rejecting call from: ${this.incomingCall.callerProfile}`);
     this.signalingSocket.emit('reject-call', { callId: this.incomingCall.callId });
     this.incomingCall = null;
     this.requestUpdate();
   }
 
   private handleCallEnded() {
-    console.log('📞 Handling call end cleanup');
     this.currentCallId = null;
     this.callStatus = 'idle';
     this.incomingCall = null;
@@ -6625,7 +6109,6 @@ In ${this.targetLanguage}:
       return;
     }
     
-    console.log('📞 Ending current call');
     this.signalingSocket.emit('end-call', { callId: this.currentCallId });
     this.handleCallEnded();
   }
@@ -6634,16 +6117,11 @@ In ${this.targetLanguage}:
   private async handleHostCall() {
     if (this.callStatus !== 'idle') return;
 
-    console.log('📞 [HOST] Starting host call process');
-    console.log('📞 [HOST] Previous call status:', this.callStatus);
-    console.log('📞 [HOST] Previous video layout:', this.videoLayout);
 
     this.isHostingCall = true;
     this.callStatus = 'hosting';
     this.callError = null;
 
-    console.log('📞 [HOST] New call status:', this.callStatus);
-    console.log('📞 [HOST] Triggering re-render...');
 
     try {
       // Connect to signaling server if not already connected
@@ -6705,7 +6183,6 @@ In ${this.targetLanguage}:
   }
 
   private handleEndCall() {
-    console.log('🔚 Ending call');
 
     // Clean up WebRTC
     if (this.peerConnection) {
@@ -6755,18 +6232,15 @@ In ${this.targetLanguage}:
         });
 
         tempSocket.on('connect', () => {
-          console.log('📞 Connected to signaling server for profile check');
           // Request occupied profiles
           tempSocket.emit('get-occupied-profiles');
         });
 
         tempSocket.on('occupied-profiles', (data: any) => {
-          console.log('📋 Got occupied profiles:', data.profiles);
           this.occupiedProfiles = data.profiles;
           
           // Only warn about occupied profiles, don't auto-switch during profile check
           if (this.occupiedProfiles.includes(this.currentProfile)) {
-            console.log(`⚠️ Profile ${this.currentProfile} is currently occupied by another user`);
             // The UI will show this in the dropdown and prevent selection
           }
           
@@ -6815,9 +6289,6 @@ In ${this.targetLanguage}:
         });
 
         this.signalingSocket.on('connect', () => {
-          console.log('📞 Connected to signaling server via proxy');
-          console.log('🔗 Socket ID:', this.signalingSocket?.id);
-          console.log('🚀 Transport:', this.signalingSocket?.io.engine.transport.name);
           
           // Immediately register profile when connected
           this.signalingSocket?.emit('register-profile', {
@@ -6825,13 +6296,11 @@ In ${this.targetLanguage}:
             nativeLanguage: this.nativeLanguage,
             targetLanguage: this.targetLanguage,
           });
-          console.log(`👤 Registered profile: ${this.currentProfile}`);
           
           resolve();
         });
 
         this.signalingSocket.on('disconnect', (reason) => {
-          console.log('📞 Disconnected from signaling server:', reason);
         });
 
         this.signalingSocket.on('connect_error', (error) => {
@@ -6858,21 +6327,18 @@ In ${this.targetLanguage}:
     // Call successfully hosted
     // Profile-based calling handlers
     this.signalingSocket.on('online-profiles-updated', (data: any) => {
-      console.log('📱 Online profiles updated:', data.profiles);
       // This event sends ALL online profiles, we need to filter out ourselves
       this.onlineProfiles = data.profiles.filter((p: string) => p !== this.currentProfile);
       this.requestUpdate();
     });
 
     this.signalingSocket.on('online-profiles', (data: any) => {
-      console.log('📱 Got online profiles:', data.profiles);
       // This event already excludes our own profile
       this.onlineProfiles = data.profiles;
       this.requestUpdate();
     });
 
     this.signalingSocket.on('incoming-call', (data: any) => {
-      console.log('📞 Incoming call from:', data.callerProfile);
       this.incomingCall = {
         callId: data.callId,
         callerProfile: data.callerProfile
@@ -6881,14 +6347,12 @@ In ${this.targetLanguage}:
     });
 
     this.signalingSocket.on('call-initiated', (data: any) => {
-      console.log('📞 Call initiated to:', data.targetProfile);
       this.currentCallId = data.callId;
       this.callStatus = 'joining';
       this.requestUpdate();
     });
 
     this.signalingSocket.on('call-accepted', (data: any) => {
-      console.log('✅ Call accepted by:', data.calleeProfile || data.callerProfile);
       this.currentCallId = data.callId;
       this.callStatus = 'connected';
       this.incomingCall = null;
@@ -6900,7 +6364,6 @@ In ${this.targetLanguage}:
     });
 
     this.signalingSocket.on('call-rejected', (data: any) => {
-      console.log('❌ Call rejected by:', data.calleeProfile);
       this.currentCallId = null;
       this.callStatus = 'idle';
       this.callError = `Call rejected by ${data.calleeProfile}`;
@@ -6908,12 +6371,10 @@ In ${this.targetLanguage}:
     });
 
     this.signalingSocket.on('call-ended', (data: any) => {
-      console.log('📞 Call ended:', data.reason || 'Unknown reason');
       this.handleCallEnded();
     });
 
     this.signalingSocket.on('call-error', (data: any) => {
-      console.log('❌ Call error:', data.message);
       this.callStatus = 'error';
       this.callError = data.message;
       this.requestUpdate();
@@ -6921,7 +6382,6 @@ In ${this.targetLanguage}:
 
     // Legacy handlers (for backward compatibility)
     this.signalingSocket.on('call-hosted', (data: any) => {
-      console.log(`🏠 Call hosted with code: ${data.code}`);
       this.callCode = data.code;
       this.callStatus = 'hosting';
       this.isHostingCall = true;
@@ -6930,7 +6390,6 @@ In ${this.targetLanguage}:
 
     // Call found when joining
     this.signalingSocket.on('call-found', (data: any) => {
-      console.log(`🤝 Found call, connecting...`);
       this.callStatus = 'joining';
       this.remoteSocketId = data.hostSocketId; // Store host socket ID
       this.requestUpdate();
@@ -6941,7 +6400,6 @@ In ${this.targetLanguage}:
 
     // Someone is joining your hosted call
     this.signalingSocket.on('call-join-request', (data: any) => {
-      console.log(`🤝 Someone is joining your call: ${data.joinerProfile}`);
       this.remoteSocketId = data.joinerSocketId; // Store joiner socket ID
       this.requestUpdate();
 
@@ -6953,7 +6411,6 @@ In ${this.targetLanguage}:
 
     // Call not found
     this.signalingSocket.on('call-not-found', (data: any) => {
-      console.log(`❌ Call not found: ${data.code}`);
       this.callStatus = 'error';
       this.callError = `Call ${data.code} not found`;
       this.requestUpdate();
@@ -6961,38 +6418,32 @@ In ${this.targetLanguage}:
 
     // WebRTC offer received (for host)
     this.signalingSocket.on('webrtc-offer', (data: any) => {
-      console.log(`📡 Received WebRTC offer from: ${data.callerSocketId}`);
       this.remoteSocketId = data.callerSocketId; // Update remote socket ID
       this.handleWebRTCOffer(data.offer, data.callerSocketId);
     });
 
     // WebRTC answer received (for joiner)
     this.signalingSocket.on('webrtc-answer', (data: any) => {
-      console.log(`📡 Received WebRTC answer from: ${data.answererSocketId}`);
       this.handleWebRTCAnswer(data.answer);
     });
 
     // ICE candidate received
     this.signalingSocket.on('webrtc-ice-candidate', (data: any) => {
-      console.log(`🧊 Received ICE candidate from: ${data.senderSocketId}`);
       this.handleICECandidate(data.candidate);
     });
 
     // Call ended by remote peer
     this.signalingSocket.on('call-ended', (data: any) => {
-      console.log(`📞 Call ended: ${data.reason}`);
       this.handleEndCall();
     });
 
     // Joiner left the call
     this.signalingSocket.on('joiner-left', (data: any) => {
-      console.log(`👋 ${data.joinerProfile} left the call`);
       this.handleEndCall();
     });
 
     // Transcript message received from peer
     this.signalingSocket.on('transcript-message', (data: any) => {
-      console.log('📝 Received transcript-message from peer:', data.text);
       const transcriptMessage: TranscriptMessage = {
         speaker: 'partner',
         text: data.text,
@@ -7009,7 +6460,6 @@ In ${this.targetLanguage}:
   }
 
   private async setupWebRTCConnection(isHost: boolean) {
-    console.log(`🔗 Setting up WebRTC connection (${isHost ? 'host' : 'joiner'})`);
 
     try {
       // Create RTCPeerConnection
@@ -7018,7 +6468,6 @@ In ${this.targetLanguage}:
       // Set up event handlers
       this.peerConnection.onicecandidate = (event) => {
         if (event.candidate && this.remoteSocketId) {
-          console.log('🧊 Sending ICE candidate');
           this.signalingSocket?.emit('webrtc-ice-candidate', {
             candidate: event.candidate,
             targetSocketId: this.remoteSocketId,
@@ -7027,7 +6476,6 @@ In ${this.targetLanguage}:
       };
 
       this.peerConnection.ontrack = (event) => {
-        console.log('📹 Received remote video stream');
         this.remoteVideoStream = event.streams[0];
         this.callStatus = 'connected';
         this.requestUpdate();
@@ -7042,15 +6490,12 @@ In ${this.targetLanguage}:
       };
 
       this.peerConnection.onconnectionstatechange = () => {
-        console.log('🔗 Connection state:', this.peerConnection?.connectionState);
         if (this.peerConnection?.connectionState === 'connected') {
-          console.log('✅ WebRTC connection established');
           this.callStatus = 'connected';
         } else if (
           this.peerConnection?.connectionState === 'disconnected' ||
           this.peerConnection?.connectionState === 'failed'
         ) {
-          console.log('❌ WebRTC connection lost');
           this.handleEndCall();
         }
         this.requestUpdate();
@@ -7083,19 +6528,13 @@ In ${this.targetLanguage}:
           '#local-video-fallback'
         ) as HTMLVideoElement;
 
-        console.log('🎥 Setting up local video display');
-        console.log('🎥 Local video element found:', !!localVideo);
-        console.log('🎥 Local video fallback element found:', !!localVideoFallback);
-        console.log('🎥 Local stream available:', !!this.localStream);
 
         if (localVideo && this.localStream) {
           localVideo.srcObject = this.localStream;
           localVideo.muted = true; // Mute local audio to prevent feedback
-          console.log('✅ Local video stream set to local-video element');
         } else if (localVideoFallback && this.localStream) {
           localVideoFallback.srcObject = this.localStream;
           localVideoFallback.muted = true; // Mute local audio to prevent feedback
-          console.log('✅ Local video stream set to local-video-fallback element');
         } else {
           console.warn('⚠️ Could not set up local video display');
         }
@@ -7106,7 +6545,6 @@ In ${this.targetLanguage}:
         const offer = await this.peerConnection.createOffer();
         await this.peerConnection.setLocalDescription(offer);
 
-        console.log('📡 Sending offer to host');
         this.signalingSocket?.emit('webrtc-offer', {
           offer: offer,
           targetSocketId: this.remoteSocketId,
@@ -7121,11 +6559,9 @@ In ${this.targetLanguage}:
   }
 
   private async handleWebRTCOffer(offer: any, callerSocketId: string) {
-    console.log('📡 Handling WebRTC offer from:', callerSocketId);
 
     try {
       if (!this.peerConnection) {
-        console.log('🔗 Creating peer connection for incoming offer');
         await this.setupWebRTCConnection(true); // Set up as host
       }
 
@@ -7136,7 +6572,6 @@ In ${this.targetLanguage}:
       const answer = await this.peerConnection!.createAnswer();
       await this.peerConnection!.setLocalDescription(answer);
 
-      console.log('📡 Sending answer to joiner');
       this.signalingSocket?.emit('webrtc-answer', {
         answer: answer,
         targetSocketId: callerSocketId,
@@ -7150,7 +6585,6 @@ In ${this.targetLanguage}:
   }
 
   private async handleWebRTCAnswer(answer: any) {
-    console.log('📡 Handling WebRTC answer');
 
     try {
       if (!this.peerConnection) {
@@ -7159,7 +6593,6 @@ In ${this.targetLanguage}:
 
       // Set remote description (the answer)
       await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-      console.log('✅ WebRTC answer processed');
     } catch (error) {
       console.error('❌ Error handling WebRTC answer:', error);
       this.callStatus = 'error';
@@ -7169,7 +6602,6 @@ In ${this.targetLanguage}:
   }
 
   private async handleICECandidate(candidate: any) {
-    console.log('🧊 Handling ICE candidate');
 
     try {
       if (!this.peerConnection) {
@@ -7179,7 +6611,6 @@ In ${this.targetLanguage}:
 
       // Add ICE candidate to peer connection
       await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-      console.log('✅ ICE candidate added');
     } catch (error) {
       console.error('❌ Error handling ICE candidate:', error);
       // ICE candidate errors are usually non-fatal, so don't change call status
