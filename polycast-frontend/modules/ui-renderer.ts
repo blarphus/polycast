@@ -59,6 +59,26 @@ export class UIRenderer {
 
   updateState(newState: Partial<UIRendererState>) {
     Object.assign(this.state, newState);
+    
+    // Debug: Log what message should be displayed
+    let displayMessage = '';
+    if (this.state.isVideoLoading) {
+      displayMessage = 'Starting camera...';
+    } else if (this.state.videoStream) {
+      displayMessage = 'Video feed active';
+    } else if (this.state.isCameraStopped) {
+      displayMessage = 'Camera off';
+    } else {
+      displayMessage = 'Camera not available';
+    }
+    
+    console.log('🎨 UIRenderer state updated:', {
+      videoStream: !!this.state.videoStream,
+      isVideoLoading: this.state.isVideoLoading,
+      isCameraStopped: this.state.isCameraStopped,
+      shouldDisplay: displayMessage,
+      buttonText: this.state.videoStream ? 'Stop Camera' : 'Start Camera'
+    });
   }
 
   /**

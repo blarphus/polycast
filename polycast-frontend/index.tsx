@@ -246,8 +246,20 @@ export class GdmLiveAudio extends LitElement {
 
   // Video mode methods
   private async startWebcam() {
-    if (this.videoStream) return;
+    console.log('🎬 startWebcam() called');
+    console.log('🎬 Current state:', {
+      videoStream: !!this.videoStream,
+      isVideoLoading: this.isVideoLoading,
+      isCameraStopped: this.isCameraStopped,
+      leftPanelMode: this.leftPanelMode
+    });
 
+    if (this.videoStream) {
+      console.log('🎬 Camera already running, returning early');
+      return;
+    }
+
+    console.log('🎬 Setting loading state and starting camera...');
     this.isVideoLoading = true;
     this.isCameraStopped = false; // Clear stopped state when starting
     this.status = 'Starting camera...';
@@ -270,10 +282,17 @@ export class GdmLiveAudio extends LitElement {
       this.videoStream = stream;
       this.isVideoLoading = false;
       this.status = 'Camera started successfully';
+      
+      console.log('🎬 Camera started successfully! New state:', {
+        videoStream: !!this.videoStream,
+        isVideoLoading: this.isVideoLoading,
+        isCameraStopped: this.isCameraStopped
+      });
 
       // Update UIRenderer state immediately with new video stream
       if (this.uiRenderer) {
         this.uiRenderer.updateState(this.getUIRendererState());
+        console.log('🎬 UIRenderer state updated');
       }
 
       // Trigger a re-render and then set up the video
@@ -355,13 +374,35 @@ export class GdmLiveAudio extends LitElement {
   }
 
   private stopWebcam() {
+    console.log('🛑 stopWebcam() called');
+    console.log('🛑 Current state before stop:', {
+      videoStream: !!this.videoStream,
+      isVideoLoading: this.isVideoLoading,
+      isCameraStopped: this.isCameraStopped
+    });
+
     if (this.videoStream) {
       this.videoStream.getTracks().forEach((track) => track.stop());
       this.videoStream = null;
       this.isVideoLoading = false;
       this.isCameraStopped = true; // Mark as manually stopped
       this.status = 'Camera stopped';
+      
+      console.log('🛑 Camera stopped! New state:', {
+        videoStream: !!this.videoStream,
+        isVideoLoading: this.isVideoLoading,
+        isCameraStopped: this.isCameraStopped
+      });
+      
+      // Update UIRenderer state immediately
+      if (this.uiRenderer) {
+        this.uiRenderer.updateState(this.getUIRendererState());
+        console.log('🛑 UIRenderer state updated');
+      }
+      
       this.requestUpdate();
+    } else {
+      console.log('🛑 No video stream to stop');
     }
   }
 
@@ -2685,11 +2726,21 @@ export class GdmLiveAudio extends LitElement {
   }
 
   private ensureVideoModeActive() {
+    console.log('▶️ ensureVideoModeActive() called (Start Camera button pressed)');
+    console.log('▶️ Current state:', {
+      leftPanelMode: this.leftPanelMode,
+      videoStream: !!this.videoStream,
+      isVideoLoading: this.isVideoLoading,
+      isCameraStopped: this.isCameraStopped
+    });
+
     // Ensure we're in video mode and all video components are properly initialized
     if (this.leftPanelMode !== 'video') {
+      console.log('▶️ Not in video mode, switching to video mode');
       // If not in video mode, switch to it (this will handle everything)
       this.handleModeSwitch('video');
     } else {
+      console.log('▶️ Already in video mode, starting camera components...');
       // If already in video mode, ensure all video components are active
       this.isCameraStopped = false; // Clear stopped state when explicitly starting
       this.startWebcam();
@@ -3739,7 +3790,16 @@ In ${this.targetLanguage}:
 
     // Update UIRenderer state when relevant properties change
     if (this.uiRenderer) {
-      this.uiRenderer.updateState(this.getUIRendererState());
+      const newState = this.getUIRendererState();
+      this.uiRenderer.updateState(newState);
+      
+      // Debug: Log current UI state
+      console.log('🔄 UIRenderer state updated in updated():', {
+        videoStream: !!newState.videoStream,
+        isVideoLoading: newState.isVideoLoading,
+        isCameraStopped: newState.isCameraStopped,
+        buttonShouldShow: newState.videoStream ? 'Stop Camera' : 'Start Camera'
+      });
     }
 
     // Set up video element when video stream becomes available OR when layout changes
