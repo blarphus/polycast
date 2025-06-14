@@ -32,6 +32,7 @@ import type {
 } from './types';
 import { SUPPORTED_LANGUAGES, PROFILES } from './constants';
 import { UIRenderer } from './modules/ui-renderer';
+import { AudioManager, AudioManagerState, AudioManagerCallbacks } from './modules/audio-manager';
 
 const SpeechRecognitionAPI =
   (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -243,6 +244,7 @@ export class GdmLiveAudio extends LitElement {
   
   // UI Renderer instance
   private uiRenderer: UIRenderer;
+  private audioManager: AudioManager;
 
   // Video mode methods
   private async startWebcam() {
@@ -2641,7 +2643,14 @@ export class GdmLiveAudio extends LitElement {
     this.boundHandleKeyDown = this.handleKeyDown.bind(this);
     this.boundHandleKeyUp = this.handleKeyUp.bind(this);
 
-    this.initializeAvailableVoices();
+    // Initialize AudioManager with state and callbacks
+    this.audioManager = new AudioManager(
+      this.getAudioManagerState(),
+      this.getAudioManagerCallbacks()
+    );
+    
+    // Initialize available voices through audio manager
+    this.audioManager.initializeAvailableVoices();
     
     // Initialize UIRenderer with state and callbacks
     this.uiRenderer = new UIRenderer(
@@ -2652,6 +2661,99 @@ export class GdmLiveAudio extends LitElement {
 
   private getProfileKey(key: string): string {
     return `${this.currentProfile}_${key}`;
+  }
+
+  private getAudioManagerState(): AudioManagerState {
+    return {
+      // Audio devices
+      availableAudioDevices: this.availableAudioDevices,
+      selectedAudioDeviceId: this.selectedAudioDeviceId,
+      hasMicrophone: this.hasMicrophone,
+      
+      // Voice configuration  
+      availableVoices: this.availableVoices,
+      selectedVoice: this.selectedVoice,
+      
+      // Audio contexts
+      inputAudioContext: this.inputAudioContext,
+      outputAudioContext: this.outputAudioContext,
+      inputNode: this.inputNode,
+      outputNode: this.outputNode,
+      
+      // Recording state
+      openAIVoiceSession: this.openAIVoiceSession,
+      videoMediaRecorder: this.videoMediaRecorder,
+      videoAudioContext: this.videoAudioContext,
+      
+      // UI state
+      showMicrophoneSelector: this.showMicrophoneSelector,
+      microphonePopupX: this.microphonePopupX,
+      microphonePopupY: this.microphonePopupY,
+      showVoiceSelector: this.showVoiceSelector,
+      isInitializingSession: this.isInitializingSession,
+      isRecording: this.isRecording,
+    };
+  }
+
+  private getAudioManagerCallbacks(): AudioManagerCallbacks {
+    return {
+      // State updates
+      onStateUpdate: (state: Partial<AudioManagerState>) => {
+        // Update component properties from audio manager state
+        if (state.availableAudioDevices !== undefined) this.availableAudioDevices = state.availableAudioDevices;
+        if (state.selectedAudioDeviceId !== undefined) this.selectedAudioDeviceId = state.selectedAudioDeviceId;
+        if (state.hasMicrophone !== undefined) this.hasMicrophone = state.hasMicrophone;
+        if (state.availableVoices !== undefined) this.availableVoices = state.availableVoices;
+        if (state.selectedVoice !== undefined) this.selectedVoice = state.selectedVoice;
+        if (state.showMicrophoneSelector !== undefined) this.showMicrophoneSelector = state.showMicrophoneSelector;
+        if (state.microphonePopupX !== undefined) this.microphonePopupX = state.microphonePopupX;
+        if (state.microphonePopupY !== undefined) this.microphonePopupY = state.microphonePopupY;
+        if (state.showVoiceSelector !== undefined) this.showVoiceSelector = state.showVoiceSelector;
+        if (state.isInitializingSession !== undefined) this.isInitializingSession = state.isInitializingSession;
+        if (state.isRecording !== undefined) this.isRecording = state.isRecording;
+        
+        // Update UIRenderer state as well
+        if (this.uiRenderer) {
+          this.uiRenderer.updateState(this.getUIRendererState());
+        }
+        
+        this.requestUpdate();
+      },
+      onStatusUpdate: (status: string) => {
+        this.status = status;
+        this.requestUpdate();
+      },
+      onErrorUpdate: (error: string) => {
+        this.error = error;
+        this.requestUpdate();
+      },
+      
+      // Session callbacks
+      onSessionConnected: () => {
+        // Handle session connection
+      },
+      onSessionDisconnected: () => {
+        // Handle session disconnection
+      },
+      onRecordingStateChange: (isRecording: boolean) => {
+        this.isRecording = isRecording;
+        this.requestUpdate();
+      },
+      onInitSession: () => {
+        this.initSession();
+      },
+      
+      // Audio processing callbacks
+      onAudioProcessed: (audioBlob: Blob) => {
+        // Handle processed audio
+      },
+      onTranscriptReceived: (transcript: any) => {
+        // Handle received transcript
+      },
+      
+      // Profile callbacks
+      getCurrentProfile: () => this.currentProfile,
+    };
   }
 
   private getUIRendererState(): UIRendererState {
@@ -2762,8 +2864,8 @@ export class GdmLiveAudio extends LitElement {
       // AI mode callbacks
       startRecording: () => this.startRecording(),
       stopRecording: () => this.stopRecording(),
-      handleMicrophoneButtonClick: () => this.handleMicrophoneButtonClick(),
-      selectVoice: (voice: string) => this.selectVoice(voice),
+      handleMicrophoneButtonClick: (event: MouseEvent) => this.audioManager.handleMicrophoneButtonClick(event),
+      selectVoice: (voice: string) => this.audioManager.selectVoice(voice),
       
       // Right panel callbacks
       handleTabClick: (tab) => {
@@ -2887,7 +2989,7 @@ export class GdmLiveAudio extends LitElement {
   }
 
   private async handleStartConversation() {
-    this.initAudio();
+    this.audioManager.initAudio();
 
     this.transcriptHistory = [];
     this.userInterimTranscript = '';
@@ -2945,191 +3047,14 @@ export class GdmLiveAudio extends LitElement {
     }
   }
 
-  private initAudio() {
-    this.nextStartTime = this.outputAudioContext.currentTime;
-    // Check for microphone devices on audio init
-    this.enumerateAudioDevices();
-  }
 
-  // Microphone device detection and selection methods
-  private async enumerateAudioDevices() {
-    try {
-      // First check if mediaDevices is available
-      if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
-        console.warn('MediaDevices API not supported');
-        this.hasMicrophone = false;
-        return;
-      }
 
-      // Get all media devices
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const audioInputDevices = devices.filter((device) => device.kind === 'audioinput');
 
-      audioInputDevices.forEach((device) => {
-      });
 
-      this.availableAudioDevices = audioInputDevices;
-      this.hasMicrophone = audioInputDevices.length > 0;
 
-      // If no devices found, try requesting permission first
-      if (audioInputDevices.length === 0 || audioInputDevices.every((d) => !d.label)) {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          // Stop the stream immediately, we just needed permission
-          stream.getTracks().forEach((track) => track.stop());
 
-          // Re-enumerate with permission granted
-          const devicesWithLabels = await navigator.mediaDevices.enumerateDevices();
-          const audioInputsWithLabels = devicesWithLabels.filter(
-            (device) => device.kind === 'audioinput'
-          );
 
-          this.availableAudioDevices = audioInputsWithLabels;
-          this.hasMicrophone = audioInputsWithLabels.length > 0;
 
-        } catch (permissionError) {
-          console.error('❌ Microphone permission denied:', permissionError);
-          this.hasMicrophone = false;
-        }
-      }
-
-      // Set default device if none selected
-      if (!this.selectedAudioDeviceId && this.availableAudioDevices.length > 0) {
-        this.selectedAudioDeviceId = this.availableAudioDevices[0].deviceId;
-      }
-
-      this.requestUpdate();
-    } catch (error) {
-      console.error('❌ Error enumerating audio devices:', error);
-      this.hasMicrophone = false;
-      this.requestUpdate();
-    }
-  }
-
-  private async selectAudioDevice(deviceId: string) {
-    this.selectedAudioDeviceId = deviceId;
-    this.showMicrophoneSelector = false;
-
-    // If session is active, reconnect with new device
-    if (this.openAIVoiceSession && this.openAIVoiceSession.connected) {
-      await this.openAIVoiceSession.disconnect();
-      // Small delay to ensure cleanup
-      setTimeout(() => {
-        this.initSession();
-      }, 500);
-    }
-
-    this.requestUpdate();
-  }
-
-  private handleMicrophoneButtonClick(event: MouseEvent) {
-    event.preventDefault();
-    event.stopPropagation();
-
-    if (!this.hasMicrophone) {
-      this.status = 'No microphone detected. Please connect a microphone and refresh the page.';
-      return;
-    }
-
-    if (this.showMicrophoneSelector) {
-      this.closeMicrophoneSelector();
-      return;
-    }
-
-    // Position the popup near the button
-    const rect = (event.target as HTMLElement).getBoundingClientRect();
-    const popupWidth = 350; // Max popup width
-    const popupHeight = 250; // Estimated popup height
-
-    // Default to bottom-left of button
-    let x = rect.left;
-    let y = rect.bottom + 8;
-
-    // Adjust horizontal position if popup would go off the right edge
-    if (x + popupWidth > window.innerWidth) {
-      x = window.innerWidth - popupWidth - 20; // 20px margin from edge
-    }
-
-    // Ensure minimum left margin
-    if (x < 20) {
-      x = 20;
-    }
-
-    // Adjust vertical position if popup would go off the bottom edge
-    if (y + popupHeight > window.innerHeight) {
-      y = rect.top - popupHeight - 8; // Show above button
-
-      // If still off screen, position at top with margin
-      if (y < 20) {
-        y = 20;
-      }
-    }
-
-    this.microphonePopupX = x;
-    this.microphonePopupY = y;
-
-    this.showMicrophoneSelector = true;
-    // Refresh device list when opening
-    this.enumerateAudioDevices();
-    this.requestUpdate();
-  }
-
-  private closeMicrophoneSelector() {
-    this.showMicrophoneSelector = false;
-    this.requestUpdate();
-  }
-
-  // Voice selector methods
-  private initializeAvailableVoices() {
-    // Available OpenAI voices
-    this.availableVoices = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'sage', 'shimmer', 'verse'];
-
-    // Load saved voice preference for current profile
-    const savedVoice = localStorage.getItem(`${this.currentProfile}_selectedVoice`);
-    if (savedVoice && this.availableVoices.includes(savedVoice)) {
-      this.selectedVoice = savedVoice;
-    } else {
-      // Default to 'alloy' and save it
-      this.selectedVoice = 'alloy';
-      localStorage.setItem(`${this.currentProfile}_selectedVoice`, 'alloy');
-    }
-
-    this.requestUpdate();
-  }
-
-  private toggleVoiceSelector() {
-    this.showVoiceSelector = !this.showVoiceSelector;
-    this.requestUpdate();
-  }
-
-  private selectVoice(voiceName: string) {
-    this.selectedVoice = voiceName;
-
-    // Save preference for current profile
-    localStorage.setItem(`${this.currentProfile}_selectedVoice`, voiceName);
-
-    // If session is active, reconnect with new voice
-    if (this.openAIVoiceSession && this.openAIVoiceSession.connected) {
-      this.openAIVoiceSession.disconnect();
-      // Small delay to ensure cleanup
-      setTimeout(() => {
-        this.initSession();
-      }, 500);
-    } else {
-    }
-
-    this.requestUpdate();
-  }
-
-  private handleClickOutsideVoiceSelector(event: MouseEvent) {
-    const target = event.target as Element;
-
-    // Check if click is outside voice popup (but we need to check for popup overlay)
-    if (this.showVoiceSelector && target.classList.contains('popup-overlay')) {
-      this.showVoiceSelector = false;
-      this.requestUpdate();
-    }
-  }
 
   private initSpeechRecognition() {
     if (!SpeechRecognitionAPI) {
@@ -5318,7 +5243,7 @@ In ${this.targetLanguage}:
         ? html`
             <div
               class="popup-overlay"
-              @click=${this.closeMicrophoneSelector}
+              @click=${this.audioManager.closeMicrophoneSelector}
               role="presentation"
             ></div>
             <div
@@ -5341,7 +5266,7 @@ In ${this.targetLanguage}:
                             this.selectedAudioDeviceId
                               ? 'selected'
                               : ''}"
-                            @click=${() => this.selectAudioDevice(device.deviceId)}
+                            @click=${() => this.audioManager.selectAudioDevice(device.deviceId)}
                           >
                             <span class="microphone-device-name">
                               ${device.label?.replace(/^Default - /, '') || 'Unknown Device'}
@@ -5354,7 +5279,7 @@ In ${this.targetLanguage}:
                       )}
                     </div>
                     <div class="microphone-menu-separator"></div>
-                    <div class="microphone-menu-item" @click=${this.enumerateAudioDevices}>
+                    <div class="microphone-menu-item" @click=${this.audioManager.enumerateAudioDevices}>
                       <span>🔄 Refresh Devices</span>
                     </div>
                   `
@@ -5365,7 +5290,7 @@ In ${this.targetLanguage}:
                       </div>
                     </div>
                     <div class="microphone-menu-separator"></div>
-                    <div class="microphone-menu-item" @click=${this.enumerateAudioDevices}>
+                    <div class="microphone-menu-item" @click=${this.audioManager.enumerateAudioDevices}>
                       <span>🔄 Refresh Devices</span>
                     </div>
                   `}
@@ -6646,7 +6571,7 @@ In ${this.targetLanguage}:
     if (this.showMicrophoneSelector) {
       // If clicked on the popup overlay, close the popup
       if (target.classList.contains('popup-overlay')) {
-        this.closeMicrophoneSelector();
+        this.audioManager.closeMicrophoneSelector();
         return;
       }
 
@@ -6663,7 +6588,7 @@ In ${this.targetLanguage}:
       }
 
       // Otherwise, close the popup
-      this.closeMicrophoneSelector();
+      this.audioManager.closeMicrophoneSelector();
     }
   }
 }
