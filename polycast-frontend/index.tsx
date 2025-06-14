@@ -3252,6 +3252,10 @@ export class GdmLiveAudio extends LitElement {
       console.error('Failed to initialize OpenAI voice session:', e);
       this.error = `Client Init Error (Session): ${e.message}. Ensure API_KEY is valid and configured.`;
       this.openAIVoiceSession = null as any;
+      // Explicitly update UIRenderer state to reflect initialization failure
+      if (this.uiRenderer) {
+        this.uiRenderer.updateState(this.getUIRendererState());
+      }
     }
   }
 
@@ -3559,11 +3563,19 @@ In ${this.targetLanguage}:
           } else {
             this.status = 'Ready! Click record or hold SPACEBAR to talk.';
           }
+          // Explicitly update UIRenderer state to ensure button is enabled
+          if (this.uiRenderer) {
+            this.uiRenderer.updateState(this.getUIRendererState());
+          }
         } else {
           this.status = 'Session closed.';
           this.isInitializingSession = false;
           this.isRecording = false; // Stop recording if session closes
           this.requestUpdate('isInitializingSession');
+          // Explicitly update UIRenderer state to reflect disconnection
+          if (this.uiRenderer) {
+            this.uiRenderer.updateState(this.getUIRendererState());
+          }
         }
       };
 
@@ -3577,6 +3589,10 @@ In ${this.targetLanguage}:
         this.error = `Session error: ${error || 'Unknown error'}`;
         this.isInitializingSession = false;
         this.requestUpdate('isInitializingSession');
+        // Explicitly update UIRenderer state to reflect error state
+        if (this.uiRenderer) {
+          this.uiRenderer.updateState(this.getUIRendererState());
+        }
       };
 
       // Connect to OpenAI Voice API
@@ -3594,6 +3610,10 @@ In ${this.targetLanguage}:
       console.error('Failed to initialize session:', e);
       this.error = `Failed to initialize session: ${e.message}`;
       this.openAIVoiceSession = null as any;
+      // Explicitly update UIRenderer state to reflect session initialization failure
+      if (this.uiRenderer) {
+        this.uiRenderer.updateState(this.getUIRendererState());
+      }
     }
   }
 
