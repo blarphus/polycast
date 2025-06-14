@@ -78,7 +78,7 @@ export interface UIRendererCallbacks {
   // AI mode callbacks
   startRecording: () => void;
   stopRecording: () => void;
-  handleMicrophoneButtonClick: () => void;
+  handleMicrophoneButtonClick: (event: MouseEvent) => void;
   selectVoice: (voice: string) => void;
   
   // Right panel callbacks
@@ -176,7 +176,7 @@ export class UIRenderer {
             class="microphone-selector-button ${this.state.hasMicrophone
               ? ''
               : 'no-microphone'}"
-            @click=${this.callbacks.handleMicrophoneButtonClick}
+            @click=${(e: MouseEvent) => this.callbacks.handleMicrophoneButtonClick(e)}
             title="${this.state.hasMicrophone
               ? 'Select microphone device'
               : 'No microphone detected'}"
