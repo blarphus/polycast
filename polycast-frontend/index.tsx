@@ -559,7 +559,7 @@ export class GdmLiveAudio extends LitElement {
       width: 100vw;
       height: 100vh;
       overflow: hidden;
-      background-color: #1a1423; /* Consistent background */
+      background-color: #0d1929; /* Blue dark background */
       color: #e0e0e0;
     }
 
@@ -571,11 +571,11 @@ export class GdmLiveAudio extends LitElement {
       height: 100%;
       padding: 20px;
       box-sizing: border-box;
-      background-color: #1a1423;
+      background-color: #0d1929;
       text-align: center;
     }
     .language-selection-screen h2 {
-      color: #bca0dc;
+      color: #7db3e8;
       margin-bottom: 30px;
       font-size: 1.8em;
     }
@@ -587,15 +587,15 @@ export class GdmLiveAudio extends LitElement {
     .language-selection-group label {
       display: block;
       margin-bottom: 8px;
-      color: #a093c4;
+      color: #6ba2d6;
       font-size: 1em;
     }
     .language-selection-group select {
       width: 100%;
       padding: 12px 15px;
-      background-color: #2a2139;
+      background-color: #1a2332;
       color: #e0e0e0;
-      border: 1px solid #3c3152;
+      border: 1px solid #2d3e52;
       border-radius: 6px;
       font-size: 1em;
       cursor: pointer;
@@ -605,7 +605,7 @@ export class GdmLiveAudio extends LitElement {
       font-size: 1.1em;
       font-weight: bold;
       color: white;
-      background-color: #8a5cf5;
+      background-color: #2b7de9;
       border: none;
       border-radius: 6px;
       cursor: pointer;
@@ -613,7 +613,7 @@ export class GdmLiveAudio extends LitElement {
       margin-top: 20px;
     }
     .language-selection-screen .start-button:hover {
-      background-color: #794ee2;
+      background-color: #1e6bd9;
     }
 
     .app-container {
@@ -641,8 +641,8 @@ export class GdmLiveAudio extends LitElement {
     }
 
     .loading-spinner {
-      border: 5px solid #3c3152; /* Darker part of spinner */
-      border-top: 5px solid #8a5cf5; /* Purple accent */
+      border: 5px solid #2d3e52; /* Darker part of spinner */
+      border-top: 5px solid #2b7de9; /* Purple accent */
       border-radius: 50%;
       width: 50px;
       height: 50px;
@@ -671,8 +671,8 @@ export class GdmLiveAudio extends LitElement {
     /* Mode selector styles */
     .mode-selector {
       display: flex;
-      background-color: #2a2139;
-      border-bottom: 1px solid #3c3152;
+      background-color: #1a2332;
+      border-bottom: 1px solid #2d3e52;
       margin: 0;
       flex-shrink: 0;
       position: relative;
@@ -686,7 +686,7 @@ export class GdmLiveAudio extends LitElement {
       padding: 12px 20px;
       background-color: transparent;
       border: none;
-      color: #a093c4;
+      color: #6ba2d6;
       font-size: 0.95em;
       font-weight: 500;
       cursor: pointer;
@@ -701,14 +701,14 @@ export class GdmLiveAudio extends LitElement {
     }
 
     .mode-tab:hover {
-      color: #bca0dc;
+      color: #7db3e8;
       background-color: rgba(138, 92, 245, 0.1);
     }
 
     .mode-tab.active {
       color: #e0e0e0;
       background-color: rgba(138, 92, 245, 0.15);
-      border-bottom-color: #8a5cf5;
+      border-bottom-color: #2b7de9;
     }
 
     /* Video mode styles */
@@ -718,7 +718,7 @@ export class GdmLiveAudio extends LitElement {
       flex-direction: column;
       gap: 10px;
       padding: 20px;
-      background: linear-gradient(135deg, #1a1423 0%, #2a2139 100%);
+      background: linear-gradient(135deg, #0d1929 0%, #1a2332 100%);
       height: 100%;
       box-sizing: border-box;
       overflow: hidden;
@@ -757,7 +757,7 @@ export class GdmLiveAudio extends LitElement {
 
     .layout-option.active {
       background: rgba(138, 92, 245, 0.6);
-      border-color: #8a5cf5;
+      border-color: #2b7de9;
     }
 
     /* Layout option visual indicators */
@@ -848,7 +848,7 @@ export class GdmLiveAudio extends LitElement {
       border-radius: 12px;
       overflow: hidden;
       position: relative;
-      border: 2px solid #3c3152;
+      border: 2px solid #2d3e52;
       background: #000;
       display: flex;
       align-items: center;
@@ -889,7 +889,7 @@ export class GdmLiveAudio extends LitElement {
       aspect-ratio: 4/3;
       z-index: 50;
       cursor: move;
-      border: 3px solid #8a5cf5;
+      border: 3px solid #2b7de9;
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
       transition:
         border-color 0.2s ease,
@@ -898,13 +898,13 @@ export class GdmLiveAudio extends LitElement {
     }
 
     .video-container.pip .video-screen.pip-overlay:hover {
-      border-color: #bca0dc;
+      border-color: #7db3e8;
       box-shadow: 0 6px 25px rgba(138, 92, 245, 0.4);
     }
 
     .video-screen.dragging {
       opacity: 0.9;
-      border-color: #bca0dc !important;
+      border-color: #7db3e8 !important;
       box-shadow: 0 8px 30px rgba(138, 92, 245, 0.6) !important;
       transition: none; /* Disable transitions while dragging */
     }
@@ -996,7 +996,7 @@ export class GdmLiveAudio extends LitElement {
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #8a5cf5;
+      color: #2b7de9;
       font-size: 0.9em;
       gap: 8px;
       width: 100%;
@@ -1021,7 +1021,7 @@ export class GdmLiveAudio extends LitElement {
 
     .video-control-btn {
       padding: 8px 16px;
-      background-color: #3c3152;
+      background-color: #2d3e52;
       color: #e0e0e0;
       border: 1px solid #4a3f63;
       border-radius: 6px;
@@ -1032,7 +1032,7 @@ export class GdmLiveAudio extends LitElement {
 
     .video-control-btn:hover {
       background-color: #4a3f63;
-      border-color: #8a5cf5;
+      border-color: #2b7de9;
     }
 
     .video-control-btn:disabled {
@@ -1041,13 +1041,13 @@ export class GdmLiveAudio extends LitElement {
     }
 
     .video-control-btn.active {
-      background-color: #8a5cf5;
-      border-color: #8a5cf5;
+      background-color: #2b7de9;
+      border-color: #2b7de9;
     }
 
     .panel-divider {
       width: 5px; /* Matches this.dividerWidth */
-      background-color: #3c3152; /* Existing border color */
+      background-color: #2d3e52; /* Existing border color */
       cursor: col-resize;
       flex-shrink: 0;
       z-index: 5; /* Ensure it's above panel content if needed */
@@ -1055,8 +1055,8 @@ export class GdmLiveAudio extends LitElement {
 
     .right-panel {
       /* width and flex-shrink provided by inline style */
-      /* border-left: 1px solid #3c3152;  Removed, divider handles this */
-      background-color: #2a2139;
+      /* border-left: 1px solid #2d3e52;  Removed, divider handles this */
+      background-color: #1a2332;
       color: #e0e0e0;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       display: flex;
@@ -1068,8 +1068,8 @@ export class GdmLiveAudio extends LitElement {
 
     .tabs {
       display: flex;
-      background-color: #2a2139;
-      border-bottom: 1px solid #3c3152;
+      background-color: #1a2332;
+      border-bottom: 1px solid #2d3e52;
       padding: 0px 15px;
       padding-top: 10px;
       flex-shrink: 0; /* Prevent tabs from shrinking */
@@ -1097,12 +1097,12 @@ export class GdmLiveAudio extends LitElement {
     }
 
     .tab-button:hover {
-      color: #bca0dc;
+      color: #7db3e8;
     }
 
     .tab-button.active {
       color: #e0e0e0;
-      border-bottom-color: #8a5cf5;
+      border-bottom-color: #2b7de9;
     }
 
     .tab-button.dictionary-tab-btn.active {
@@ -1140,13 +1140,13 @@ export class GdmLiveAudio extends LitElement {
       align-items: center;
       padding: 15px 20px;
       flex-shrink: 0;
-      border-bottom: 1px solid #3c3152;
+      border-bottom: 1px solid #2d3e52;
       background-color: #231c31;
     }
 
     .transcript-title {
       font-size: 1.1em;
-      color: #bca0dc;
+      color: #7db3e8;
       text-transform: uppercase;
       font-weight: 500;
     }
@@ -1160,7 +1160,7 @@ export class GdmLiveAudio extends LitElement {
     }
 
     .font-size-button {
-      background-color: #3c3152;
+      background-color: #2d3e52;
       color: #e0e0e0;
       border: 1px solid #4a3f63;
       border-radius: 4px;
@@ -1201,7 +1201,7 @@ export class GdmLiveAudio extends LitElement {
     .dictionary-content::-webkit-scrollbar-track,
     .flashcards-content::-webkit-scrollbar-track,
     .evaluate-content::-webkit-scrollbar-track {
-      background: #2a2139;
+      background: #1a2332;
     }
     .transcript-messages-container::-webkit-scrollbar-thumb,
     .dictionary-content::-webkit-scrollbar-thumb,
@@ -1209,7 +1209,7 @@ export class GdmLiveAudio extends LitElement {
     .evaluate-content::-webkit-scrollbar-thumb {
       background-color: #4a3f63;
       border-radius: 4px;
-      border: 2px solid #2a2139;
+      border: 2px solid #1a2332;
     }
 
     .transcript-messages {
@@ -1219,7 +1219,7 @@ export class GdmLiveAudio extends LitElement {
     }
 
     .transcript-message {
-      background-color: #3c3152;
+      background-color: #2d3e52;
       padding: 8px 12px;
       line-height: 1.5;
       color: #e0e0e0;
@@ -1252,7 +1252,7 @@ export class GdmLiveAudio extends LitElement {
     .clickable-word {
       cursor: pointer;
       text-decoration: underline;
-      text-decoration-color: #a093c4;
+      text-decoration-color: #6ba2d6;
       text-decoration-thickness: 1px;
       text-underline-offset: 3px;
       padding-bottom: 1px;
@@ -1321,8 +1321,8 @@ export class GdmLiveAudio extends LitElement {
 
     .word-popup {
       position: fixed;
-      background-color: #2a2139;
-      border: 1px solid #3c3152;
+      background-color: #1a2332;
+      border: 1px solid #2d3e52;
       border-radius: 8px;
       padding: 15px 20px;
       z-index: 1000;
@@ -1398,7 +1398,7 @@ export class GdmLiveAudio extends LitElement {
     }
 
     .popup-label {
-      color: #bca0dc;
+      color: #7db3e8;
       text-transform: uppercase;
       font-size: 0.8em;
       font-weight: 600;
@@ -1423,7 +1423,7 @@ export class GdmLiveAudio extends LitElement {
       right: 12px;
       background: none;
       border: none;
-      color: #bca0dc;
+      color: #7db3e8;
       font-size: 1.6em;
       font-weight: bold;
       cursor: pointer;
@@ -1438,7 +1438,7 @@ export class GdmLiveAudio extends LitElement {
       font-weight: 500;
     }
     .word-popup .loading-message {
-      color: #a093c4;
+      color: #6ba2d6;
     }
 
     .sr-only {
@@ -1545,13 +1545,13 @@ export class GdmLiveAudio extends LitElement {
       align-items: center;
       padding: 0 0 10px 0;
       margin-bottom: 10px;
-      border-bottom: 1px solid #3c3152;
+      border-bottom: 1px solid #2d3e52;
       flex-wrap: wrap;
       flex-shrink: 0; /* Prevent controls from shrinking */
     }
 
     .search-bar input {
-      background-color: #3c3152;
+      background-color: #2d3e52;
       color: #e0e0e0;
       border: 1px solid #4a3f63;
       border-radius: 4px;
@@ -1581,7 +1581,7 @@ export class GdmLiveAudio extends LitElement {
 
     .sort-by-select,
     .dictionary-action-button {
-      background-color: #3c3152;
+      background-color: #2d3e52;
       color: #e0e0e0;
       border: 1px solid #4a3f63;
       border-radius: 4px;
@@ -1610,7 +1610,7 @@ export class GdmLiveAudio extends LitElement {
     }
 
     .dictionary-entry {
-      background-color: #3c3152;
+      background-color: #2d3e52;
       border-radius: 6px;
       border: 1px solid #4a3f63;
       padding: 10px 15px;
@@ -1671,7 +1671,7 @@ export class GdmLiveAudio extends LitElement {
     .delete-dictionary-entry-btn {
       background: none;
       border: none;
-      color: #bca0dc;
+      color: #7db3e8;
       cursor: pointer;
       padding: 2px;
       display: flex;
@@ -1788,7 +1788,7 @@ export class GdmLiveAudio extends LitElement {
       justify-content: center;
       border: 1px solid #4a3f63;
       border-radius: 12px;
-      background-color: #3c3152;
+      background-color: #2d3e52;
       padding: 20px;
       box-sizing: border-box;
       text-align: center;
@@ -1829,7 +1829,7 @@ export class GdmLiveAudio extends LitElement {
 
     .flashcard-interval {
       font-size: 0.8em;
-      color: #bca0dc;
+      color: #7db3e8;
       margin-top: auto;
       padding-top: 5px;
     }
@@ -1903,14 +1903,14 @@ export class GdmLiveAudio extends LitElement {
       display: flex;
       justify-content: center;
       align-items: center;
-      color: #bca0dc;
+      color: #7db3e8;
       width: 100%;
       margin-top: 10px;
     }
     .flashcard-nav button {
       background: none;
       border: none;
-      color: #bca0dc;
+      color: #7db3e8;
       font-size: 1.8em;
       cursor: pointer;
       padding: 5px 15px;
@@ -1966,7 +1966,7 @@ export class GdmLiveAudio extends LitElement {
       align-items: center;
       gap: 8px;
       margin-bottom: 10px;
-      color: #bca0dc;
+      color: #7db3e8;
       font-weight: 600;
     }
     .calendar-entry {
@@ -1995,7 +1995,7 @@ export class GdmLiveAudio extends LitElement {
     }
     .evaluate-content h3,
     .evaluate-content h4 {
-      color: #bca0dc;
+      color: #7db3e8;
       margin-top: 10px;
       margin-bottom: 5px;
     }
@@ -2008,7 +2008,7 @@ export class GdmLiveAudio extends LitElement {
       color: #c0b8d8; /* Slightly lighter for better readability */
     }
     .evaluate-button {
-      background-color: #8a5cf5;
+      background-color: #2b7de9;
       color: white;
       border: none;
       padding: 10px 15px;
@@ -2018,14 +2018,14 @@ export class GdmLiveAudio extends LitElement {
       transition: background-color 0.2s ease;
     }
     .evaluate-button:hover:not(:disabled) {
-      background-color: #794ee2;
+      background-color: #1e6bd9;
     }
     .evaluate-button:disabled {
       background-color: #5a4f73;
       cursor: not-allowed;
     }
     .suggestion-item {
-      background-color: #3c3152;
+      background-color: #2d3e52;
       padding: 15px;
       border-radius: 6px;
       margin-bottom: 15px;
@@ -2038,7 +2038,7 @@ export class GdmLiveAudio extends LitElement {
       color: #e0e0e0;
     }
     .suggestion-item strong {
-      color: #bca0dc;
+      color: #7db3e8;
     }
     .evaluation-cefr-level {
       font-size: 1.3em;
@@ -2053,7 +2053,7 @@ export class GdmLiveAudio extends LitElement {
 
     .video-language-select {
       padding: 8px 12px;
-      background-color: #3c3152;
+      background-color: #2d3e52;
       color: #e0e0e0;
       border: 1px solid #4a3f63;
       border-radius: 6px;
@@ -2065,12 +2065,12 @@ export class GdmLiveAudio extends LitElement {
 
     .video-language-select:hover {
       background-color: #4a3f63;
-      border-color: #8a5cf5;
+      border-color: #2b7de9;
     }
 
     .video-language-select:focus {
       outline: none;
-      border-color: #8a5cf5;
+      border-color: #2b7de9;
       box-shadow: 0 0 0 2px rgba(138, 92, 245, 0.2);
     }
 
@@ -2108,11 +2108,11 @@ export class GdmLiveAudio extends LitElement {
       display: flex;
       align-items: center;
       justify-content: center;
-      background: linear-gradient(135deg, #2a2438 0%, #3c3152 100%);
+      background: linear-gradient(135deg, #2a2438 0%, #2d3e52 100%);
     }
 
     .remote-placeholder {
-      color: #a093c4;
+      color: #6ba2d6;
     }
 
     .placeholder-content {
@@ -2134,21 +2134,21 @@ export class GdmLiveAudio extends LitElement {
       gap: 0.5rem;
       padding: 1rem;
       background: rgba(138, 92, 245, 0.1);
-      border: 2px solid #8a5cf5;
+      border: 2px solid #2b7de9;
       border-radius: 12px;
       animation: pulse-glow 2s infinite;
     }
 
     .call-code-label {
       font-size: 0.9rem;
-      color: #bca0dc;
+      color: #7db3e8;
       margin-bottom: 0.25rem;
     }
 
     .call-code-value {
       font-size: 2rem;
       font-weight: bold;
-      color: #8a5cf5;
+      color: #2b7de9;
       font-family: 'Courier New', monospace;
       letter-spacing: 0.2em;
       text-shadow: 0 0 10px rgba(138, 92, 245, 0.5);
@@ -2170,7 +2170,7 @@ export class GdmLiveAudio extends LitElement {
       height: 150px;
       border-radius: 12px;
       overflow: hidden;
-      border: 2px solid #8a5cf5;
+      border: 2px solid #2b7de9;
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
       background: #2a2438;
     }
@@ -2189,7 +2189,7 @@ export class GdmLiveAudio extends LitElement {
       display: flex;
       align-items: center;
       justify-content: center;
-      background: #3c3152;
+      background: #2d3e52;
       color: #8a80a5;
       font-size: 0.9rem;
     }
@@ -2276,7 +2276,7 @@ export class GdmLiveAudio extends LitElement {
     }
 
     .microphone-selector-button {
-      background: #3c3152;
+      background: #2d3e52;
       border: 1px solid #5a4b73;
       color: #e0e0e0;
       padding: 8px 12px;
@@ -2323,7 +2323,7 @@ export class GdmLiveAudio extends LitElement {
     .microphone-context-menu {
       position: fixed;
       z-index: 10000;
-      background: #2a2139;
+      background: #1a2332;
       border: 1px solid #5a4b73;
       border-radius: 8px;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
@@ -2346,7 +2346,7 @@ export class GdmLiveAudio extends LitElement {
     }
 
     .microphone-menu-header {
-      background: #3c3152;
+      background: #2d3e52;
       color: #e0e0e0;
       padding: 8px 12px;
       font-weight: 600;
@@ -2374,12 +2374,12 @@ export class GdmLiveAudio extends LitElement {
     }
 
     .microphone-menu-item:hover:not(.disabled) {
-      background: #3c3152;
+      background: #2d3e52;
     }
 
     .microphone-menu-item.selected {
       background: #4a3d60;
-      color: #8a5cf5;
+      color: #2b7de9;
     }
 
     .microphone-menu-item.disabled {
@@ -2398,7 +2398,7 @@ export class GdmLiveAudio extends LitElement {
     }
 
     .microphone-selected-check {
-      color: #8a5cf5;
+      color: #2b7de9;
       font-weight: bold;
       margin-left: 8px;
     }
@@ -2410,7 +2410,7 @@ export class GdmLiveAudio extends LitElement {
     }
 
     .voice-selector {
-      background: #3c3152;
+      background: #2d3e52;
       border: 1px solid #5a4b73;
       color: #e0e0e0;
       padding: 8px 12px;
@@ -2427,7 +2427,7 @@ export class GdmLiveAudio extends LitElement {
     }
 
     .voice-selector option {
-      background: #3c3152;
+      background: #2d3e52;
       color: #e0e0e0;
       text-transform: capitalize;
     }
@@ -2456,8 +2456,8 @@ export class GdmLiveAudio extends LitElement {
     }
 
     .incoming-call-notification {
-      background: linear-gradient(135deg, #3c3152 0%, #2a2438 100%);
-      border: 2px solid #8a5cf5;
+      background: linear-gradient(135deg, #2d3e52 0%, #2a2438 100%);
+      border: 2px solid #2b7de9;
       border-radius: 16px;
       padding: 24px;
       text-align: center;
@@ -2556,7 +2556,7 @@ export class GdmLiveAudio extends LitElement {
     }
 
     .profile-selector {
-      background: #3c3152;
+      background: #2d3e52;
       border: 1px solid #6b5b95;
       border-radius: 6px;
       color: #e0e0e0;
@@ -2568,11 +2568,11 @@ export class GdmLiveAudio extends LitElement {
 
     .profile-selector:focus {
       outline: none;
-      border-color: #8a5cf5;
+      border-color: #2b7de9;
     }
 
     .profile-selector option {
-      background: #3c3152;
+      background: #2d3e52;
       color: #e0e0e0;
     }
 
@@ -2592,7 +2592,7 @@ export class GdmLiveAudio extends LitElement {
     }
 
     .call-profile-btn {
-      background: linear-gradient(135deg, #8a5cf5 0%, #6b46c1 100%);
+      background: linear-gradient(135deg, #2b7de9 0%, #6b46c1 100%);
     }
 
     .call-profile-btn:hover:not(:disabled) {
